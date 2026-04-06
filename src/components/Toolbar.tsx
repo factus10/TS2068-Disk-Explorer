@@ -4,12 +4,14 @@ interface Props {
   onOpen: () => void;
   onExtractSelected: () => void;
   onExtractAll: () => void;
+  onExtractPackage: () => void;
   hasSelection: boolean;
+  hasPackageSelected: boolean;
   hasDisk: boolean;
   extracting: boolean;
 }
 
-export function Toolbar({ onOpen, onExtractSelected, onExtractAll, hasSelection, hasDisk, extracting }: Props) {
+export function Toolbar({ onOpen, onExtractSelected, onExtractAll, onExtractPackage, hasSelection, hasPackageSelected, hasDisk, extracting }: Props) {
   return (
     <div style={{
       display: 'flex',
@@ -46,6 +48,15 @@ export function Toolbar({ onOpen, onExtractSelected, onExtractAll, hasSelection,
         >
           Extract Selected
         </button>
+        {hasPackageSelected && (
+          <button
+            onClick={onExtractPackage}
+            disabled={extracting}
+            style={{ background: 'var(--bg-tertiary)', color: 'var(--accent)' }}
+          >
+            Extract as Package
+          </button>
+        )}
         <button
           onClick={onExtractAll}
           disabled={!hasDisk || extracting}

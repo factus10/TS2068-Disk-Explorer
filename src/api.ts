@@ -35,6 +35,18 @@ export interface ExtractionResult {
   size: number;
 }
 
+export interface LoadReference {
+  lineNumber: number;
+  filename: string;
+  loadType: 'any' | 'code' | 'screen' | 'data';
+}
+
+export interface TapPackage {
+  loader: FileEntry;
+  dependencies: FileEntry[];
+  unresolved: LoadReference[];
+}
+
 interface DiskToolsAPI {
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
@@ -42,6 +54,8 @@ interface DiskToolsAPI {
   extractFile: (imagePath: string, entryIndex: number, destDir: string) => Promise<ExtractionResult | null>;
   extractAll: (imagePath: string, destDir: string) => Promise<ExtractionResult[]>;
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
+  analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
+  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string) => Promise<ExtractionResult | null>;
   onMenuOpenFile: (callback: () => void) => () => void;
 }
 

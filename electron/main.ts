@@ -7,9 +7,10 @@ import { readCatalog as readOliger, readFileData as readOligerFile } from './par
 import { readCatalog as readAerco, readFileData as readAercoFile } from './parsers/aerco';
 import { readCatalog as readZebra, readFileData as readZebraFile } from './parsers/zebra';
 import { readCatalog as readQL, readFileData as readQLFile } from './parsers/ql';
-import { buildTapFile, buildDumpTap } from './parsers/tap';
+import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
+import { buildTapPackages } from './parsers/basic-analyzer';
 import { makeSafeFilename, uniquePath } from './parsers/utils';
-import type { DiskImage, DiskFormat, FileEntry, ExtractionResult } from './parsers/types';
+import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage } from './parsers/types';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -160,13 +161,50 @@ ipcMain.handle('extract-all', async (_event, imagePath: string, destDir: string)
 
   const parser = getParser(format);
   const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
 
   fs.mkdirSync(destDir, { recursive: true });
   const results: ExtractionResult[] = [];
 
-  for (const entry of entries) {
+  // Read all file data up front for package detection
+  const fileDataMap = new Map<number, Buffer>();
+  for (const entry of allEntries) {
     if (entry.isDirectory) continue;
-    const fileData = parser.readFileData(buffer, entry);
+    const data = parser.readFileData(buffer, entry);
+    if (data) fileDataMap.set(entry.index, data);
+  }
+
+  // Detect packages for TAP-capable formats
+  const usesTap = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64'].includes(format);
+  const packages = usesTap ? buildTapPackages(entries, fileDataMap) : [];
+  const bundledIndices = new Set<number>();
+
+  // Extract packages as multi-file TAPs
+  for (const pkg of packages) {
+    const tapData = buildMultiFileTap(pkg, fileDataMap);
+    if (!tapData) continue;
+
+    const safeName = makeSafeFilename(pkg.loader.filename.trim());
+    const tapPath = uniquePath(path.join(destDir, (safeName || 'package') + '.tap'));
+    fs.writeFileSync(tapPath, tapData);
+
+    results.push({
+      filename: pkg.loader.filename,
+      outputPaths: [tapPath],
+      format: 'tap',
+      size: tapData.length,
+    });
+
+    bundledIndices.add(pkg.loader.index);
+    for (const dep of pkg.dependencies) {
+      bundledIndices.add(dep.index);
+    }
+  }
+
+  // Extract remaining files individually
+  for (const entry of allEntries) {
+    if (entry.isDirectory || bundledIndices.has(entry.index)) continue;
+    const fileData = fileDataMap.get(entry.index);
     if (!fileData) continue;
     const result = writeExtractedFile(destDir, entry, fileData, format);
     if (result) results.push(result);
@@ -191,6 +229,78 @@ ipcMain.handle('get-file-data', async (_event, imagePath: string, entryIndex: nu
   // Return as number array for serialization across IPC
   return Array.from(fileData.slice(0, 65536));
 });
+
+ipcMain.handle('analyze-packages', async (_event, imagePath: string): Promise<TapPackage[]> => {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return [];
+
+  // Only TAP-capable formats have packages
+  if (!['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64'].includes(format)) return [];
+
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+
+  // Read all BASIC files' content
+  const fileDataMap = new Map<number, Buffer>();
+  for (const entry of allEntries) {
+    if (entry.isDirectory) continue;
+    const data = parser.readFileData(buffer, entry);
+    if (data) fileDataMap.set(entry.index, data);
+  }
+
+  return buildTapPackages(entries, fileDataMap);
+});
+
+ipcMain.handle('extract-package', async (
+  _event, imagePath: string, loaderIndex: number, depIndices: number[], destDir: string,
+): Promise<ExtractionResult | null> => {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+
+  const loader = allEntries.find((e) => e.index === loaderIndex);
+  if (!loader) return null;
+
+  const deps = depIndices.map((i) => allEntries.find((e) => e.index === i)).filter(Boolean) as FileEntry[];
+
+  // Read all file data
+  const fileDataMap = new Map<number, Buffer>();
+  for (const entry of [loader, ...deps]) {
+    const data = parser.readFileData(buffer, entry);
+    if (data) fileDataMap.set(entry.index, data);
+  }
+
+  const pkg: TapPackage = { loader, dependencies: deps, unresolved: [] };
+  const tapData = buildMultiFileTap(pkg, fileDataMap);
+  if (!tapData) return null;
+
+  fs.mkdirSync(destDir, { recursive: true });
+  const safeName = makeSafeFilename(loader.filename.trim());
+  const tapPath = uniquePath(path.join(destDir, (safeName || 'package') + '.tap'));
+  fs.writeFileSync(tapPath, tapData);
+
+  return {
+    filename: loader.filename,
+    outputPaths: [tapPath],
+    format: 'tap',
+    size: tapData.length,
+  };
+});
+
+function flattenEntries(entries: FileEntry[]): FileEntry[] {
+  const flat: FileEntry[] = [];
+  for (const e of entries) {
+    flat.push(e);
+    if (e.children) flat.push(...e.children);
+  }
+  return flat;
+}
 
 function writeExtractedFile(destDir: string, entry: FileEntry, fileData: Buffer, format: DiskFormat): ExtractionResult | null {
   const safeName = makeSafeFilename(entry.filename.trim());

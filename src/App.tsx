@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { api, DiskImage, FileEntry, ExtractionResult } from './api';
+import { api, DiskImage, FileEntry, ExtractionResult, TapPackage } from './api';
 import { Toolbar } from './components/Toolbar';
 import { DiskInfo } from './components/DiskInfo';
 import { FileTable } from './components/FileTable';
@@ -15,6 +15,7 @@ function App() {
   const [hexFilename, setHexFilename] = useState('');
   const [status, setStatus] = useState('Drop a disk image or click Open');
   const [extracting, setExtracting] = useState(false);
+  const [packages, setPackages] = useState<TapPackage[]>([]);
 
   const handleOpen = useCallback(async () => {
     try {
@@ -24,6 +25,8 @@ function App() {
         setSelectedIndices(new Set());
         setHexData(null);
         setStatus(`Loaded ${result.catalog.length} files`);
+        const pkgs = await api.analyzePackages(result.path);
+        setPackages(pkgs);
       }
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
@@ -38,6 +41,8 @@ function App() {
       setSelectedIndices(new Set());
       setHexData(null);
       setStatus(`Loaded ${result.catalog.length} files`);
+      const pkgs = await api.analyzePackages(result.path);
+      setPackages(pkgs);
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
@@ -88,6 +93,28 @@ function App() {
     setStatus(`Extracted ${results.length} file(s)`);
   }, [disk, selectedIndices]);
 
+  const handleExtractPackage = useCallback(async () => {
+    if (!disk || selectedIndices.size === 0) return;
+
+    // Find a package whose loader is selected
+    const pkg = packages.find((p) => selectedIndices.has(p.loader.index));
+    if (!pkg) return;
+
+    const destDir = await api.selectDirectory();
+    if (!destDir) return;
+
+    setExtracting(true);
+    setStatus('Extracting package...');
+    try {
+      const depIndices = pkg.dependencies.map((d) => d.index);
+      const result = await api.extractPackage(disk.path, pkg.loader.index, depIndices, destDir);
+      setStatus(result ? `Extracted package: ${result.filename.trim()}` : 'Package extraction failed');
+    } catch (err: any) {
+      setStatus(`Error: ${err.message}`);
+    }
+    setExtracting(false);
+  }, [disk, selectedIndices, packages]);
+
   const handleExtractAll = useCallback(async () => {
     if (!disk) return;
     const destDir = await api.selectDirectory();
@@ -115,13 +142,19 @@ function App() {
     ? flattenEntries(disk.catalog).find((e) => selectedIndices.has(e.index)) ?? null
     : null;
 
+  const selectedPackage = selectedEntry
+    ? packages.find((p) => p.loader.index === selectedEntry.index) ?? null
+    : null;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <Toolbar
         onOpen={handleOpen}
         onExtractSelected={handleExtractSelected}
         onExtractAll={handleExtractAll}
+        onExtractPackage={handleExtractPackage}
         hasSelection={selectedIndices.size > 0}
+        hasPackageSelected={selectedPackage !== null}
         hasDisk={disk !== null}
         extracting={extracting}
       />
@@ -137,6 +170,7 @@ function App() {
                 selectedIndices={selectedIndices}
                 onSelect={handleSelect}
                 onViewHex={handleViewHex}
+                packages={packages}
               />
             ) : (
               <DropZone onDrop={handleDrop} />
@@ -144,7 +178,11 @@ function App() {
           </div>
 
           {selectedEntry && (
-            <FileDetails entry={selectedEntry} onViewHex={() => handleViewHex(selectedEntry)} />
+            <FileDetails
+              entry={selectedEntry}
+              onViewHex={() => handleViewHex(selectedEntry)}
+              tapPackage={selectedPackage}
+            />
           )}
         </div>
 

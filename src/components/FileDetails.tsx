@@ -1,12 +1,13 @@
 import React from 'react';
-import type { FileEntry } from '../api';
+import type { FileEntry, TapPackage } from '../api';
 
 interface Props {
   entry: FileEntry;
   onViewHex: () => void;
+  tapPackage?: TapPackage | null;
 }
 
-export function FileDetails({ entry, onViewHex }: Props) {
+export function FileDetails({ entry, onViewHex, tapPackage }: Props) {
   return (
     <div style={{
       padding: '10px 14px',
@@ -40,6 +41,25 @@ export function FileDetails({ entry, onViewHex }: Props) {
           <span key={k}>{k}: {v}</span>
         ))}
       </div>
+      {tapPackage && (
+        <div style={{ marginTop: 6, color: 'var(--accent)' }}>
+          <span style={{ fontWeight: 600 }}>Loads: </span>
+          {tapPackage.dependencies.map((dep, i) => (
+            <span key={dep.index}>
+              {i > 0 && ', '}
+              <span style={{ fontWeight: 700 }}>{dep.filename.trim()}</span>
+              <span style={{ color: 'var(--text-secondary)', marginLeft: 3 }}>
+                ({dep.typeName})
+              </span>
+            </span>
+          ))}
+          {tapPackage.unresolved.length > 0 && (
+            <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>
+              + {tapPackage.unresolved.length} unresolved
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

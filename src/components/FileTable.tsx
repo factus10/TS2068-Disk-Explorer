@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import type { FileEntry } from '../api';
+import React, { useState, useMemo } from 'react';
+import type { FileEntry, TapPackage } from '../api';
 
 interface Props {
   entries: FileEntry[];
   selectedIndices: Set<number>;
   onSelect: (index: number, multi: boolean) => void;
   onViewHex: (entry: FileEntry) => void;
+  packages: TapPackage[];
 }
 
 type SortKey = 'filename' | 'typeName' | 'size';
@@ -26,10 +27,25 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}M`;
 }
 
-export function FileTable({ entries, selectedIndices, onSelect, onViewHex }: Props) {
+export function FileTable({ entries, selectedIndices, onSelect, onViewHex, packages }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('filename');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  // Build lookup maps for package relationships
+  const packageByLoader = useMemo(() => {
+    const map = new Map<number, TapPackage>();
+    for (const pkg of packages) map.set(pkg.loader.index, pkg);
+    return map;
+  }, [packages]);
+
+  const isDependency = useMemo(() => {
+    const set = new Set<number>();
+    for (const pkg of packages) {
+      for (const dep of pkg.dependencies) set.add(dep.index);
+    }
+    return set;
+  }, [packages]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -59,17 +75,20 @@ export function FileTable({ entries, selectedIndices, onSelect, onViewHex }: Pro
     });
   };
 
-  const renderRow = (entry: FileEntry, depth: number = 0) => {
+  const renderRow = (entry: FileEntry, depth: number = 0, isDepRow: boolean = false) => {
     const isSelected = selectedIndices.has(entry.index);
     const hasChildren = entry.isDirectory && entry.children && entry.children.length > 0;
+    const pkg = packageByLoader.get(entry.index);
+    const hasPackage = !!pkg;
+    const isExpandable = hasChildren || hasPackage;
     const isExpanded = expanded.has(entry.index);
 
     return (
-      <React.Fragment key={entry.index}>
+      <React.Fragment key={`${entry.index}${isDepRow ? '-dep' : ''}`}>
         <tr
           onClick={(e) => onSelect(entry.index, e.metaKey || e.ctrlKey)}
           onDoubleClick={() => {
-            if (hasChildren) toggleExpand(entry.index);
+            if (isExpandable) toggleExpand(entry.index);
             else onViewHex(entry);
           }}
           style={{
@@ -84,13 +103,16 @@ export function FileTable({ entries, selectedIndices, onSelect, onViewHex }: Pro
           }}
         >
           <td style={{ paddingLeft: 14 + depth * 20, whiteSpace: 'nowrap' }}>
-            {hasChildren && (
+            {isExpandable && (
               <span
                 onClick={(e) => { e.stopPropagation(); toggleExpand(entry.index); }}
                 style={{ marginRight: 6, fontSize: 10, userSelect: 'none' }}
               >
                 {isExpanded ? '\u25BC' : '\u25B6'}
               </span>
+            )}
+            {isDepRow && (
+              <span style={{ marginRight: 4, fontSize: 10, color: 'var(--text-muted)' }}>{'\u21B3'}</span>
             )}
             <span style={{ fontFamily: 'monospace' }}>
               {entry.filename.trim()}{entry.isDirectory ? '/' : ''}
@@ -106,6 +128,19 @@ export function FileTable({ entries, selectedIndices, onSelect, onViewHex }: Pro
                 fontWeight: 700,
               }}>
                 DUMP
+              </span>
+            )}
+            {hasPackage && (
+              <span style={{
+                marginLeft: 8,
+                fontSize: 10,
+                padding: '1px 6px',
+                borderRadius: 8,
+                background: 'var(--accent)',
+                color: '#fff',
+                fontWeight: 700,
+              }}>
+                PKG {pkg!.dependencies.length}
               </span>
             )}
           </td>
@@ -131,6 +166,7 @@ export function FileTable({ entries, selectedIndices, onSelect, onViewHex }: Pro
           </td>
         </tr>
         {hasChildren && isExpanded && entry.children!.map((child) => renderRow(child, depth + 1))}
+        {hasPackage && isExpanded && pkg!.dependencies.map((dep) => renderRow(dep, depth + 1, true))}
       </React.Fragment>
     );
   };
@@ -170,7 +206,9 @@ export function FileTable({ entries, selectedIndices, onSelect, onViewHex }: Pro
         </tr>
       </thead>
       <tbody>
-        {sortedEntries.map((entry) => renderRow(entry))}
+        {sortedEntries.map((entry) =>
+          isDependency.has(entry.index) ? null : renderRow(entry)
+        )}
       </tbody>
     </table>
   );

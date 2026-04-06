@@ -42,6 +42,20 @@ export interface FileEntry {
   isDirectory: boolean;
   children?: FileEntry[];
   metadata: Record<string, string>;
+  /** Indices of files this BASIC program LOADs (auto-detected) */
+  loadDependencies?: number[];
+}
+
+export interface LoadReference {
+  lineNumber: number;
+  filename: string;       // "" means "next file on tape" (unnamed)
+  loadType: 'any' | 'code' | 'screen' | 'data';
+}
+
+export interface TapPackage {
+  loader: FileEntry;              // The BASIC program
+  dependencies: FileEntry[];      // Files it LOADs, in order
+  unresolved: LoadReference[];    // LOADs that couldn't be matched
 }
 
 export interface DiskImage {

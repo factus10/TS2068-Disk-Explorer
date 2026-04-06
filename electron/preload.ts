@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('extract-all', imagePath, destDir),
   getFileData: (imagePath: string, entryIndex: number) =>
     ipcRenderer.invoke('get-file-data', imagePath, entryIndex),
+  analyzePackages: (imagePath: string) =>
+    ipcRenderer.invoke('analyze-packages', imagePath),
+  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string) =>
+    ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir),
   onMenuOpenFile: (callback: () => void) => {
     ipcRenderer.on('menu-open-file', callback);
     return () => ipcRenderer.removeListener('menu-open-file', callback);

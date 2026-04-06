@@ -1,5 +1,5 @@
 import { calculateCrc, writeUint16LE } from './utils';
-import type { FileEntry } from './types';
+import type { FileEntry, TapPackage } from './types';
 
 /**
  * Build a single TAP block: 2-byte length + flag + data + XOR checksum.
@@ -176,4 +176,29 @@ export function buildDumpTap(filename: string, dumpContent: Buffer, origin: numb
   const codeDataBlock = buildTapBlock(0xff, codeData);
 
   return Buffer.concat([basicHeaderBlock, basicDataBlock, codeHeaderBlock, codeDataBlock]);
+}
+
+/**
+ * Build a multi-file TAP from a package: BASIC loader first, then dependencies in order.
+ * Each file becomes a header+data block pair, concatenated sequentially.
+ */
+export function buildMultiFileTap(
+  pkg: TapPackage,
+  fileDataMap: Map<number, Buffer>,
+): Buffer | null {
+  const parts: Buffer[] = [];
+
+  // Loader (BASIC program) first
+  const loaderData = fileDataMap.get(pkg.loader.index);
+  if (!loaderData) return null;
+  parts.push(buildTapFile(pkg.loader, loaderData));
+
+  // Dependencies in order
+  for (const dep of pkg.dependencies) {
+    const depData = fileDataMap.get(dep.index);
+    if (!depData) return null;
+    parts.push(buildTapFile(dep, depData));
+  }
+
+  return Buffer.concat(parts);
 }
