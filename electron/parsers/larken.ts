@@ -36,6 +36,7 @@ const TYPE_NAMES: Record<FileType, string> = {
   'exec': 'EXEC',
   'rel': 'REL',
   'dir': 'DIR',
+  'state': 'State capture',
   'unknown': 'Unknown',
 };
 

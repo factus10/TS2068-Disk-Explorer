@@ -99,6 +99,9 @@ export function buildTapPackages(
   );
 
   for (const loader of basicFiles) {
+    // Skip files already claimed as a dependency of another package
+    if (claimedIndices.has(loader.index)) continue;
+
     const data = fileDataMap.get(loader.index);
     if (!data) continue;
 

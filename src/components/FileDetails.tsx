@@ -21,7 +21,7 @@ export function FileDetails({ entry, onViewHex, tapPackage }: Props) {
           onClick={onViewHex}
           style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 11, padding: '3px 10px' }}
         >
-          View Hex
+          View
         </button>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, color: 'var(--text-secondary)' }}>

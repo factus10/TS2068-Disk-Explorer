@@ -6,13 +6,12 @@ import { FileTable } from './components/FileTable';
 import { FileDetails } from './components/FileDetails';
 import { DropZone } from './components/DropZone';
 import { StatusBar } from './components/StatusBar';
-import { HexView } from './components/HexView';
+import { ContentViewer } from './components/ContentViewer';
 
 function App() {
   const [disk, setDisk] = useState<DiskImage | null>(null);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
-  const [hexData, setHexData] = useState<number[] | null>(null);
-  const [hexFilename, setHexFilename] = useState('');
+  const [viewerEntry, setViewerEntry] = useState<FileEntry | null>(null);
   const [status, setStatus] = useState('Drop a disk image or click Open');
   const [extracting, setExtracting] = useState(false);
   const [packages, setPackages] = useState<TapPackage[]>([]);
@@ -23,7 +22,7 @@ function App() {
       if (result) {
         setDisk(result);
         setSelectedIndices(new Set());
-        setHexData(null);
+        setViewerEntry(null);
         setStatus(`Loaded ${result.catalog.length} files`);
         const pkgs = await api.analyzePackages(result.path);
         setPackages(pkgs);
@@ -39,7 +38,7 @@ function App() {
       const result = await api.openPath(filePath);
       setDisk(result);
       setSelectedIndices(new Set());
-      setHexData(null);
+      setViewerEntry(null);
       setStatus(`Loaded ${result.catalog.length} files`);
       const pkgs = await api.analyzePackages(result.path);
       setPackages(pkgs);
@@ -60,16 +59,9 @@ function App() {
     });
   }, []);
 
-  const handleViewHex = useCallback(async (entry: FileEntry) => {
-    if (!disk) return;
-    try {
-      const data = await api.getFileData(disk.path, entry.index);
-      setHexData(data);
-      setHexFilename(entry.filename);
-    } catch {
-      setStatus('Failed to load file data');
-    }
-  }, [disk]);
+  const handleViewContent = useCallback((entry: FileEntry) => {
+    setViewerEntry(entry);
+  }, []);
 
   const handleExtractSelected = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
@@ -96,7 +88,6 @@ function App() {
   const handleExtractPackage = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
 
-    // Find a package whose loader is selected
     const pkg = packages.find((p) => selectedIndices.has(p.loader.index));
     if (!pkg) return;
 
@@ -169,7 +160,7 @@ function App() {
                 entries={disk.catalog}
                 selectedIndices={selectedIndices}
                 onSelect={handleSelect}
-                onViewHex={handleViewHex}
+                onViewHex={handleViewContent}
                 packages={packages}
               />
             ) : (
@@ -180,42 +171,18 @@ function App() {
           {selectedEntry && (
             <FileDetails
               entry={selectedEntry}
-              onViewHex={() => handleViewHex(selectedEntry)}
+              onViewHex={() => handleViewContent(selectedEntry)}
               tapPackage={selectedPackage}
             />
           )}
         </div>
 
-        {hexData && (
-          <div style={{
-            width: 420,
-            borderLeft: '1px solid var(--border)',
-            display: 'flex',
-            flexDirection: 'column',
-          }}>
-            <div style={{
-              padding: '6px 12px',
-              background: 'var(--bg-secondary)',
-              borderBottom: '1px solid var(--border)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}>
-              <span style={{ fontWeight: 600, fontSize: 12 }}>Hex: {hexFilename}</span>
-              <button
-                onClick={() => setHexData(null)}
-                style={{
-                  background: 'transparent',
-                  color: 'var(--text-secondary)',
-                  padding: '2px 8px',
-                  fontSize: 11,
-                }}
-              >
-                Close
-              </button>
-            </div>
-            <HexView data={hexData} />
-          </div>
+        {viewerEntry && disk && (
+          <ContentViewer
+            entry={viewerEntry}
+            diskPath={disk.path}
+            onClose={() => setViewerEntry(null)}
+          />
         )}
       </div>
 

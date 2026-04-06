@@ -19,6 +19,7 @@ const TYPE_COLORS: Record<string, string> = {
   EXEC: 'var(--badge-code)',
   MODULE: 'var(--badge-code)',
   DIR: 'var(--badge-dir)',
+  'State capture': 'var(--badge-dump)',
 };
 
 function formatSize(bytes: number): string {

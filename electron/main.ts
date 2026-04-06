@@ -7,10 +7,18 @@ import { readCatalog as readOliger, readFileData as readOligerFile } from './par
 import { readCatalog as readAerco, readFileData as readAercoFile } from './parsers/aerco';
 import { readCatalog as readZebra, readFileData as readZebraFile } from './parsers/zebra';
 import { readCatalog as readQL, readFileData as readQLFile } from './parsers/ql';
+import { readCatalog as readTap, readFileData as readTapFile } from './parsers/tap-reader';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
+import { detokenize } from './parsers/basic-detokenizer';
+import { decodeScreen, SCREEN_SIZE } from './parsers/screen-decoder';
+import { decodeNumericArray, decodeCharArray } from './parsers/array-decoder';
+import { extractBasicFromState } from './parsers/state-extract';
 import { makeSafeFilename, uniquePath } from './parsers/utils';
-import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage } from './parsers/types';
+import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage, DiskHeader } from './parsers/types';
+import type { BasicListing, Ts2068Mode } from './parsers/basic-detokenizer';
+import type { ScreenData } from './parsers/screen-decoder';
+import type { ArrayData } from './parsers/array-decoder';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -84,6 +92,7 @@ function getParser(format: DiskFormat) {
     case 'zebra-dirscp':
     case 'zebra-cpm': return { readCatalog: readZebra, readFileData: readZebraFile };
     case 'ql': return { readCatalog: readQL, readFileData: readQLFile };
+    case 'tap': return { readCatalog: readTap, readFileData: readTapFile };
     default: throw new Error(`Unknown format: ${format}`);
   }
 }
@@ -112,7 +121,7 @@ ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openFile'],
     filters: [
-      { name: 'Disk Images', extensions: ['img', 'dsk', 'IMG', 'DSK'] },
+      { name: 'Disk & Tape Images', extensions: ['img', 'dsk', 'tap', 'IMG', 'DSK', 'TAP'] },
       { name: 'All Files', extensions: ['*'] },
     ],
   });
@@ -210,6 +219,10 @@ ipcMain.handle('extract-all', async (_event, imagePath: string, destDir: string)
     if (result) results.push(result);
   }
 
+  // Write extraction manifest
+  const { header } = parser.readCatalog(buffer);
+  writeManifest(destDir, header, imagePath, results);
+
   return results;
 });
 
@@ -293,6 +306,78 @@ ipcMain.handle('extract-package', async (
   };
 });
 
+ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex: number, ts2068Mode: Ts2068Mode = 'auto'): Promise<BasicListing | null> => {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+  const entry = allEntries.find((e) => e.index === entryIndex);
+  if (!entry) return null;
+
+  const fileData = parser.readFileData(buffer, entry);
+  if (!fileData) return null;
+
+  // State capture: extract BASIC from memory dump using system variable pointers
+  if (entry.type === 'state' || entry.isMemoryDump) {
+    const origin = format.startsWith('oliger') ? 0x3E00 : 0x4000;
+    const stateInfo = extractBasicFromState(fileData, origin);
+    if (!stateInfo) return null;
+    const listing = detokenize(stateInfo.basicData, undefined, ts2068Mode);
+    listing.autostartLine = undefined; // state captures don't have a meaningful autostart
+    return listing;
+  }
+
+  if (entry.type !== 'basic') return null;
+
+  const varsOffset = entry.params.varsOffset ?? entry.params.param2;
+  const listing = detokenize(fileData, varsOffset, ts2068Mode);
+  const autostart = entry.params.autostartLine ?? entry.params.param1;
+  if (autostart && autostart > 0 && autostart < 10000) {
+    listing.autostartLine = autostart;
+  }
+  return listing;
+});
+
+ipcMain.handle('get-screen-data', async (_event, imagePath: string, entryIndex: number, invert: boolean): Promise<number[] | null> => {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+  const entry = allEntries.find((e) => e.index === entryIndex);
+  if (!entry) return null;
+
+  const fileData = parser.readFileData(buffer, entry);
+  if (!fileData || fileData.length < SCREEN_SIZE) return null;
+
+  const screen = decodeScreen(fileData, invert);
+  return screen.rgba;
+});
+
+ipcMain.handle('get-array-data', async (_event, imagePath: string, entryIndex: number): Promise<ArrayData | null> => {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+  const entry = allEntries.find((e) => e.index === entryIndex);
+  if (!entry) return null;
+
+  const fileData = parser.readFileData(buffer, entry);
+  if (!fileData) return null;
+
+  if (entry.type === 'num-array') return decodeNumericArray(fileData);
+  if (entry.type === 'str-array') return decodeCharArray(fileData);
+  return null;
+});
+
 function flattenEntries(entries: FileEntry[]): FileEntry[] {
   const flat: FileEntry[] = [];
   for (const e of entries) {
@@ -300,6 +385,40 @@ function flattenEntries(entries: FileEntry[]): FileEntry[] {
     if (e.children) flat.push(...e.children);
   }
   return flat;
+}
+
+function writeManifest(
+  destDir: string,
+  header: DiskHeader,
+  imagePath: string,
+  results: ExtractionResult[],
+): void {
+  const lines: string[] = [];
+  lines.push(`# Extraction Manifest`);
+  lines.push('');
+  lines.push(`| Property | Value |`);
+  lines.push(`|----------|-------|`);
+  lines.push(`| Source | ${path.basename(imagePath)} |`);
+  lines.push(`| Format | ${header.formatName} |`);
+  lines.push(`| Disk Name | ${header.diskName || '(none)'} |`);
+  lines.push(`| Sides | ${header.sides} |`);
+  lines.push(`| Tracks | ${header.tracks} |`);
+  for (const [k, v] of Object.entries(header.extra)) {
+    lines.push(`| ${k} | ${v} |`);
+  }
+  lines.push('');
+  lines.push(`## Files (${results.length})`);
+  lines.push('');
+  lines.push(`| Original Name | Output File(s) | Format | Size |`);
+  lines.push(`|--------------|----------------|--------|------|`);
+  for (const r of results) {
+    const outputs = r.outputPaths.map((p) => path.basename(p)).join(', ');
+    lines.push(`| ${r.filename.trim()} | ${outputs} | ${r.format} | ${r.size.toLocaleString()} |`);
+  }
+  lines.push('');
+
+  const manifestPath = path.join(destDir, 'manifest.md');
+  fs.writeFileSync(manifestPath, lines.join('\n'));
 }
 
 function writeExtractedFile(destDir: string, entry: FileEntry, fileData: Buffer, format: DiskFormat): ExtractionResult | null {

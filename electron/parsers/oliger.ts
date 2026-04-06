@@ -13,7 +13,7 @@ const TYPE_NUM_ARRAY = 1;
 const TYPE_STR_ARRAY = 2;
 const TYPE_CODE = 3;
 
-const FILE_TYPE_NAMES = ['BASIC', 'Numeric array', 'String array', 'CODE'];
+const FILE_TYPE_NAMES = ['BASIC', 'Numeric array', 'String array', 'CODE', 'State capture'];
 
 const ABS_SAVE_START = 0x3e00;
 const ABS_SAVE_MIN = 45000;
@@ -27,6 +27,7 @@ function typeCodeToFileType(code: number): FileType {
     case 1: return 'num-array';
     case 2: return 'str-array';
     case 3: return 'code';
+    case 4: return 'state';
     default: return 'unknown';
   }
 }

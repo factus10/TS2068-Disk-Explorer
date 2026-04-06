@@ -47,6 +47,40 @@ export interface TapPackage {
   unresolved: LoadReference[];
 }
 
+export type Ts2068Mode = 'auto' | 'ts2068' | 'spectrum';
+
+export interface BasicToken {
+  type: 'statement' | 'function' | 'operator' | 'text' | 'udg' | 'graphic' | 'disk-cmd' | 'ts2068-kw';
+  text: string;
+}
+
+export interface BasicLine {
+  lineNumber: number;
+  tokens: BasicToken[];
+}
+
+export interface BasicListing {
+  lines: BasicLine[];
+  autostartLine?: number;
+}
+
+export interface NumericArrayData {
+  kind: 'numeric';
+  dimensions: number[];
+  values: number[];
+  totalElements: number;
+}
+
+export interface CharArrayData {
+  kind: 'char';
+  dimensions: number[];
+  values: string[];
+  stringLength: number;
+  totalElements: number;
+}
+
+export type ArrayData = NumericArrayData | CharArrayData;
+
 interface DiskToolsAPI {
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
@@ -56,6 +90,9 @@ interface DiskToolsAPI {
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string) => Promise<ExtractionResult | null>;
+  getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<BasicListing | null>;
+  getScreenData: (imagePath: string, entryIndex: number, invert: boolean) => Promise<number[] | null>;
+  getArrayData: (imagePath: string, entryIndex: number) => Promise<ArrayData | null>;
   onMenuOpenFile: (callback: () => void) => () => void;
 }
 

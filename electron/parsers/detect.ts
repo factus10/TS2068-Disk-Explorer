@@ -11,6 +11,10 @@ import { detect as detectOliger } from './oliger';
  * then fall back to heuristics.
  */
 export function detectFormat(buffer: Buffer, filePath?: string): DiskFormat | null {
+  // 0. TAP files by extension
+  const ext = filePath?.toLowerCase().split('.').pop();
+  if (ext === 'tap') return 'tap';
+
   // 1. CPC DSK magic → Zebra
   const zebraResult = detectZebra(buffer);
   if (zebraResult) return zebraResult;
@@ -30,7 +34,6 @@ export function detectFormat(buffer: Buffer, filePath?: string): DiskFormat | nu
   if (oligerResult) return oligerResult;
 
   // 6. Fallback: if it's a .img file, try by size
-  const ext = filePath?.toLowerCase().split('.').pop();
   if (ext === 'img') {
     if (buffer.length > 300000) return 'larken';
   }

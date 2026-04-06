@@ -6,7 +6,8 @@ export type DiskFormat =
   | 'aerco-rpm'
   | 'zebra-dirscp'
   | 'zebra-cpm'
-  | 'ql';
+  | 'ql'
+  | 'tap';
 
 export type FileType =
   | 'basic'
@@ -18,6 +19,7 @@ export type FileType =
   | 'exec'
   | 'rel'
   | 'dir'
+  | 'state'
   | 'unknown';
 
 export interface DiskHeader {

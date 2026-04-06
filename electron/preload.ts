@@ -14,6 +14,12 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('analyze-packages', imagePath),
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string) =>
     ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir),
+  getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
+    ipcRenderer.invoke('get-basic-listing', imagePath, entryIndex, ts2068Mode ?? 'auto'),
+  getScreenData: (imagePath: string, entryIndex: number, invert: boolean) =>
+    ipcRenderer.invoke('get-screen-data', imagePath, entryIndex, invert),
+  getArrayData: (imagePath: string, entryIndex: number) =>
+    ipcRenderer.invoke('get-array-data', imagePath, entryIndex),
   onMenuOpenFile: (callback: () => void) => {
     ipcRenderer.on('menu-open-file', callback);
     return () => ipcRenderer.removeListener('menu-open-file', callback);
