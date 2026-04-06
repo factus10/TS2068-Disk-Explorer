@@ -88,4 +88,4 @@ Format detection is automatic based on magic bytes, boot sector patterns, and di
 
 ## License
 
-MIT
+[GPL v3](LICENSE)
