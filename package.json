@@ -52,7 +52,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Utility"
+      "category": "Utility",
+      "maintainer": "factus10@gmail.com"
     }
   }
 }
