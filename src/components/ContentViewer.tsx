@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode } from '../api';
 import { HexView } from './HexView';
 import { BasicListing } from './BasicListing';
 import { ScreenViewer } from './ScreenViewer';
 import { ArrayViewer } from './ArrayViewer';
+import { TextView } from './TextView';
 
 const DEFAULT_WIDTH = 560;
 const MIN_WIDTH = 360;
@@ -15,48 +16,103 @@ interface Props {
   onClose: () => void;
 }
 
-type ViewTab = 'listing' | 'screen' | 'array' | 'hex';
+type ViewTab = 'listing' | 'screen' | 'array' | 'text' | 'hex';
 
 const SCREEN_SIZE = 6912;
+const TEXT_PRINTABLE_THRESHOLD = 0.9;
 
-function getAvailableTabs(entry: FileEntry): ViewTab[] {
+function getStaticTabs(entry: FileEntry): ViewTab[] {
   const tabs: ViewTab[] = [];
   if (entry.type === 'basic') tabs.push('listing');
   if (entry.type === 'state' || entry.isMemoryDump) tabs.push('listing');
   if (entry.type === 'code' && entry.size === SCREEN_SIZE) tabs.push('screen');
   if (entry.type === 'num-array' || entry.type === 'str-array') tabs.push('array');
-  tabs.push('hex');
   return tabs;
+}
+
+function isTextContent(data: number[]): boolean {
+  if (data.length === 0) return false;
+  let printable = 0;
+  const len = Math.min(data.length, 2048); // sample first 2KB
+  for (let i = 0; i < len; i++) {
+    const b = data[i];
+    if ((b >= 0x20 && b <= 0x7e) || b === 0x0d || b === 0x0a || b === 0x09) printable++;
+  }
+  return printable / len >= TEXT_PRINTABLE_THRESHOLD;
+}
+
+function decodeText(data: number[]): string {
+  let text = '';
+  for (let i = 0; i < data.length; i++) {
+    const b = data[i];
+    if (b === 0x0d) text += '\n';
+    else if (b === 0x0a) continue; // skip LF after CR
+    else if (b >= 0x20 && b <= 0x7e) text += String.fromCharCode(b);
+    else if (b === 0x09) text += '\t';
+    else text += '\u00B7'; // middle dot for non-printable
+  }
+  return text;
 }
 
 const TAB_LABELS: Record<ViewTab, string> = {
   listing: 'Listing',
   screen: 'Screen',
   array: 'Array',
+  text: 'Text',
   hex: 'Hex',
 };
 
 export function ContentViewer({ entry, diskPath, onClose }: Props) {
-  const tabs = getAvailableTabs(entry);
-  const [activeTab, setActiveTab] = useState<ViewTab>(tabs[0]);
-
-  // Content state (loaded lazily per tab)
+  // Raw file data — loaded eagerly for text detection
   const [hexData, setHexData] = useState<number[] | null>(null);
   const [listing, setListing] = useState<BasicListingData | null>(null);
   const [arrayData, setArrayData] = useState<ArrayData | null>(null);
   const [loading, setLoading] = useState(false);
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
+  const [activeTab, setActiveTab] = useState<ViewTab>('hex');
 
-  // Reset when entry changes
+  // Compute available tabs (text tab depends on data)
+  const hasText = hexData ? isTextContent(hexData) : false;
+  const tabs = useMemo(() => {
+    const t = getStaticTabs(entry);
+    if (hasText) t.push('text');
+    t.push('hex');
+    return t;
+  }, [entry.index, entry.type, entry.size, entry.isMemoryDump, hasText]);
+
+  // Decoded text content (memoized)
+  const textContent = useMemo(() => {
+    if (!hasText || !hexData) return '';
+    return decodeText(hexData);
+  }, [hasText, hexData]);
+
+  // Load hex data eagerly on entry change, then set default tab
   useEffect(() => {
-    const newTabs = getAvailableTabs(entry);
-    setActiveTab(newTabs[0]);
+    let cancelled = false;
     setHexData(null);
     setListing(null);
     setArrayData(null);
-  }, [entry.index]);
+    setLoading(true);
 
-  // Re-fetch listing when mode changes
+    api.getFileData(diskPath, entry.index).then((data) => {
+      if (cancelled) return;
+      setHexData(data);
+      // Pick default tab after we know if it's text
+      const staticTabs = getStaticTabs(entry);
+      if (staticTabs.length > 0) {
+        setActiveTab(staticTabs[0]);
+      } else if (data && isTextContent(data)) {
+        setActiveTab('text');
+      } else {
+        setActiveTab('hex');
+      }
+      setLoading(false);
+    }).catch(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [diskPath, entry.index]);
+
+  // Load listing when listing tab activates or mode changes
   useEffect(() => {
     if (activeTab !== 'listing') return;
     let cancelled = false;
@@ -68,31 +124,16 @@ export function ContentViewer({ entry, diskPath, onClose }: Props) {
     return () => { cancelled = true; };
   }, [ts2068Mode, diskPath, entry.index, activeTab]);
 
-  // Load data for active tab (non-listing)
+  // Load array data when array tab activates
   useEffect(() => {
+    if (activeTab !== 'array' || arrayData) return;
     let cancelled = false;
-
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        if (activeTab === 'hex' && !hexData) {
-          const data = await api.getFileData(diskPath, entry.index);
-          if (!cancelled) setHexData(data);
-        } else if (activeTab === 'array' && !arrayData) {
-          const data = await api.getArrayData(diskPath, entry.index);
-          if (!cancelled) setArrayData(data);
-        }
-        // listing handled by ts2068Mode effect above
-        // screen tab loads its own data via ScreenViewer
-      } catch {
-        // ignore
-      }
-      if (!cancelled) setLoading(false);
-    };
-
-    if (activeTab !== 'listing') loadData();
+    setLoading(true);
+    api.getArrayData(diskPath, entry.index).then((data) => {
+      if (!cancelled) { setArrayData(data); setLoading(false); }
+    }).catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [activeTab, diskPath, entry.index, hexData, arrayData]);
+  }, [activeTab, diskPath, entry.index, arrayData]);
 
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const dragging = useRef(false);
@@ -235,11 +276,12 @@ export function ContentViewer({ entry, diskPath, onClose }: Props) {
 
       {/* Content area */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {loading && !hexData && !listing && !arrayData && activeTab !== 'screen' && (
+        {loading && !hexData && (
           <div style={{ padding: 12, color: 'var(--text-muted)' }}>Loading...</div>
         )}
 
         {activeTab === 'hex' && hexData && <HexView data={hexData} />}
+        {activeTab === 'text' && textContent && <TextView text={textContent} />}
         {activeTab === 'listing' && listing && <BasicListing listing={listing} />}
         {activeTab === 'screen' && (
           <ScreenViewer entry={entry} diskPath={diskPath} />

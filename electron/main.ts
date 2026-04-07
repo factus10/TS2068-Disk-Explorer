@@ -28,6 +28,9 @@ function createWindow() {
     height: 750,
     minWidth: 800,
     minHeight: 500,
+    ...(fs.existsSync(path.join(__dirname, '../build/icon.png'))
+      ? { icon: path.join(__dirname, '../build/icon.png') }
+      : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
