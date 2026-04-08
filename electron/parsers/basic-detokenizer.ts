@@ -355,87 +355,127 @@ function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode):
 /**
  * Post-process: mark Larken DOS activation patterns and their disk commands.
  * Highlights both the activation call and the command it enables:
- *   1. RANDOMIZE USR <value>: LOAD ...
+ *   1. <stmt> USR 100: LOAD ... (RANDOMIZE USR 100, PRINT USR 100, etc.)
  *   2. PRINT #<n>: LOAD ...  (after OPEN #<n>,"dd" channel init)
  *   3. OPEN #<n>,"dd"  (channel setup)
+ *   4. OUT 244,<n>  (Oliger DOS ROM paging)
  */
 function markLarkenDiskCmds(tokens: BasicToken[]): void {
+  // Two-pass approach: first find and mark USR 100 sequences, then PRINT # patterns
+
+  markUsr100Sequences(tokens);
+  markPrintChannelCmds(tokens);
+  markOpenChannelSetup(tokens);
+  markOligerOut244(tokens);
+}
+
+/** Mark tokens[from..to] as disk-cmd (preserving their text). */
+function markRange(tokens: BasicToken[], from: number, to: number) {
+  for (let j = from; j <= to; j++) {
+    tokens[j] = { type: 'disk-cmd', text: tokens[j].text };
+  }
+}
+
+/**
+ * Find USR followed by 100/m1/VAL "100" patterns.
+ * Mark from the statement start through the colon, plus any following disk command.
+ */
+function markUsr100Sequences(tokens: BasicToken[]): void {
   const DISK_CMDS = new Set(['LOAD', 'SAVE', 'MERGE', 'VERIFY', 'CAT', 'ERASE']);
 
-  // Pattern 1: RANDOMIZE USR ... : <cmd>
-  let randStartIdx = -1;
-  let sawRandomize = false;
-  let sawUsr = false;
-  let sawColon = false;
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].text.trim() !== 'USR') continue;
 
-  // Pattern 2: PRINT #<n> : <cmd>
-  let printStartIdx = -1;
-  let sawPrint = false;
-  let sawHash = false;
-  let sawPrintColon = false;
+    // Check if USR is followed by 100, m1, or VAL "100"
+    let valueEnd = -1;
+    let j = i + 1;
+    // Skip spaces
+    while (j < tokens.length && tokens[j].text.trim() === '') j++;
+    if (j >= tokens.length) continue;
 
-  /** Mark tokens[from..to] as disk-cmd (preserving their text). */
-  function markRange(from: number, to: number) {
-    for (let j = from; j <= to; j++) {
-      tokens[j] = { type: 'disk-cmd', text: tokens[j].text };
+    const nextText = tokens[j].text.trim();
+    if (nextText === '100' || nextText === 'm1') {
+      valueEnd = j;
+      // Skip the embedded number (0x0E + 5 bytes are already stripped, but
+      // there may be additional text tokens from the number)
+      j++;
+    } else if (nextText === 'VAL') {
+      // USR VAL "100" — scan through VAL, quotes, digits, closing quote
+      let k = j + 1;
+      let collected = '';
+      while (k < tokens.length && k < j + 6) {
+        collected += tokens[k].text;
+        if (collected.includes('"100"')) { valueEnd = k; break; }
+        k++;
+      }
+      if (valueEnd < 0) continue;
+      j = valueEnd + 1;
+    } else {
+      continue; // Not a recognized DOS activation value
+    }
+
+    // Find the start of this statement (walk back from USR to the preceding : or line start)
+    let stmtStart = 0;
+    for (let k = i - 1; k >= 0; k--) {
+      if (tokens[k].text.trim() === ':') { stmtStart = k + 1; break; }
+    }
+
+    // Check if followed by : then a disk command
+    let scanIdx = valueEnd + 1;
+    while (scanIdx < tokens.length && tokens[scanIdx].text.trim() === '') scanIdx++;
+
+    if (scanIdx < tokens.length && tokens[scanIdx].text.trim() === ':') {
+      // Found colon — check what follows
+      let cmdIdx = scanIdx + 1;
+      while (cmdIdx < tokens.length && tokens[cmdIdx].text.trim() === '') cmdIdx++;
+
+      if (cmdIdx < tokens.length && DISK_CMDS.has(tokens[cmdIdx].text.trim()) && tokens[cmdIdx].type === 'statement') {
+        // Mark activation sequence + colon + disk command
+        markRange(tokens, stmtStart, scanIdx); // through the colon
+        tokens[cmdIdx] = { type: 'disk-cmd', text: tokens[cmdIdx].text };
+      } else {
+        // Standalone USR 100 (e.g. RANDOMIZE USR 100:GO TO dd)
+        markRange(tokens, stmtStart, valueEnd);
+      }
+    } else {
+      // No colon — mark just the USR 100 sequence
+      markRange(tokens, stmtStart, valueEnd);
     }
   }
+}
+
+/**
+ * Mark PRINT #<n>: <disk-cmd> patterns (Larken channel shorthand).
+ */
+function markPrintChannelCmds(tokens: BasicToken[]): void {
+  const DISK_CMDS = new Set(['LOAD', 'SAVE', 'MERGE', 'VERIFY', 'CAT', 'ERASE']);
 
   for (let i = 0; i < tokens.length; i++) {
-    const text = tokens[i].text.trim();
+    if (tokens[i].text.trim() !== 'PRINT') continue;
 
-    // Check if this token completes a disk command pattern
-    if ((sawColon || sawPrintColon) && DISK_CMDS.has(text) && tokens[i].type === 'statement') {
-      // Mark the command itself
-      tokens[i] = { type: 'disk-cmd', text: tokens[i].text };
-      // Mark the activation sequence (RANDOMIZE USR <val>: or PRINT #<n>:)
-      if (sawColon && randStartIdx >= 0) {
-        markRange(randStartIdx, i - 1); // includes the colon
-      }
-      if (sawPrintColon && printStartIdx >= 0) {
-        markRange(printStartIdx, i - 1);
-      }
-      sawRandomize = false; sawUsr = false; sawColon = false; randStartIdx = -1;
-      sawPrint = false; sawHash = false; sawPrintColon = false; printStartIdx = -1;
-      continue;
-    }
+    // Look for PRINT #<n> : <disk-cmd>  (not PRINT #<n> ; which is screen output)
+    let j = i + 1;
+    while (j < tokens.length && tokens[j].text.trim() === '') j++;
+    if (j >= tokens.length || !tokens[j].text.trim().startsWith('#')) continue;
 
-    // Pattern 1: RANDOMIZE USR <value> :
-    if (text === 'RANDOMIZE') {
-      randStartIdx = i;
-      sawRandomize = true; sawUsr = false; sawColon = false;
-    } else if (sawRandomize && text === 'USR') {
-      sawUsr = true;
-    } else if (sawRandomize && sawUsr && text === ':') {
-      sawColon = true;
-    }
-
-    // Pattern 2: PRINT #<n> :
-    if (text === 'PRINT') {
-      printStartIdx = i;
-      sawPrint = true; sawHash = false; sawPrintColon = false;
-    } else if (sawPrint && text.startsWith('#')) {
-      sawHash = true;
-    } else if (sawPrint && sawHash && text === ':') {
-      sawPrintColon = true;
-    }
-
-    // Reset on statement boundary (colon) unless we're mid-pattern
-    if (text === ':') {
-      if (!sawUsr && !sawColon) {
-        sawRandomize = false; sawUsr = false; sawColon = false; randStartIdx = -1;
+    // Check that the next separator is a colon, not a semicolon
+    let k = j + 1;
+    while (k < tokens.length) {
+      const t = tokens[k].text.trim();
+      if (t === ';') break; // Screen output — not a disk command pattern
+      if (t === ':') {
+        // Found colon — check if followed by a disk command
+        let cmdIdx = k + 1;
+        while (cmdIdx < tokens.length && tokens[cmdIdx].text.trim() === '') cmdIdx++;
+        if (cmdIdx < tokens.length && DISK_CMDS.has(tokens[cmdIdx].text.trim()) && tokens[cmdIdx].type === 'statement') {
+          markRange(tokens, i, k); // PRINT #<n> :
+          tokens[cmdIdx] = { type: 'disk-cmd', text: tokens[cmdIdx].text };
+        }
+        break;
       }
-      if (!sawHash && !sawPrintColon) {
-        sawPrint = false; sawHash = false; sawPrintColon = false; printStartIdx = -1;
-      }
+      k++;
     }
   }
-
-  // Also highlight OPEN #<n>,"dd" (channel setup for disk access)
-  markOpenChannelSetup(tokens);
-
-  // Also highlight OUT 244,<n> (Oliger DOS ROM paging)
-  markOligerOut244(tokens);
 }
 
 /**

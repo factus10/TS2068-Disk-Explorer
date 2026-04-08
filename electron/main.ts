@@ -14,6 +14,7 @@ import { detokenize } from './parsers/basic-detokenizer';
 import { decodeScreen, SCREEN_SIZE } from './parsers/screen-decoder';
 import { decodeNumericArray, decodeCharArray } from './parsers/array-decoder';
 import { extractBasicFromState } from './parsers/state-extract';
+import { rebuildBasicProgram } from './parsers/basic-editor';
 import { makeSafeFilename, uniquePath } from './parsers/utils';
 import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage, DiskHeader } from './parsers/types';
 import type { BasicListing, Ts2068Mode } from './parsers/basic-detokenizer';
@@ -148,14 +149,18 @@ ipcMain.handle('select-directory', async () => {
   return result.filePaths[0];
 });
 
-ipcMain.handle('extract-file', async (_event, imagePath: string, entryIndex: number, destDir: string): Promise<ExtractionResult | null> => {
+ipcMain.handle('extract-file', async (
+  _event, imagePath: string, entryIndex: number, destDir: string,
+  editedLines?: Record<number, string>,
+): Promise<ExtractionResult | null> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
   if (!format) return null;
 
   const parser = getParser(format);
   const { entries } = parser.readCatalog(buffer);
-  const entry = entries[entryIndex];
+  const allEntries = flattenEntries(entries);
+  const entry = allEntries.find((e) => e.index === entryIndex);
   if (!entry) return null;
 
   const fileData = parser.readFileData(buffer, entry);
@@ -163,10 +168,13 @@ ipcMain.handle('extract-file', async (_event, imagePath: string, entryIndex: num
 
   fs.mkdirSync(destDir, { recursive: true });
 
-  return writeExtractedFile(destDir, entry, fileData, format);
+  return writeExtractedFile(destDir, entry, fileData, format, editedLines);
 });
 
-ipcMain.handle('extract-all', async (_event, imagePath: string, destDir: string): Promise<ExtractionResult[]> => {
+ipcMain.handle('extract-all', async (
+  _event, imagePath: string, destDir: string,
+  allEdits?: Record<number, Record<number, string>>,
+): Promise<ExtractionResult[]> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
   if (!format) return [];
@@ -193,7 +201,7 @@ ipcMain.handle('extract-all', async (_event, imagePath: string, destDir: string)
 
   // Extract packages as multi-file TAPs
   for (const pkg of packages) {
-    const tapData = buildMultiFileTap(pkg, fileDataMap);
+    const tapData = buildMultiFileTap(pkg, fileDataMap, allEdits);
     if (!tapData) continue;
 
     const safeName = makeSafeFilename(pkg.loader.filename.trim());
@@ -218,7 +226,8 @@ ipcMain.handle('extract-all', async (_event, imagePath: string, destDir: string)
     if (entry.isDirectory || bundledIndices.has(entry.index)) continue;
     const fileData = fileDataMap.get(entry.index);
     if (!fileData) continue;
-    const result = writeExtractedFile(destDir, entry, fileData, format);
+    const edits = allEdits?.[entry.index];
+    const result = writeExtractedFile(destDir, entry, fileData, format, edits);
     if (result) results.push(result);
   }
 
@@ -271,6 +280,7 @@ ipcMain.handle('analyze-packages', async (_event, imagePath: string): Promise<Ta
 
 ipcMain.handle('extract-package', async (
   _event, imagePath: string, loaderIndex: number, depIndices: number[], destDir: string,
+  allEdits?: Record<number, Record<number, string>>,
 ): Promise<ExtractionResult | null> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -293,7 +303,7 @@ ipcMain.handle('extract-package', async (
   }
 
   const pkg: TapPackage = { loader, dependencies: deps, unresolved: [] };
-  const tapData = buildMultiFileTap(pkg, fileDataMap);
+  const tapData = buildMultiFileTap(pkg, fileDataMap, allEdits);
   if (!tapData) return null;
 
   fs.mkdirSync(destDir, { recursive: true });
@@ -424,15 +434,17 @@ function writeManifest(
   fs.writeFileSync(manifestPath, lines.join('\n'));
 }
 
-function writeExtractedFile(destDir: string, entry: FileEntry, fileData: Buffer, format: DiskFormat): ExtractionResult | null {
+function writeExtractedFile(
+  destDir: string, entry: FileEntry, fileData: Buffer, format: DiskFormat,
+  editedLines?: Record<number, string>,
+): ExtractionResult | null {
   const safeName = makeSafeFilename(entry.filename.trim());
   if (!safeName) return null;
 
   // Determine output format based on disk format and file type
-  const usesTap = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64'].includes(format);
+  const usesTap = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64', 'tap'].includes(format);
 
   if (entry.isMemoryDump) {
-    // Write .dump + launcher .tap
     const dumpPath = uniquePath(path.join(destDir, safeName + '.dump'));
     fs.writeFileSync(dumpPath, fileData);
 
@@ -450,7 +462,15 @@ function writeExtractedFile(destDir: string, entry: FileEntry, fileData: Buffer,
   }
 
   if (usesTap && entry.type !== 'module') {
-    const tapData = buildTapFile(entry, fileData);
+    // If this BASIC file has edits, rebuild with edited lines
+    let tapData: Buffer;
+    if (editedLines && entry.type === 'basic' && Object.keys(editedLines).length > 0) {
+      const rebuilt = rebuildBasicProgram(fileData, editedLines, entry);
+      if (!rebuilt) return null;
+      tapData = rebuilt;
+    } else {
+      tapData = buildTapFile(entry, fileData);
+    }
     const tapPath = uniquePath(path.join(destDir, safeName + '.tap'));
     fs.writeFileSync(tapPath, tapData);
 

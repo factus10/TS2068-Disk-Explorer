@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode } from '../api';
+import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits } from '../api';
 import { HexView } from './HexView';
 import { BasicListing } from './BasicListing';
 import { ScreenViewer } from './ScreenViewer';
@@ -14,6 +14,10 @@ interface Props {
   entry: FileEntry;
   diskPath: string;
   onClose: () => void;
+  fileEdits?: FileEdits;
+  onEditLine?: (lineNumber: number, text: string) => void;
+  onRevertLine?: (lineNumber: number) => void;
+  onRevertAll?: () => void;
 }
 
 type ViewTab = 'listing' | 'screen' | 'array' | 'text' | 'hex';
@@ -62,7 +66,7 @@ const TAB_LABELS: Record<ViewTab, string> = {
   hex: 'Hex',
 };
 
-export function ContentViewer({ entry, diskPath, onClose }: Props) {
+export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine, onRevertLine, onRevertAll }: Props) {
   // Raw file data — loaded eagerly for text detection
   const [hexData, setHexData] = useState<number[] | null>(null);
   const [listing, setListing] = useState<BasicListingData | null>(null);
@@ -282,7 +286,15 @@ export function ContentViewer({ entry, diskPath, onClose }: Props) {
 
         {activeTab === 'hex' && hexData && <HexView data={hexData} />}
         {activeTab === 'text' && textContent && <TextView text={textContent} />}
-        {activeTab === 'listing' && listing && <BasicListing listing={listing} />}
+        {activeTab === 'listing' && listing && (
+          <BasicListing
+            listing={listing}
+            fileEdits={fileEdits}
+            onEditLine={onEditLine}
+            onRevertLine={onRevertLine}
+            onRevertAll={onRevertAll}
+          />
+        )}
         {activeTab === 'screen' && (
           <ScreenViewer entry={entry} diskPath={diskPath} />
         )}

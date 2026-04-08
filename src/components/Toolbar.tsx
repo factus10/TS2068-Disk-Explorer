@@ -9,9 +9,15 @@ interface Props {
   hasPackageSelected: boolean;
   hasDisk: boolean;
   extracting: boolean;
+  autoPackagesEnabled: boolean;
+  onToggleAutoPackages: () => void;
 }
 
-export function Toolbar({ onOpen, onExtractSelected, onExtractAll, onExtractPackage, hasSelection, hasPackageSelected, hasDisk, extracting }: Props) {
+export function Toolbar({
+  onOpen, onExtractSelected, onExtractAll, onExtractPackage,
+  hasSelection, hasPackageSelected, hasDisk, extracting,
+  autoPackagesEnabled, onToggleAutoPackages,
+}: Props) {
   return (
     <div style={{
       display: 'flex',
@@ -34,7 +40,7 @@ export function Toolbar({ onOpen, onExtractSelected, onExtractAll, onExtractPack
       </span>
 
       {/* @ts-expect-error Electron-specific CSS property */}
-      <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: 6 }}>
+      <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: 6, alignItems: 'center' }}>
         <button
           onClick={onOpen}
           style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
@@ -64,6 +70,25 @@ export function Toolbar({ onOpen, onExtractSelected, onExtractAll, onExtractPack
         >
           {extracting ? 'Extracting...' : 'Extract All'}
         </button>
+
+        {hasDisk && (
+          <>
+            <span style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
+            <button
+              onClick={onToggleAutoPackages}
+              style={{
+                background: autoPackagesEnabled ? 'var(--bg-tertiary)' : 'var(--accent)',
+                color: autoPackagesEnabled ? 'var(--text-secondary)' : '#fff',
+                fontSize: 11,
+              }}
+              title={autoPackagesEnabled
+                ? 'Auto TAP packages ON — click to disable and show flat file list'
+                : 'Auto TAP packages OFF — showing flat file list for manual assembly'}
+            >
+              {autoPackagesEnabled ? 'Auto PKG' : 'Manual PKG'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

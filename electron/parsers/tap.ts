@@ -1,4 +1,5 @@
 import { calculateCrc, writeUint16LE } from './utils';
+import { rebuildBasicProgram } from './basic-editor';
 import type { FileEntry, TapPackage } from './types';
 
 /**
@@ -181,23 +182,35 @@ export function buildDumpTap(filename: string, dumpContent: Buffer, origin: numb
 /**
  * Build a multi-file TAP from a package: BASIC loader first, then dependencies in order.
  * Each file becomes a header+data block pair, concatenated sequentially.
+ * If allEdits is provided, edited BASIC files are rebuilt with new content.
  */
 export function buildMultiFileTap(
   pkg: TapPackage,
   fileDataMap: Map<number, Buffer>,
+  allEdits?: Record<number, Record<number, string>>,
 ): Buffer | null {
   const parts: Buffer[] = [];
 
-  // Loader (BASIC program) first
-  const loaderData = fileDataMap.get(pkg.loader.index);
-  if (!loaderData) return null;
-  parts.push(buildTapFile(pkg.loader, loaderData));
+  function buildEntry(entry: FileEntry): Buffer | null {
+    const data = fileDataMap.get(entry.index);
+    if (!data) return null;
+    const edits = allEdits?.[entry.index];
+    if (edits && entry.type === 'basic' && Object.keys(edits).length > 0) {
+      return rebuildBasicProgram(data, edits, entry);
+    }
+    return buildTapFile(entry, data);
+  }
+
+  // Loader first
+  const loaderTap = buildEntry(pkg.loader);
+  if (!loaderTap) return null;
+  parts.push(loaderTap);
 
   // Dependencies in order
   for (const dep of pkg.dependencies) {
-    const depData = fileDataMap.get(dep.index);
-    if (!depData) return null;
-    parts.push(buildTapFile(dep, depData));
+    const depTap = buildEntry(dep);
+    if (!depTap) return null;
+    parts.push(depTap);
   }
 
   return Buffer.concat(parts);

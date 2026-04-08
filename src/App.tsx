@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { api, DiskImage, FileEntry, ExtractionResult, TapPackage } from './api';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { api, DiskImage, FileEntry, ExtractionResult, TapPackage, ManualPackage, EditState } from './api';
 import { Toolbar } from './components/Toolbar';
 import { DiskInfo } from './components/DiskInfo';
 import { FileTable } from './components/FileTable';
@@ -14,7 +14,43 @@ function App() {
   const [viewerEntry, setViewerEntry] = useState<FileEntry | null>(null);
   const [status, setStatus] = useState('Drop a disk image or click Open');
   const [extracting, setExtracting] = useState(false);
-  const [packages, setPackages] = useState<TapPackage[]>([]);
+  const [autoPackages, setAutoPackages] = useState<TapPackage[]>([]);
+  const [autoPackagesEnabled, setAutoPackagesEnabled] = useState(true);
+  const [manualPackages, setManualPackages] = useState<ManualPackage[]>([]);
+  const [nextManualId, setNextManualId] = useState(1);
+  const [editState, setEditState] = useState<EditState>({});
+
+  // Merge auto and manual packages into a unified TapPackage[] for display
+  const packages = useMemo(() => {
+    // Collect all indices claimed by manual packages
+    const manualIndices = new Set<number>();
+    for (const mp of manualPackages) {
+      for (const e of mp.entries) manualIndices.add(e.index);
+    }
+
+    // Convert manual packages to TapPackage format
+    const manualAsTap: TapPackage[] = manualPackages.map((mp) => ({
+      loader: mp.entries[0],
+      dependencies: mp.entries.slice(1),
+      unresolved: [],
+    }));
+
+    if (!autoPackagesEnabled) return manualAsTap;
+
+    // Filter auto packages: remove any whose files overlap with manual packages
+    const filteredAuto = autoPackages.filter((ap) => {
+      if (manualIndices.has(ap.loader.index)) return false;
+      return !ap.dependencies.some((d) => manualIndices.has(d.index));
+    });
+
+    return [...filteredAuto, ...manualAsTap];
+  }, [autoPackages, autoPackagesEnabled, manualPackages]);
+
+  // Track which packages are manual (for badge styling)
+  const manualLoaderIndices = useMemo(
+    () => new Set(manualPackages.map((mp) => mp.entries[0]?.index)),
+    [manualPackages],
+  );
 
   const handleOpen = useCallback(async () => {
     try {
@@ -23,9 +59,12 @@ function App() {
         setDisk(result);
         setSelectedIndices(new Set());
         setViewerEntry(null);
+        setManualPackages([]);
+        setAutoPackagesEnabled(true);
+        setEditState({});
         setStatus(`Loaded ${result.catalog.length} files`);
         const pkgs = await api.analyzePackages(result.path);
-        setPackages(pkgs);
+        setAutoPackages(pkgs);
       }
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
@@ -39,9 +78,11 @@ function App() {
       setDisk(result);
       setSelectedIndices(new Set());
       setViewerEntry(null);
+      setManualPackages([]);
+      setAutoPackagesEnabled(true);
       setStatus(`Loaded ${result.catalog.length} files`);
       const pkgs = await api.analyzePackages(result.path);
-      setPackages(pkgs);
+      setAutoPackages(pkgs);
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
@@ -63,6 +104,120 @@ function App() {
     setViewerEntry(entry);
   }, []);
 
+  const handleEditLine = useCallback((entryIndex: number, lineNumber: number, text: string) => {
+    setEditState((prev) => ({
+      ...prev,
+      [entryIndex]: { ...prev[entryIndex], [lineNumber]: text },
+    }));
+  }, []);
+
+  const handleRevertLine = useCallback((entryIndex: number, lineNumber: number) => {
+    setEditState((prev) => {
+      const fileEdits = { ...prev[entryIndex] };
+      delete fileEdits[lineNumber];
+      if (Object.keys(fileEdits).length === 0) {
+        const next = { ...prev };
+        delete next[entryIndex];
+        return next;
+      }
+      return { ...prev, [entryIndex]: fileEdits };
+    });
+  }, []);
+
+  const handleRevertAll = useCallback((entryIndex: number) => {
+    setEditState((prev) => {
+      const next = { ...prev };
+      delete next[entryIndex];
+      return next;
+    });
+  }, []);
+
+  // Manual package handlers
+  const handleCreatePackage = useCallback((targetIndex: number, draggedIndex: number) => {
+    if (!disk) return;
+    const all = flattenEntries(disk.catalog);
+    const target = all.find((e) => e.index === targetIndex);
+    const dragged = all.find((e) => e.index === draggedIndex);
+    if (!target || !dragged || target.index === dragged.index) return;
+
+    // Remove both from any existing manual package
+    setManualPackages((prev) => {
+      let updated = prev.map((mp) => ({
+        ...mp,
+        entries: mp.entries.filter((e) => e.index !== targetIndex && e.index !== draggedIndex),
+      })).filter((mp) => mp.entries.length >= 1);
+
+      // Create new package
+      updated = [...updated, { id: nextManualId, entries: [target, dragged] }];
+      return updated;
+    });
+    setNextManualId((n) => n + 1);
+    setStatus(`Created package: ${target.filename.trim()}`);
+  }, [disk, nextManualId]);
+
+  const handleAddToPackage = useCallback((loaderIndex: number, draggedIndex: number, insertBeforeIndex?: number) => {
+    if (!disk) return;
+    const all = flattenEntries(disk.catalog);
+    const dragged = all.find((e) => e.index === draggedIndex);
+    if (!dragged) return;
+
+    setManualPackages((prev) => {
+      // Remove dragged from any existing manual package
+      let updated = prev.map((mp) => ({
+        ...mp,
+        entries: mp.entries.filter((e) => e.index !== draggedIndex),
+      })).filter((mp) => mp.entries.length >= 1);
+
+      // Add to target package
+      return updated.map((mp) => {
+        if (mp.entries[0]?.index !== loaderIndex) return mp;
+        const newEntries = [...mp.entries];
+        if (insertBeforeIndex !== undefined) {
+          const pos = newEntries.findIndex((e) => e.index === insertBeforeIndex);
+          if (pos >= 1) { // Don't insert before the lead file
+            newEntries.splice(pos, 0, dragged);
+            return { ...mp, entries: newEntries };
+          }
+        }
+        newEntries.push(dragged);
+        return { ...mp, entries: newEntries };
+      });
+    });
+  }, [disk]);
+
+  const handleReorderInPackage = useCallback((loaderIndex: number, draggedIndex: number, insertBeforeIndex?: number) => {
+    setManualPackages((prev) =>
+      prev.map((mp) => {
+        if (mp.entries[0]?.index !== loaderIndex) return mp;
+        const entries = mp.entries.filter((e) => e.index !== draggedIndex);
+        const dragged = mp.entries.find((e) => e.index === draggedIndex);
+        if (!dragged) return mp;
+
+        if (insertBeforeIndex !== undefined) {
+          const pos = entries.findIndex((e) => e.index === insertBeforeIndex);
+          if (pos >= 1) {
+            entries.splice(pos, 0, dragged);
+            return { ...mp, entries };
+          }
+        }
+        entries.push(dragged);
+        return { ...mp, entries };
+      }),
+    );
+  }, []);
+
+  const handleRemoveFromPackage = useCallback((loaderIndex: number, entryIndex: number) => {
+    setManualPackages((prev) => {
+      const updated = prev.map((mp) => {
+        if (mp.entries[0]?.index !== loaderIndex) return mp;
+        // If removing the lead file, dissolve the package
+        if (entryIndex === loaderIndex) return { ...mp, entries: [] };
+        return { ...mp, entries: mp.entries.filter((e) => e.index !== entryIndex) };
+      }).filter((mp) => mp.entries.length >= 2); // dissolve single-entry packages
+      return updated;
+    });
+  }, []);
+
   const handleExtractSelected = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
     const destDir = await api.selectDirectory();
@@ -74,7 +229,7 @@ function App() {
 
     for (const idx of selectedIndices) {
       try {
-        const result = await api.extractFile(disk.path, idx, destDir);
+        const result = await api.extractFile(disk.path, idx, destDir, editState[idx]);
         if (result) results.push(result);
       } catch {
         // continue
@@ -98,7 +253,7 @@ function App() {
     setStatus('Extracting package...');
     try {
       const depIndices = pkg.dependencies.map((d) => d.index);
-      const result = await api.extractPackage(disk.path, pkg.loader.index, depIndices, destDir);
+      const result = await api.extractPackage(disk.path, pkg.loader.index, depIndices, destDir, editState);
       setStatus(result ? `Extracted package: ${result.filename.trim()}` : 'Package extraction failed');
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
@@ -114,7 +269,7 @@ function App() {
     setExtracting(true);
     setStatus('Extracting all files...');
     try {
-      const results = await api.extractAll(disk.path, destDir);
+      const results = await api.extractAll(disk.path, destDir, editState);
       setStatus(`Extracted ${results.length} file(s)`);
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
@@ -148,6 +303,8 @@ function App() {
         hasPackageSelected={selectedPackage !== null}
         hasDisk={disk !== null}
         extracting={extracting}
+        autoPackagesEnabled={autoPackagesEnabled}
+        onToggleAutoPackages={() => setAutoPackagesEnabled((v) => !v)}
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -162,6 +319,12 @@ function App() {
                 onSelect={handleSelect}
                 onViewHex={handleViewContent}
                 packages={packages}
+                manualLoaderIndices={manualLoaderIndices}
+                onCreatePackage={handleCreatePackage}
+                onAddToPackage={handleAddToPackage}
+                onReorderInPackage={handleReorderInPackage}
+                onRemoveFromPackage={handleRemoveFromPackage}
+                editedIndices={editState}
               />
             ) : (
               <DropZone onDrop={handleDrop} />
@@ -182,6 +345,10 @@ function App() {
             entry={viewerEntry}
             diskPath={disk.path}
             onClose={() => setViewerEntry(null)}
+            fileEdits={editState[viewerEntry.index]}
+            onEditLine={(ln, text) => handleEditLine(viewerEntry.index, ln, text)}
+            onRevertLine={(ln) => handleRevertLine(viewerEntry.index, ln)}
+            onRevertAll={() => handleRevertAll(viewerEntry.index)}
           />
         )}
       </div>
