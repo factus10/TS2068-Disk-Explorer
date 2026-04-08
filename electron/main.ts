@@ -14,6 +14,8 @@ import { detokenize } from './parsers/basic-detokenizer';
 import { decodeScreen, SCREEN_SIZE } from './parsers/screen-decoder';
 import { decodeNumericArray, decodeCharArray } from './parsers/array-decoder';
 import { extractBasicFromState } from './parsers/state-extract';
+import { parseVariables } from './parsers/basic-variables';
+import type { BasicVariable } from './parsers/basic-variables';
 import { rebuildBasicProgram } from './parsers/basic-editor';
 import { makeSafeFilename, uniquePath } from './parsers/utils';
 import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage, DiskHeader } from './parsers/types';
@@ -352,6 +354,90 @@ ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex
     listing.autostartLine = autostart;
   }
   return listing;
+});
+
+ipcMain.handle('extract-basic-from-state', async (
+  _event, imagePath: string, entryIndex: number, destDir: string,
+): Promise<ExtractionResult | null> => {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+  const entry = allEntries.find((e) => e.index === entryIndex);
+  if (!entry) return null;
+
+  const fileData = parser.readFileData(buffer, entry);
+  if (!fileData) return null;
+
+  const origin = format.startsWith('oliger') ? 0x3E00 : 0x4000;
+  const stateInfo = extractBasicFromState(fileData, origin);
+  if (!stateInfo) return null;
+
+  // Build a FileEntry for the extracted BASIC program
+  const basicEntry: FileEntry = {
+    index: entry.index,
+    filename: entry.filename,
+    type: 'basic',
+    typeName: 'BASIC',
+    size: stateInfo.basicData.length + stateInfo.varsData.length,
+    params: {
+      autostartLine: 0,
+      varsOffset: stateInfo.basicData.length,
+      param1: 0,
+      param2: stateInfo.basicData.length,
+    },
+    blocks: [],
+    isMemoryDump: false,
+    isDirectory: false,
+    metadata: {},
+  };
+
+  const fullData = Buffer.concat([stateInfo.basicData, stateInfo.varsData]);
+  const tapData = buildTapFile(basicEntry, fullData);
+
+  fs.mkdirSync(destDir, { recursive: true });
+  const safeName = makeSafeFilename(entry.filename.trim());
+  const tapPath = uniquePath(path.join(destDir, (safeName || 'extracted') + '.tap'));
+  fs.writeFileSync(tapPath, tapData);
+
+  return {
+    filename: entry.filename,
+    outputPaths: [tapPath],
+    format: 'tap',
+    size: fullData.length,
+  };
+});
+
+ipcMain.handle('get-basic-variables', async (_event, imagePath: string, entryIndex: number): Promise<BasicVariable[] | null> => {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+  const entry = allEntries.find((e) => e.index === entryIndex);
+  if (!entry) return null;
+
+  const fileData = parser.readFileData(buffer, entry);
+  if (!fileData) return null;
+
+  // State capture: extract variables from memory
+  if (entry.type === 'state' || entry.isMemoryDump) {
+    const origin = format.startsWith('oliger') ? 0x3E00 : 0x4000;
+    const stateInfo = extractBasicFromState(fileData, origin);
+    if (!stateInfo || stateInfo.varsData.length === 0) return [];
+    return parseVariables(stateInfo.varsData);
+  }
+
+  // Regular BASIC file: variables area starts at varsOffset
+  if (entry.type !== 'basic') return null;
+  const varsOffset = entry.params.varsOffset ?? entry.params.param2;
+  if (!varsOffset || varsOffset >= fileData.length) return [];
+  return parseVariables(Buffer.from(fileData.subarray(varsOffset)));
 });
 
 ipcMain.handle('get-screen-data', async (_event, imagePath: string, entryIndex: number, invert: boolean): Promise<number[] | null> => {

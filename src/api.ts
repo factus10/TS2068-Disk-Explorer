@@ -92,6 +92,19 @@ export type FileEdits = Record<number, string>;
 /** Map of entry index → edits for that file */
 export type EditState = Record<number, FileEdits>;
 
+export interface BasicVariable {
+  name: string;
+  kind: 'number' | 'string' | 'number-array' | 'string-array' | 'for';
+  value?: string;
+  dimensions?: number[];
+  values?: string[];
+  forValue?: number;
+  forLimit?: number;
+  forStep?: number;
+  forLine?: number;
+  forStatement?: number;
+}
+
 interface DiskToolsAPI {
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
@@ -102,6 +115,8 @@ interface DiskToolsAPI {
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult | null>;
   getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<BasicListing | null>;
+  getBasicVariables: (imagePath: string, entryIndex: number) => Promise<BasicVariable[] | null>;
+  extractBasicFromState: (imagePath: string, entryIndex: number, destDir: string) => Promise<ExtractionResult | null>;
   getScreenData: (imagePath: string, entryIndex: number, invert: boolean) => Promise<number[] | null>;
   getArrayData: (imagePath: string, entryIndex: number) => Promise<ArrayData | null>;
   onMenuOpenFile: (callback: () => void) => () => void;

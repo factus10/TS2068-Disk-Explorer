@@ -11,20 +11,25 @@ Built with Electron, React, and TypeScript.
 - **Sortable file table** with type badges, sizes, and block maps
 - **Content viewers** — tabbed panel auto-selects the best view for each file type:
   - **BASIC listing** with syntax highlighting (statements, functions, operators, UDG, block graphics)
+  - **Variable viewer** — displays all BASIC variables with types, values, and expandable arrays
   - **SCREEN$ viewer** — canvas rendering of 6912-byte screens with invert toggle and PNG export
   - **Data array decoder** — numeric and character array values with dimensions
+  - **Text viewer** — auto-detected for word processor and plain text files
   - **Hex viewer** for raw byte inspection
+- **Inline BASIC editor** — double-click lines to edit, with smart re-tokenization preserving original binary for unedited lines. Edits tracked per-file across the disk with dirty indicators
 - **TS2068 token support** — auto-disambiguates extended tokens (`ON ERR`, `STICK`, `SOUND`, `FREE`, `RESET`) from ZX Spectrum characters, with manual Auto/TS2068/Spectrum toggle
 - **Disk command highlighting** — detects and highlights DOS-specific I/O commands:
   - Oliger: `OUT 244,1` ROM paging + `LOAD /"name"` syntax
-  - Larken: `RANDOMIZE USR 100:` / `PRINT #4:` activation + `OPEN #4,"dd"` setup
+  - Larken: `USR 100` activation (after any keyword) + `PRINT #4:` channel shorthand + `OPEN #4,"dd"` setup
 - **TAP file support** — open `.tap` files directly; each header+data pair shown as a catalog entry with full viewer support
 - **TAP package bundling** — auto-detects BASIC programs that LOAD other files and bundles them into a single multi-file TAP for emulator compatibility
-- **State capture support** — Oliger type-4 state captures and ABS memory dumps with extracted BASIC listing
-- **TAP export** for ZX Spectrum-compatible files (BASIC, CODE, arrays)
+- **Manual TAP package assembly** — drag files onto each other to create custom packages, reorder with drag-and-drop, Auto/Manual PKG toggle per disk
+- **State capture support** — Oliger type-4 state captures with extracted BASIC listing, variable viewer, and **Extract BASIC** button to save as standalone TAP
+- **TAP export** for ZX Spectrum-compatible files (BASIC, CODE, arrays) — edited files export with changes
 - **Memory dump export** with auto-generated BASIC loader
 - **Extraction manifest** — `manifest.md` generated alongside extracted files with disk metadata and file mapping
 - **Resizable viewer panel** — drag the edge to resize the content viewer
+- **Copy buttons** on text and listing views
 - **Extract All** bundles detected packages automatically; standalone files export individually
 - **Multi-select** with Cmd/Ctrl+click for batch extraction
 
@@ -46,24 +51,39 @@ Built with Electron, React, and TypeScript.
 
 The side panel auto-selects the richest view based on file type:
 
-- **BASIC programs** → Listing tab (syntax-highlighted, with line numbers and autostart indicator) + Hex tab
-- **CODE files (6912 bytes)** → Screen tab (ZX Spectrum display with color attributes) + Hex tab
-- **Numeric/string arrays** → Array tab (decoded values with dimensions) + Hex tab
-- **State captures** → Listing tab (BASIC extracted from memory via system variable pointers) + Hex tab
+- **BASIC programs** → Listing + Variables + Hex tabs
+- **State captures** → Listing + Variables + Hex tabs (BASIC extracted from memory) + Extract BASIC button
+- **CODE files (6912 bytes)** → Screen + Hex tabs
+- **Numeric/string arrays** → Array + Hex tabs
+- **Text files** (90%+ printable) → Text + Hex tabs
 - **Everything else** → Hex tab
 
 The TS2068 token toggle (Auto / TS2068 / Spectrum) appears on the listing tab for programs that may use extended keywords.
 
+## Inline BASIC Editing
+
+Double-click any line in the listing viewer to edit it. Edited lines are highlighted and tracked per-file across the entire disk image. On extraction:
+
+- Only edited lines are re-tokenized; unedited lines preserve original binary
+- All extraction paths (Extract Selected, Extract as Package, Extract All) use edited content
+- Per-line revert and Revert All to undo changes
+- EDITED badge shown on modified files in the file table
+
 ## TAP Package Bundling
 
-On disk systems each file is standalone, but on tape (TAP format) a BASIC program and the files it LOADs must appear sequentially in the same file. The app scans BASIC programs for LOAD commands, matches them to catalog entries, and groups them into packages:
+On disk systems each file is standalone, but on tape (TAP format) a BASIC program and the files it LOADs must appear sequentially in the same file.
 
-- Supports tape-style `LOAD ""CODE`, Oliger disk-style `LOAD /"name"CODE`, and Larken `RANDOMIZE USR 100: LOAD "name"`
+**Auto-detected packages:**
+- Scans BASIC programs for LOAD commands and matches to catalog entries
+- Supports tape-style `LOAD ""CODE`, Oliger disk-style `LOAD /"name"CODE`, and Larken `USR 100: LOAD "name"`
 - SCREEN$ loads validated against 6912-byte size
-- Package loaders show a **PKG** badge in the file table
-- Expand a package row to see its dependencies
-- **Extract as Package** exports a single multi-file TAP
-- **Extract All** bundles packages by default
+- Toggle on/off with the Auto PKG / Manual PKG button
+
+**Manual package assembly:**
+- Drag a file onto another to create a custom package
+- Drag within an expanded package to reorder files
+- Remove files with the x button on dependency rows
+- Manual packages show a teal PKG badge with pencil icon
 
 ## Installation
 

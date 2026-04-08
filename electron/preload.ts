@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir, allEdits),
   getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
     ipcRenderer.invoke('get-basic-listing', imagePath, entryIndex, ts2068Mode ?? 'auto'),
+  getBasicVariables: (imagePath: string, entryIndex: number) =>
+    ipcRenderer.invoke('get-basic-variables', imagePath, entryIndex),
+  extractBasicFromState: (imagePath: string, entryIndex: number, destDir: string) =>
+    ipcRenderer.invoke('extract-basic-from-state', imagePath, entryIndex, destDir),
   getScreenData: (imagePath: string, entryIndex: number, invert: boolean) =>
     ipcRenderer.invoke('get-screen-data', imagePath, entryIndex, invert),
   getArrayData: (imagePath: string, entryIndex: number) =>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits } from '../api';
+import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits, BasicVariable } from '../api';
 import { HexView } from './HexView';
 import { BasicListing } from './BasicListing';
 import { ScreenViewer } from './ScreenViewer';
 import { ArrayViewer } from './ArrayViewer';
 import { TextView } from './TextView';
+import { VariableViewer } from './VariableViewer';
 
 const DEFAULT_WIDTH = 560;
 const MIN_WIDTH = 360;
@@ -20,15 +21,15 @@ interface Props {
   onRevertAll?: () => void;
 }
 
-type ViewTab = 'listing' | 'screen' | 'array' | 'text' | 'hex';
+type ViewTab = 'listing' | 'variables' | 'screen' | 'array' | 'text' | 'hex';
 
 const SCREEN_SIZE = 6912;
 const TEXT_PRINTABLE_THRESHOLD = 0.9;
 
 function getStaticTabs(entry: FileEntry): ViewTab[] {
   const tabs: ViewTab[] = [];
-  if (entry.type === 'basic') tabs.push('listing');
-  if (entry.type === 'state' || entry.isMemoryDump) tabs.push('listing');
+  if (entry.type === 'basic') { tabs.push('listing'); tabs.push('variables'); }
+  if (entry.type === 'state' || entry.isMemoryDump) { tabs.push('listing'); tabs.push('variables'); }
   if (entry.type === 'code' && entry.size === SCREEN_SIZE) tabs.push('screen');
   if (entry.type === 'num-array' || entry.type === 'str-array') tabs.push('array');
   return tabs;
@@ -60,6 +61,7 @@ function decodeText(data: number[]): string {
 
 const TAB_LABELS: Record<ViewTab, string> = {
   listing: 'Listing',
+  variables: 'Variables',
   screen: 'Screen',
   array: 'Array',
   text: 'Text',
@@ -71,6 +73,7 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
   const [hexData, setHexData] = useState<number[] | null>(null);
   const [listing, setListing] = useState<BasicListingData | null>(null);
   const [arrayData, setArrayData] = useState<ArrayData | null>(null);
+  const [variables, setVariables] = useState<BasicVariable[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');
@@ -96,6 +99,7 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
     setHexData(null);
     setListing(null);
     setArrayData(null);
+    setVariables(null);
     setLoading(true);
 
     api.getFileData(diskPath, entry.index).then((data) => {
@@ -138,6 +142,28 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
     }).catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [activeTab, diskPath, entry.index, arrayData]);
+
+  // Load variables when variables tab activates
+  useEffect(() => {
+    if (activeTab !== 'variables' || variables) return;
+    let cancelled = false;
+    setLoading(true);
+    api.getBasicVariables(diskPath, entry.index).then((data) => {
+      if (!cancelled) { setVariables(data); setLoading(false); }
+    }).catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, diskPath, entry.index, variables]);
+
+  // Extract BASIC from state capture
+  const isStateCapture = entry.type === 'state' || entry.isMemoryDump;
+  const handleExtractBasic = useCallback(async () => {
+    const destDir = await api.selectDirectory();
+    if (!destDir) return;
+    const result = await api.extractBasicFromState(diskPath, entry.index, destDir);
+    if (result) {
+      // Could show status but we don't have direct access — the filename is enough feedback
+    }
+  }, [diskPath, entry.index]);
 
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const dragging = useRef(false);
@@ -208,17 +234,32 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
         alignItems: 'center',
       }}>
         <span style={{ fontWeight: 600, fontSize: 12 }}>{entry.filename.trim()}</span>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'transparent',
-            color: 'var(--text-secondary)',
-            padding: '2px 8px',
-            fontSize: 11,
-          }}
-        >
-          Close
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {isStateCapture && (
+            <button
+              onClick={handleExtractBasic}
+              style={{
+                background: 'var(--bg-tertiary)',
+                color: 'var(--badge-basic)',
+                padding: '2px 10px',
+                fontSize: 11,
+              }}
+            >
+              Extract BASIC
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              padding: '2px 8px',
+              fontSize: 11,
+            }}
+          >
+            Close
+          </button>
+        </div>
       </div>
 
       {/* Tab bar */}
@@ -298,6 +339,7 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
         {activeTab === 'screen' && (
           <ScreenViewer entry={entry} diskPath={diskPath} />
         )}
+        {activeTab === 'variables' && variables && <VariableViewer variables={variables} />}
         {activeTab === 'array' && arrayData && <ArrayViewer data={arrayData} />}
       </div>
       </div>
