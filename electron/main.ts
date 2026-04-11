@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { getRecent, addRecent, clearRecent } from './recent-files';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
 import { readCatalog as readOliger, readFileData as readOligerFile } from './parsers/oliger';
@@ -24,6 +25,18 @@ import type { ScreenData } from './parsers/screen-decoder';
 import type { ArrayData } from './parsers/array-decoder';
 
 let mainWindow: BrowserWindow | null = null;
+let helpWindow: BrowserWindow | null = null;
+let pendingFilePath: string | null = null;
+
+// macOS file association: open-file can fire before app is ready
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  if (mainWindow) {
+    mainWindow.webContents.send('menu-open-recent', filePath);
+  } else {
+    pendingFilePath = filePath;
+  }
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -48,18 +61,62 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
+  // Handle pending file from open-file event (macOS file association)
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (pendingFilePath) {
+      mainWindow?.webContents.send('menu-open-recent', pendingFilePath);
+      pendingFilePath = null;
+    }
+  });
+
   buildMenu();
 }
 
+function openHelpWindow() {
+  if (helpWindow && !helpWindow.isDestroyed()) {
+    helpWindow.focus();
+    return;
+  }
+
+  helpWindow = new BrowserWindow({
+    width: 850,
+    height: 650,
+    title: 'TS-2068 Disk Browser Help',
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+  });
+
+  const helpPath = process.env.VITE_DEV_SERVER_URL
+    ? path.join(app.getAppPath(), 'help/help.html')
+    : path.join(__dirname, '../help/help.html');
+
+  helpWindow.loadFile(helpPath);
+  helpWindow.setMenuBarVisibility(false);
+  helpWindow.on('closed', () => { helpWindow = null; });
+}
+
 function buildMenu() {
+  const recentFiles = getRecent();
+  const recentSubmenu: Electron.MenuItemConstructorOptions[] = recentFiles.map((fp) => ({
+    label: path.basename(fp),
+    click: () => mainWindow?.webContents.send('menu-open-recent', fp),
+  }));
+  if (recentSubmenu.length > 0) {
+    recentSubmenu.push({ type: 'separator' });
+    recentSubmenu.push({ label: 'Clear Recent', click: () => { clearRecent(); buildMenu(); } });
+  }
+
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'File',
       submenu: [
         {
-          label: 'Open Disk Image...',
+          label: 'Open...',
           accelerator: 'CmdOrCtrl+O',
           click: () => mainWindow?.webContents.send('menu-open-file'),
+        },
+        {
+          label: 'Recent Files',
+          submenu: recentSubmenu.length > 0 ? recentSubmenu : [{ label: 'No Recent Files', enabled: false }],
         },
         { type: 'separator' },
         { role: 'quit' },
@@ -81,6 +138,16 @@ function buildMenu() {
         { role: 'zoomIn' },
         { role: 'zoomOut' },
         { role: 'resetZoom' },
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'TS-2068 Disk Browser Help',
+          accelerator: 'F1',
+          click: () => openHelpWindow(),
+        },
       ],
     },
   ];
@@ -136,11 +203,17 @@ ipcMain.handle('open-file-dialog', async () => {
     return null;
   }
 
-  return parseDiskImage(result.filePaths[0]);
+  const disk = parseDiskImage(result.filePaths[0]);
+  addRecent(result.filePaths[0]);
+  buildMenu();
+  return disk;
 });
 
 ipcMain.handle('open-path', async (_event, filePath: string) => {
-  return parseDiskImage(filePath);
+  const disk = parseDiskImage(filePath);
+  addRecent(filePath);
+  buildMenu();
+  return disk;
 });
 
 ipcMain.handle('select-directory', async () => {

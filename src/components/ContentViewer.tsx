@@ -6,6 +6,7 @@ import { ScreenViewer } from './ScreenViewer';
 import { ArrayViewer } from './ArrayViewer';
 import { TextView } from './TextView';
 import { VariableViewer } from './VariableViewer';
+import { FontViewer, isFontData } from './FontViewer';
 
 const DEFAULT_WIDTH = 560;
 const MIN_WIDTH = 360;
@@ -21,7 +22,7 @@ interface Props {
   onRevertAll?: () => void;
 }
 
-type ViewTab = 'listing' | 'variables' | 'screen' | 'array' | 'text' | 'hex';
+type ViewTab = 'listing' | 'variables' | 'screen' | 'font' | 'array' | 'text' | 'hex';
 
 const SCREEN_SIZE = 6912;
 const TEXT_PRINTABLE_THRESHOLD = 0.9;
@@ -59,10 +60,13 @@ function decodeText(data: number[]): string {
   return text;
 }
 
+const FONT_SIZE_BYTES = 768;
+
 const TAB_LABELS: Record<ViewTab, string> = {
   listing: 'Listing',
   variables: 'Variables',
   screen: 'Screen',
+  font: 'Font',
   array: 'Array',
   text: 'Text',
   hex: 'Hex',
@@ -78,14 +82,16 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');
 
-  // Compute available tabs (text tab depends on data)
+  // Compute available tabs (text/font tabs depend on data)
   const hasText = hexData ? isTextContent(hexData) : false;
+  const hasFont = hexData ? isFontData(hexData) : false;
   const tabs = useMemo(() => {
     const t = getStaticTabs(entry);
+    if (hasFont && entry.type === 'code') t.push('font');
     if (hasText) t.push('text');
     t.push('hex');
     return t;
-  }, [entry.index, entry.type, entry.size, entry.isMemoryDump, hasText]);
+  }, [entry.index, entry.type, entry.size, entry.isMemoryDump, hasText, hasFont]);
 
   // Decoded text content (memoized)
   const textContent = useMemo(() => {
@@ -105,10 +111,12 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
     api.getFileData(diskPath, entry.index).then((data) => {
       if (cancelled) return;
       setHexData(data);
-      // Pick default tab after we know if it's text
+      // Pick default tab after we know content type
       const staticTabs = getStaticTabs(entry);
       if (staticTabs.length > 0) {
         setActiveTab(staticTabs[0]);
+      } else if (data && isFontData(data) && entry.type === 'code') {
+        setActiveTab('font');
       } else if (data && isTextContent(data)) {
         setActiveTab('text');
       } else {
@@ -340,6 +348,7 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
           <ScreenViewer entry={entry} diskPath={diskPath} />
         )}
         {activeTab === 'variables' && variables && <VariableViewer variables={variables} />}
+        {activeTab === 'font' && hexData && <FontViewer data={hexData} filename={entry.filename.trim()} />}
         {activeTab === 'array' && arrayData && <ArrayViewer data={arrayData} />}
       </div>
       </div>

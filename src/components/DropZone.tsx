@@ -29,7 +29,7 @@ export function DropZone({ onDrop, overlay = false }: Props) {
     if (files && files.length > 0) {
       const file = files[0];
       const name = file.name.toLowerCase();
-      if (name.endsWith('.img') || name.endsWith('.dsk')) {
+      if (name.endsWith('.img') || name.endsWith('.dsk') || name.endsWith('.tap')) {
         onDrop((file as any).path);
       }
     }
@@ -102,7 +102,7 @@ export function DropZone({ onDrop, overlay = false }: Props) {
         Drop a disk image here
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        Supports .img (Larken, Oliger, Aerco, QL) and .dsk (Zebra) formats
+        Supports .img, .dsk, and .tap formats
       </div>
     </div>
   );

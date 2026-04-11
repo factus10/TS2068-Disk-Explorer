@@ -120,6 +120,7 @@ interface DiskToolsAPI {
   getScreenData: (imagePath: string, entryIndex: number, invert: boolean) => Promise<number[] | null>;
   getArrayData: (imagePath: string, entryIndex: number) => Promise<ArrayData | null>;
   onMenuOpenFile: (callback: () => void) => () => void;
+  onMenuOpenRecent: (callback: (_event: any, filePath: string) => void) => () => void;
 }
 
 declare global {

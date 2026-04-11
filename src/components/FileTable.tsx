@@ -1,5 +1,11 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import type { FileEntry, TapPackage, EditState } from '../api';
+
+export interface FileTableHandle {
+  visibleRowIndices: number[];
+  toggleExpand: (index: number) => void;
+  focus: () => void;
+}
 
 interface Props {
   entries: FileEntry[];
@@ -13,6 +19,7 @@ interface Props {
   onReorderInPackage: (loaderIndex: number, draggedIndex: number, insertBeforeIndex?: number) => void;
   onRemoveFromPackage: (loaderIndex: number, entryIndex: number) => void;
   editedIndices: EditState;
+  searchQuery: string;
 }
 
 type SortKey = 'filename' | 'typeName' | 'size';
@@ -34,14 +41,15 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}M`;
 }
 
-export function FileTable({
+export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
   entries, selectedIndices, onSelect, onViewHex, packages,
   manualLoaderIndices, onCreatePackage, onAddToPackage, onReorderInPackage, onRemoveFromPackage,
-  editedIndices,
-}: Props) {
+  editedIndices, searchQuery,
+}, ref) {
   const [sortKey, setSortKey] = useState<SortKey>('filename');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const tableRef = useRef<HTMLDivElement>(null);
 
   // Drag-and-drop state
   const dragIndex = useRef<number | null>(null);
@@ -91,6 +99,35 @@ export function FileTable({
     }
     return sortDir === 'asc' ? cmp : -cmp;
   });
+
+  // Apply search filter
+  const filteredEntries = searchQuery
+    ? sortedEntries.filter((e) => e.filename.toLowerCase().includes(searchQuery.toLowerCase()))
+    : sortedEntries;
+
+  // Build visible row index list (for keyboard navigation)
+  const visibleRowIndices = useMemo(() => {
+    const indices: number[] = [];
+    for (const entry of filteredEntries) {
+      if (isDependency.has(entry.index)) continue;
+      indices.push(entry.index);
+      const pkg = packageByLoader.get(entry.index);
+      if (pkg && expanded.has(entry.index)) {
+        for (const dep of pkg.dependencies) indices.push(dep.index);
+      }
+      if (entry.isDirectory && entry.children && expanded.has(entry.index)) {
+        for (const child of entry.children) indices.push(child.index);
+      }
+    }
+    return indices;
+  }, [filteredEntries, isDependency, packageByLoader, expanded]);
+
+  // Expose handle for keyboard navigation
+  useImperativeHandle(ref, () => ({
+    visibleRowIndices,
+    toggleExpand,
+    focus: () => tableRef.current?.focus(),
+  }));
 
   const toggleExpand = (index: number) => {
     setExpanded((prev) => {
@@ -350,6 +387,7 @@ export function FileTable({
     sortKey === key ? (sortDir === 'asc' ? ' \u25B2' : ' \u25BC') : '';
 
   return (
+    <div ref={tableRef} tabIndex={0} style={{ outline: 'none', flex: 1 }}>
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
       <thead>
         <tr>
@@ -366,10 +404,11 @@ export function FileTable({
         </tr>
       </thead>
       <tbody>
-        {sortedEntries.map((entry) =>
+        {filteredEntries.map((entry) =>
           isDependency.has(entry.index) ? null : renderRow(entry)
         )}
       </tbody>
     </table>
+    </div>
   );
-}
+});

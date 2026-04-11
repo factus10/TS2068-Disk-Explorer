@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api, DiskImage, FileEntry, ExtractionResult, TapPackage, ManualPackage, EditState } from './api';
 import { Toolbar } from './components/Toolbar';
 import { DiskInfo } from './components/DiskInfo';
-import { FileTable } from './components/FileTable';
+import { FileTable, FileTableHandle } from './components/FileTable';
 import { FileDetails } from './components/FileDetails';
 import { DropZone } from './components/DropZone';
 import { StatusBar } from './components/StatusBar';
@@ -19,16 +19,27 @@ function App() {
   const [manualPackages, setManualPackages] = useState<ManualPackage[]>([]);
   const [nextManualId, setNextManualId] = useState(1);
   const [editState, setEditState] = useState<EditState>({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() =>
+    (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'dark' | 'light') || 'dark',
+  );
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const fileTableRef = useRef<FileTableHandle>(null);
+
+  // Apply theme
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   // Merge auto and manual packages into a unified TapPackage[] for display
   const packages = useMemo(() => {
-    // Collect all indices claimed by manual packages
     const manualIndices = new Set<number>();
     for (const mp of manualPackages) {
       for (const e of mp.entries) manualIndices.add(e.index);
     }
 
-    // Convert manual packages to TapPackage format
     const manualAsTap: TapPackage[] = manualPackages.map((mp) => ({
       loader: mp.entries[0],
       dependencies: mp.entries.slice(1),
@@ -37,7 +48,6 @@ function App() {
 
     if (!autoPackagesEnabled) return manualAsTap;
 
-    // Filter auto packages: remove any whose files overlap with manual packages
     const filteredAuto = autoPackages.filter((ap) => {
       if (manualIndices.has(ap.loader.index)) return false;
       return !ap.dependencies.some((d) => manualIndices.has(d.index));
@@ -46,7 +56,6 @@ function App() {
     return [...filteredAuto, ...manualAsTap];
   }, [autoPackages, autoPackagesEnabled, manualPackages]);
 
-  // Track which packages are manual (for badge styling)
   const manualLoaderIndices = useMemo(
     () => new Set(manualPackages.map((mp) => mp.entries[0]?.index)),
     [manualPackages],
@@ -62,6 +71,7 @@ function App() {
         setManualPackages([]);
         setAutoPackagesEnabled(true);
         setEditState({});
+        setSearchQuery('');
         setStatus(`Loaded ${result.catalog.length} files`);
         const pkgs = await api.analyzePackages(result.path);
         setAutoPackages(pkgs);
@@ -80,6 +90,8 @@ function App() {
       setViewerEntry(null);
       setManualPackages([]);
       setAutoPackagesEnabled(true);
+      setEditState({});
+      setSearchQuery('');
       setStatus(`Loaded ${result.catalog.length} files`);
       const pkgs = await api.analyzePackages(result.path);
       setAutoPackages(pkgs);
@@ -140,14 +152,12 @@ function App() {
     const dragged = all.find((e) => e.index === draggedIndex);
     if (!target || !dragged || target.index === dragged.index) return;
 
-    // Remove both from any existing manual package
     setManualPackages((prev) => {
       let updated = prev.map((mp) => ({
         ...mp,
         entries: mp.entries.filter((e) => e.index !== targetIndex && e.index !== draggedIndex),
       })).filter((mp) => mp.entries.length >= 1);
 
-      // Create new package
       updated = [...updated, { id: nextManualId, entries: [target, dragged] }];
       return updated;
     });
@@ -162,19 +172,17 @@ function App() {
     if (!dragged) return;
 
     setManualPackages((prev) => {
-      // Remove dragged from any existing manual package
       let updated = prev.map((mp) => ({
         ...mp,
         entries: mp.entries.filter((e) => e.index !== draggedIndex),
       })).filter((mp) => mp.entries.length >= 1);
 
-      // Add to target package
       return updated.map((mp) => {
         if (mp.entries[0]?.index !== loaderIndex) return mp;
         const newEntries = [...mp.entries];
         if (insertBeforeIndex !== undefined) {
           const pos = newEntries.findIndex((e) => e.index === insertBeforeIndex);
-          if (pos >= 1) { // Don't insert before the lead file
+          if (pos >= 1) {
             newEntries.splice(pos, 0, dragged);
             return { ...mp, entries: newEntries };
           }
@@ -210,10 +218,9 @@ function App() {
     setManualPackages((prev) => {
       const updated = prev.map((mp) => {
         if (mp.entries[0]?.index !== loaderIndex) return mp;
-        // If removing the lead file, dissolve the package
         if (entryIndex === loaderIndex) return { ...mp, entries: [] };
         return { ...mp, entries: mp.entries.filter((e) => e.index !== entryIndex) };
-      }).filter((mp) => mp.entries.length >= 2); // dissolve single-entry packages
+      }).filter((mp) => mp.entries.length >= 2);
       return updated;
     });
   }, []);
@@ -284,9 +291,85 @@ function App() {
     return unsub;
   }, [handleOpen]);
 
+  // Listen for menu Recent Files
+  useEffect(() => {
+    if (!api) return;
+    const unsub = api.onMenuOpenRecent((_event: any, filePath: string) => {
+      handleDrop(filePath);
+    });
+    return unsub;
+  }, [handleDrop]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+F: focus search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      // Don't handle keys when an input/textarea is focused
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') {
+        // Escape from search: return focus to file table
+        if (e.key === 'Escape' && tag === 'INPUT') {
+          (e.target as HTMLElement).blur();
+          fileTableRef.current?.focus();
+        }
+        return;
+      }
+
+      // Escape: close viewer
+      if (e.key === 'Escape') {
+        if (viewerEntry) { setViewerEntry(null); return; }
+      }
+
+      if (!disk) return;
+      const rows = fileTableRef.current?.visibleRowIndices ?? [];
+      if (rows.length === 0) return;
+
+      const all = flattenEntries(disk.catalog);
+      const currentIdx = selectedIndices.size === 1 ? [...selectedIndices][0] : -1;
+      const pos = rows.indexOf(currentIdx);
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextPos = pos < rows.length - 1 ? pos + 1 : 0;
+        handleSelect(rows[nextPos], false);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prevPos = pos > 0 ? pos - 1 : rows.length - 1;
+        handleSelect(rows[prevPos], false);
+      } else if (e.key === 'Enter') {
+        if (currentIdx >= 0) {
+          const entry = all.find((e) => e.index === currentIdx);
+          if (entry && !entry.isDirectory) handleViewContent(entry);
+        }
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        if (currentIdx >= 0) {
+          fileTableRef.current?.toggleExpand(currentIdx);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [disk, selectedIndices, viewerEntry, handleSelect, handleViewContent]);
+
   const selectedEntry = disk && selectedIndices.size === 1
     ? flattenEntries(disk.catalog).find((e) => selectedIndices.has(e.index)) ?? null
     : null;
+
+  // Auto-update viewer when selection changes and viewer is open
+  useEffect(() => {
+    if (viewerEntry && selectedEntry && selectedEntry.index !== viewerEntry.index && !selectedEntry.isDirectory) {
+      setViewerEntry(selectedEntry);
+    }
+  }, [selectedEntry]);
 
   const selectedPackage = selectedEntry
     ? packages.find((p) => p.loader.index === selectedEntry.index) ?? null
@@ -295,6 +378,7 @@ function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <Toolbar
+        ref={searchInputRef}
         onOpen={handleOpen}
         onExtractSelected={handleExtractSelected}
         onExtractAll={handleExtractAll}
@@ -305,6 +389,10 @@ function App() {
         extracting={extracting}
         autoPackagesEnabled={autoPackagesEnabled}
         onToggleAutoPackages={() => setAutoPackagesEnabled((v) => !v)}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => t === 'dark' ? 'light' : 'dark')}
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -314,6 +402,7 @@ function App() {
           <div style={{ flex: 1, overflow: 'auto' }}>
             {disk ? (
               <FileTable
+                ref={fileTableRef}
                 entries={disk.catalog}
                 selectedIndices={selectedIndices}
                 onSelect={handleSelect}
@@ -325,6 +414,7 @@ function App() {
                 onReorderInPackage={handleReorderInPackage}
                 onRemoveFromPackage={handleRemoveFromPackage}
                 editedIndices={editState}
+                searchQuery={searchQuery}
               />
             ) : (
               <DropZone onDrop={handleDrop} />

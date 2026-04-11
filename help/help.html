@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TS-2068 Disk Browser Help</title>
+<style>
+  :root {
+    --bg: #1a1a2e; --bg2: #16213e; --text: #e0e0e0; --text2: #a0a0b0;
+    --accent: #e94560; --border: #2a2a4a; --badge: #4ecdc4;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f5f8; --bg2: #e8e8ee; --text: #1a1a2e; --text2: #4a4a60;
+      --accent: #d63050; --border: #c8c8d8; --badge: #2ea8a0;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px; line-height: 1.6;
+    background: var(--bg); color: var(--text);
+    padding: 32px 48px; max-width: 900px; margin: 0 auto;
+  }
+  h1 { color: var(--accent); font-size: 28px; margin-bottom: 8px; }
+  h2 { color: var(--accent); font-size: 20px; margin: 32px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { color: var(--badge); font-size: 15px; margin: 20px 0 8px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0 8px 24px; }
+  li { margin: 4px 0; }
+  code { background: var(--bg2); padding: 1px 6px; border-radius: 3px; font-size: 13px; }
+  kbd { background: var(--bg2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 3px; font-size: 12px; font-family: monospace; }
+  table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+  th, td { padding: 6px 12px; border: 1px solid var(--border); text-align: left; font-size: 13px; }
+  th { background: var(--bg2); font-weight: 600; }
+  .subtitle { color: var(--text2); font-size: 14px; margin-bottom: 24px; }
+  .shortcut { display: flex; gap: 12px; padding: 4px 0; }
+  .shortcut .key { min-width: 160px; }
+</style>
+</head>
+<body>
+
+<h1>TS-2068 Disk Browser</h1>
+<p class="subtitle">Browse and extract files from vintage Timex Sinclair 2068 and ZX Spectrum disk images and TAP tape files.</p>
+
+<h2>Getting Started</h2>
+<p>Open a disk image or TAP file using <kbd>Cmd/Ctrl+O</kbd>, or drag and drop a file onto the window. The app auto-detects the format and displays the file catalog.</p>
+<p>Click any file in the catalog to select it. Double-click or press <kbd>Enter</kbd> to open the content viewer. The viewer automatically selects the best view for the file type.</p>
+
+<h2>Supported Formats</h2>
+<table>
+  <tr><th>Format</th><th>Extension</th><th>Notes</th></tr>
+  <tr><td>TAP tape file</td><td>.tap</td><td>Direct viewing with all content viewers</td></tr>
+  <tr><td>Larken LKDOS</td><td>.img</td><td>TAP export with memory dumps</td></tr>
+  <tr><td>Oliger JLO SAFE V1</td><td>.img</td><td>TAP export, heuristic type detection</td></tr>
+  <tr><td>Oliger JLO SAFE V2</td><td>.img</td><td>TAP export, state captures</td></tr>
+  <tr><td>Aerco DOS-64</td><td>.img</td><td>TAP for BASIC/CODE, raw for MODULE</td></tr>
+  <tr><td>Aerco RP/M</td><td>.img</td><td>Raw binary (CP/M files)</td></tr>
+  <tr><td>Zebra DIRSCP</td><td>.dsk</td><td>CPC DSK with hierarchical directories</td></tr>
+  <tr><td>Zebra CP/M</td><td>.dsk</td><td>CPC DSK flat catalog</td></tr>
+  <tr><td>Sinclair QL</td><td>.img</td><td>QL5A/QL5B raw binary</td></tr>
+</table>
+
+<h2>File Table</h2>
+<p>The file table shows all files on the disk with sortable columns (click column headers). Files are color-coded by type.</p>
+
+<h3>Selection</h3>
+<ul>
+  <li>Click to select a single file</li>
+  <li><kbd>Cmd/Ctrl+Click</kbd> for multi-select</li>
+  <li><kbd>Arrow Up/Down</kbd> to navigate</li>
+  <li>Use the search box (<kbd>Cmd/Ctrl+F</kbd>) to filter files by name</li>
+</ul>
+
+<h3>File Type Badges</h3>
+<ul>
+  <li><strong>PKG</strong> — auto-detected TAP package (BASIC + dependencies)</li>
+  <li><strong>DUMP</strong> — memory dump / state capture</li>
+  <li><strong>EDITED</strong> — file has pending BASIC edits</li>
+</ul>
+
+<h2>Content Viewers</h2>
+<p>The side panel opens when you double-click a file or press <kbd>Enter</kbd>. It auto-selects the best view with tabs to switch between views.</p>
+
+<h3>BASIC Listing</h3>
+<p>Syntax-highlighted BASIC program listing with line numbers. Keywords are color-coded:</p>
+<ul>
+  <li>Statements (PRINT, LET, IF, etc.) in cyan</li>
+  <li>Functions (SIN, PEEK, USR, etc.) in yellow</li>
+  <li>Operators (AND, OR, etc.) in orange</li>
+  <li>Disk commands (LOAD /, RANDOMIZE USR 100, etc.) in red with underline</li>
+  <li>TS2068 keywords (ON ERR, SOUND, STICK, etc.) in purple</li>
+</ul>
+<p>The <strong>Tokens</strong> toggle (Auto / TS2068 / Spectrum) controls how bytes 0x7B-0x7F are interpreted — as TS2068 extended keywords or ZX Spectrum characters.</p>
+
+<h3>Variables</h3>
+<p>Displays all BASIC variables with their types, values, and array contents. Available for BASIC programs and state captures.</p>
+
+<h3>Screen</h3>
+<p>Renders 6912-byte CODE files as ZX Spectrum screens (256x192 with color attributes). Includes invert toggle and PNG export at 1x/2x/4x scale.</p>
+
+<h3>Font</h3>
+<p>Renders 768-byte CODE files as ZX Spectrum font character grids (96 characters, 8x8 pixels each). Includes a live sample text preview, PNG export, and <strong>Save TTF</strong> to convert the bitmap font to a TrueType font file.</p>
+
+<h3>Array</h3>
+<p>Decodes numeric and character arrays with dimension info and values.</p>
+
+<h3>Text</h3>
+<p>Auto-detected for files with 90%+ printable ASCII content (word processor documents, plain text). Shows clean monospace text without hex columns.</p>
+
+<h3>Hex</h3>
+<p>Raw byte inspection with hex dump and ASCII representation. Always available as the last tab.</p>
+
+<h2>Inline BASIC Editing</h2>
+<p>Double-click any line in the BASIC listing to edit it. Edited lines are shown in teal.</p>
+<ul>
+  <li><kbd>Enter</kbd> to confirm an edit</li>
+  <li><kbd>Escape</kbd> to cancel</li>
+  <li>Click the revert arrow (<code>↶</code>) on an edited line to undo that edit</li>
+  <li>Click <strong>Revert all</strong> to undo all edits for the file</li>
+</ul>
+<p>Edits are tracked per-file across the entire disk. On extraction, only edited lines are re-tokenized — unedited lines preserve their original binary.</p>
+
+<h2>TAP Package Bundling</h2>
+<p>On disk systems each file is standalone, but on tape (TAP format) a BASIC program and the files it LOADs must appear sequentially.</p>
+
+<h3>Auto-Detected Packages</h3>
+<p>The app scans BASIC programs for LOAD commands and matches them to catalog entries. Packages show a <strong>PKG</strong> badge. Click the expand arrow to see dependencies.</p>
+
+<h3>Manual Package Assembly</h3>
+<p>Click <strong>Manual PKG</strong> in the toolbar to disable auto-detection and work with a flat file list.</p>
+<ul>
+  <li>Drag a file onto another to create a package</li>
+  <li>Drag within an expanded package to reorder</li>
+  <li>Drag from the main list into a package to add</li>
+  <li>Click the <strong>x</strong> button on a dependency to remove it</li>
+</ul>
+<p>Manual packages show a teal badge with a pencil icon.</p>
+
+<h2>State Captures</h2>
+<p>Oliger type-4 state captures contain full memory snapshots. The app extracts the BASIC program using system variable pointers (PROG/VARS) and shows it in the listing viewer.</p>
+<p>Click <strong>Extract BASIC</strong> in the viewer header to save the extracted program as a standalone TAP file.</p>
+
+<h2>Extraction</h2>
+<ul>
+  <li><strong>Extract Selected</strong> — extract selected files individually</li>
+  <li><strong>Extract as Package</strong> — export a package as a single multi-file TAP</li>
+  <li><strong>Extract All</strong> — extract all files, bundling auto-detected packages</li>
+</ul>
+<p>A <code>manifest.md</code> file is generated alongside extracted files with disk metadata and a file mapping table.</p>
+<p>If any BASIC files have pending edits, the edited versions are exported.</p>
+
+<h2>Disk Command Highlighting</h2>
+<p>The BASIC listing highlights DOS-specific I/O commands:</p>
+<ul>
+  <li><strong>Oliger</strong>: <code>OUT 244,1</code> ROM paging + <code>LOAD /"name"</code> syntax</li>
+  <li><strong>Larken</strong>: <code>USR 100</code> activation + <code>PRINT #4:</code> channel shorthand + <code>OPEN #4,"dd"</code> setup</li>
+</ul>
+
+<h2>Keyboard Shortcuts</h2>
+<table>
+  <tr><th>Shortcut</th><th>Action</th></tr>
+  <tr><td><kbd>Cmd/Ctrl+O</kbd></td><td>Open file</td></tr>
+  <tr><td><kbd>Cmd/Ctrl+F</kbd></td><td>Focus search / filter files</td></tr>
+  <tr><td><kbd>Arrow Up/Down</kbd></td><td>Navigate file list</td></tr>
+  <tr><td><kbd>Enter</kbd></td><td>Open viewer for selected file</td></tr>
+  <tr><td><kbd>Space</kbd></td><td>Expand/collapse package or directory</td></tr>
+  <tr><td><kbd>Escape</kbd></td><td>Close viewer / exit search</td></tr>
+  <tr><td><kbd>F1</kbd></td><td>Open this help</td></tr>
+</table>
+
+<h2>Theme</h2>
+<p>Click the sun/moon button in the toolbar to toggle between dark and light themes. Your preference is saved.</p>
+
+</body>
+</html>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 
 interface Props {
   onOpen: () => void;
@@ -11,13 +11,19 @@ interface Props {
   extracting: boolean;
   autoPackagesEnabled: boolean;
   onToggleAutoPackages: () => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
 }
 
-export function Toolbar({
+export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
   onOpen, onExtractSelected, onExtractAll, onExtractPackage,
   hasSelection, hasPackageSelected, hasDisk, extracting,
   autoPackagesEnabled, onToggleAutoPackages,
-}: Props) {
+  searchQuery, onSearchChange,
+  theme, onToggleTheme,
+}, searchRef) {
   return (
     <div style={{
       display: 'flex',
@@ -40,7 +46,7 @@ export function Toolbar({
       </span>
 
       {/* @ts-expect-error Electron-specific CSS property */}
-      <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: 6, alignItems: 'center' }}>
+      <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: 6, alignItems: 'center', flex: 1 }}>
         <button
           onClick={onOpen}
           style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
@@ -89,7 +95,47 @@ export function Toolbar({
             </button>
           </>
         )}
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Search */}
+        {hasDisk && (
+          <input
+            ref={searchRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Filter files..."
+            style={{
+              width: 180,
+              fontFamily: 'monospace',
+              fontSize: 11,
+              background: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              padding: '4px 8px',
+              outline: 'none',
+            }}
+          />
+        )}
+
+        {/* Theme toggle */}
+        <button
+          onClick={onToggleTheme}
+          style={{
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-secondary)',
+            fontSize: 13,
+            padding: '4px 8px',
+            minWidth: 28,
+          }}
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          {theme === 'dark' ? '\u2600' : '\u263D'}
+        </button>
       </div>
     </div>
   );
-}
+});

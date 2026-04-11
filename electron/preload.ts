@@ -28,4 +28,8 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.on('menu-open-file', callback);
     return () => ipcRenderer.removeListener('menu-open-file', callback);
   },
+  onMenuOpenRecent: (callback: (_event: any, filePath: string) => void) => {
+    ipcRenderer.on('menu-open-recent', callback);
+    return () => ipcRenderer.removeListener('menu-open-recent', callback);
+  },
 });
