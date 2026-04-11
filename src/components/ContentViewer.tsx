@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits, BasicVariable } from '../api';
+import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits, BasicVariable, XRefResult } from '../api';
 import { HexView } from './HexView';
 import { BasicListing } from './BasicListing';
 import { ScreenViewer } from './ScreenViewer';
@@ -7,6 +7,7 @@ import { ArrayViewer } from './ArrayViewer';
 import { TextView } from './TextView';
 import { VariableViewer } from './VariableViewer';
 import { FontViewer, isFontData } from './FontViewer';
+import { XRefViewer, XRefEntry } from './XRefViewer';
 
 const DEFAULT_WIDTH = 560;
 const MIN_WIDTH = 360;
@@ -20,17 +21,18 @@ interface Props {
   onEditLine?: (lineNumber: number, text: string) => void;
   onRevertLine?: (lineNumber: number) => void;
   onRevertAll?: () => void;
+  screenEntries?: FileEntry[];
 }
 
-type ViewTab = 'listing' | 'variables' | 'screen' | 'font' | 'array' | 'text' | 'hex';
+type ViewTab = 'listing' | 'variables' | 'xref' | 'screen' | 'font' | 'array' | 'text' | 'hex';
 
 const SCREEN_SIZE = 6912;
 const TEXT_PRINTABLE_THRESHOLD = 0.9;
 
 function getStaticTabs(entry: FileEntry): ViewTab[] {
   const tabs: ViewTab[] = [];
-  if (entry.type === 'basic') { tabs.push('listing'); tabs.push('variables'); }
-  if (entry.type === 'state' || entry.isMemoryDump) { tabs.push('listing'); tabs.push('variables'); }
+  if (entry.type === 'basic') { tabs.push('listing'); tabs.push('variables'); tabs.push('xref'); }
+  if (entry.type === 'state' || entry.isMemoryDump) { tabs.push('listing'); tabs.push('variables'); tabs.push('xref'); }
   if (entry.type === 'code' && entry.size === SCREEN_SIZE) tabs.push('screen');
   if (entry.type === 'num-array' || entry.type === 'str-array') tabs.push('array');
   return tabs;
@@ -65,6 +67,7 @@ const FONT_SIZE_BYTES = 768;
 const TAB_LABELS: Record<ViewTab, string> = {
   listing: 'Listing',
   variables: 'Variables',
+  xref: 'XRef',
   screen: 'Screen',
   font: 'Font',
   array: 'Array',
@@ -72,12 +75,13 @@ const TAB_LABELS: Record<ViewTab, string> = {
   hex: 'Hex',
 };
 
-export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine, onRevertLine, onRevertAll }: Props) {
+export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine, onRevertLine, onRevertAll, screenEntries }: Props) {
   // Raw file data — loaded eagerly for text detection
   const [hexData, setHexData] = useState<number[] | null>(null);
   const [listing, setListing] = useState<BasicListingData | null>(null);
   const [arrayData, setArrayData] = useState<ArrayData | null>(null);
   const [variables, setVariables] = useState<BasicVariable[] | null>(null);
+  const [xrefData, setXrefData] = useState<XRefEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');
@@ -106,6 +110,7 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
     setListing(null);
     setArrayData(null);
     setVariables(null);
+    setXrefData(null);
     setLoading(true);
 
     api.getFileData(diskPath, entry.index).then((data) => {
@@ -161,6 +166,17 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
     }).catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [activeTab, diskPath, entry.index, variables]);
+
+  // Load xref when xref tab activates
+  useEffect(() => {
+    if (activeTab !== 'xref' || xrefData) return;
+    let cancelled = false;
+    setLoading(true);
+    api.getBasicXref(diskPath, entry.index, ts2068Mode).then((data) => {
+      if (!cancelled) { setXrefData(data?.entries ?? null); setLoading(false); }
+    }).catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, diskPath, entry.index, xrefData, ts2068Mode]);
 
   // Extract BASIC from state capture
   const isStateCapture = entry.type === 'state' || entry.isMemoryDump;
@@ -324,6 +340,19 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
               {m === 'auto' ? 'Auto' : m === 'ts2068' ? 'TS2068' : 'Spectrum'}
             </button>
           ))}
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={() => api.printListingPdf(diskPath, entry.index, ts2068Mode)}
+            style={{
+              background: 'var(--bg-tertiary)',
+              color: 'var(--text-secondary)',
+              fontSize: 10,
+              padding: '2px 8px',
+              borderRadius: 3,
+            }}
+          >
+            Save PDF
+          </button>
         </div>
       )}
 
@@ -345,9 +374,10 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
           />
         )}
         {activeTab === 'screen' && (
-          <ScreenViewer entry={entry} diskPath={diskPath} />
+          <ScreenViewer entry={entry} diskPath={diskPath} screenEntries={screenEntries} />
         )}
         {activeTab === 'variables' && variables && <VariableViewer variables={variables} />}
+        {activeTab === 'xref' && xrefData && <XRefViewer entries={xrefData} />}
         {activeTab === 'font' && hexData && <FontViewer data={hexData} filename={entry.filename.trim()} />}
         {activeTab === 'array' && arrayData && <ArrayViewer data={arrayData} />}
       </div>

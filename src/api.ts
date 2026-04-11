@@ -92,6 +92,25 @@ export type FileEdits = Record<number, string>;
 /** Map of entry index → edits for that file */
 export type EditState = Record<number, FileEdits>;
 
+export interface XRefEntry {
+  name: string;
+  kind: 'numeric' | 'string' | 'array-num' | 'array-str' | 'fn';
+  assignments: number[];
+  reads: number[];
+}
+
+export interface XRefResult {
+  entries: XRefEntry[];
+}
+
+export interface TapFileSpec {
+  filePath: string;
+  tapName: string;
+  tapType: number; // 0=BASIC, 3=CODE
+  param1: number;  // autostart line or start address
+  param2: number;  // vars offset or 32768
+}
+
 export interface BasicVariable {
   name: string;
   kind: 'number' | 'string' | 'number-array' | 'string-array' | 'for';
@@ -116,11 +135,19 @@ interface DiskToolsAPI {
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult | null>;
   getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<BasicListing | null>;
   getBasicVariables: (imagePath: string, entryIndex: number) => Promise<BasicVariable[] | null>;
+  getBasicXref: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<XRefResult | null>;
+  getDiskMap: (imagePath: string) => Promise<{ totalBlocks: number } | null>;
   extractBasicFromState: (imagePath: string, entryIndex: number, destDir: string) => Promise<ExtractionResult | null>;
   getScreenData: (imagePath: string, entryIndex: number, invert: boolean) => Promise<number[] | null>;
   getArrayData: (imagePath: string, entryIndex: number) => Promise<ArrayData | null>;
   onMenuOpenFile: (callback: () => void) => () => void;
   onMenuOpenRecent: (callback: (_event: any, filePath: string) => void) => () => void;
+  onMenuCreateTap: (callback: () => void) => () => void;
+  exportAllFonts: (imagePath: string, destDir: string) => Promise<number>;
+  exportAllScreens: (imagePath: string, destDir: string) => Promise<number>;
+  printListingPdf: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<string | null>;
+  selectFilesForTap: () => Promise<string[] | null>;
+  createTapFromFiles: (specs: TapFileSpec[], destPath: string) => Promise<string | null>;
 }
 
 declare global {

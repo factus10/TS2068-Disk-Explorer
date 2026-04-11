@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('get-basic-listing', imagePath, entryIndex, ts2068Mode ?? 'auto'),
   getBasicVariables: (imagePath: string, entryIndex: number) =>
     ipcRenderer.invoke('get-basic-variables', imagePath, entryIndex),
+  getBasicXref: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
+    ipcRenderer.invoke('get-basic-xref', imagePath, entryIndex, ts2068Mode ?? 'auto'),
+  getDiskMap: (imagePath: string) =>
+    ipcRenderer.invoke('get-disk-map', imagePath),
   extractBasicFromState: (imagePath: string, entryIndex: number, destDir: string) =>
     ipcRenderer.invoke('extract-basic-from-state', imagePath, entryIndex, destDir),
   getScreenData: (imagePath: string, entryIndex: number, invert: boolean) =>
@@ -32,4 +36,18 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.on('menu-open-recent', callback);
     return () => ipcRenderer.removeListener('menu-open-recent', callback);
   },
+  onMenuCreateTap: (callback: () => void) => {
+    ipcRenderer.on('menu-create-tap', callback);
+    return () => ipcRenderer.removeListener('menu-create-tap', callback);
+  },
+  exportAllFonts: (imagePath: string, destDir: string) =>
+    ipcRenderer.invoke('export-all-fonts', imagePath, destDir),
+  exportAllScreens: (imagePath: string, destDir: string) =>
+    ipcRenderer.invoke('export-all-screens', imagePath, destDir),
+  printListingPdf: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
+    ipcRenderer.invoke('print-listing-pdf', imagePath, entryIndex, ts2068Mode ?? 'auto'),
+  selectFilesForTap: () =>
+    ipcRenderer.invoke('select-files-for-tap'),
+  createTapFromFiles: (specs: any[], destPath: string) =>
+    ipcRenderer.invoke('create-tap-from-files', specs, destPath),
 });

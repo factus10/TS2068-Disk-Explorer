@@ -6,7 +6,9 @@ import { FileTable, FileTableHandle } from './components/FileTable';
 import { FileDetails } from './components/FileDetails';
 import { DropZone } from './components/DropZone';
 import { StatusBar } from './components/StatusBar';
+import { DiskMap } from './components/DiskMap';
 import { ContentViewer } from './components/ContentViewer';
+import { TapCreator } from './components/TapCreator';
 
 function App() {
   const [disk, setDisk] = useState<DiskImage | null>(null);
@@ -23,6 +25,8 @@ function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
     (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'dark' | 'light') || 'dark',
   );
+
+  const [showTapCreator, setShowTapCreator] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const fileTableRef = useRef<FileTableHandle>(null);
@@ -284,6 +288,51 @@ function App() {
     setExtracting(false);
   }, [disk]);
 
+  const handleExportAllFonts = useCallback(async () => {
+    if (!disk) return;
+    const destDir = await api.selectDirectory();
+    if (!destDir) return;
+    setStatus('Exporting fonts...');
+    const count = await api.exportAllFonts(disk.path, destDir);
+    setStatus(`Exported ${count} font(s) as TTF`);
+  }, [disk]);
+
+  const handleExportAllScreens = useCallback(async () => {
+    if (!disk) return;
+    const destDir = await api.selectDirectory();
+    if (!destDir) return;
+    setStatus('Exporting screens...');
+    const count = await api.exportAllScreens(disk.path, destDir);
+    setStatus(`Exported ${count} screen(s) as PNG`);
+  }, [disk]);
+
+  // Compute whether disk has fonts/screens for conditional toolbar buttons
+  const hasFonts = useMemo(() => {
+    if (!disk) return false;
+    return flattenEntries(disk.catalog).some((e) => e.type === 'code' && e.size === 768);
+  }, [disk]);
+
+  const hasScreens = useMemo(() => {
+    if (!disk) return false;
+    return flattenEntries(disk.catalog).some((e) => e.type === 'code' && e.size === 6912);
+  }, [disk]);
+
+  const screenEntries = useMemo(() => {
+    if (!disk) return [];
+    return flattenEntries(disk.catalog).filter((e) => e.type === 'code' && e.size === 6912);
+  }, [disk]);
+
+  const [showDiskMap, setShowDiskMap] = useState(true);
+  const [diskMapBlocks, setDiskMapBlocks] = useState(0);
+
+  // Load disk map data when disk opens
+  useEffect(() => {
+    if (!disk) { setDiskMapBlocks(0); return; }
+    api.getDiskMap(disk.path).then((data) => {
+      setDiskMapBlocks(data?.totalBlocks ?? 0);
+    });
+  }, [disk]);
+
   // Listen for menu File > Open
   useEffect(() => {
     if (!api) return;
@@ -299,6 +348,13 @@ function App() {
     });
     return unsub;
   }, [handleDrop]);
+
+  // Listen for menu File > Create TAP
+  useEffect(() => {
+    if (!api) return;
+    const unsub = api.onMenuCreateTap(() => setShowTapCreator(true));
+    return unsub;
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -393,11 +449,19 @@ function App() {
         onSearchChange={setSearchQuery}
         theme={theme}
         onToggleTheme={() => setTheme((t) => t === 'dark' ? 'light' : 'dark')}
+        hasFonts={hasFonts}
+        hasScreens={hasScreens}
+        onExportAllFonts={handleExportAllFonts}
+        onExportAllScreens={handleExportAllScreens}
+        onCreateTap={() => setShowTapCreator(true)}
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {disk && <DiskInfo header={disk.header} path={disk.path} />}
+          {disk && showDiskMap && diskMapBlocks > 0 && (
+            <DiskMap entries={disk.catalog} totalBlocks={diskMapBlocks} />
+          )}
 
           <div style={{ flex: 1, overflow: 'auto' }}>
             {disk ? (
@@ -439,6 +503,7 @@ function App() {
             onEditLine={(ln, text) => handleEditLine(viewerEntry.index, ln, text)}
             onRevertLine={(ln) => handleRevertLine(viewerEntry.index, ln)}
             onRevertAll={() => handleRevertAll(viewerEntry.index)}
+            screenEntries={screenEntries}
           />
         )}
       </div>
@@ -446,6 +511,13 @@ function App() {
       <StatusBar message={status} format={disk?.format} fileCount={disk?.catalog.length} />
 
       {disk && <DropZone onDrop={handleDrop} overlay />}
+
+      {showTapCreator && (
+        <TapCreator
+          onClose={() => setShowTapCreator(false)}
+          onStatus={setStatus}
+        />
+      )}
     </div>
   );
 }

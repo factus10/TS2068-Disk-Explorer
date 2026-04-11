@@ -15,6 +15,11 @@ interface Props {
   onSearchChange: (query: string) => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  hasFonts: boolean;
+  hasScreens: boolean;
+  onExportAllFonts: () => void;
+  onExportAllScreens: () => void;
+  onCreateTap: () => void;
 }
 
 export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
@@ -23,6 +28,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
   autoPackagesEnabled, onToggleAutoPackages,
   searchQuery, onSearchChange,
   theme, onToggleTheme,
+  hasFonts, hasScreens, onExportAllFonts, onExportAllScreens, onCreateTap,
 }, searchRef) {
   return (
     <div style={{
@@ -95,6 +101,40 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
             </button>
           </>
         )}
+
+        {hasDisk && (hasFonts || hasScreens) && (
+          <>
+            <span style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
+            {hasFonts && (
+              <button
+                onClick={onExportAllFonts}
+                disabled={extracting}
+                style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: 11 }}
+                title="Export all fonts as TTF files"
+              >
+                All Fonts
+              </button>
+            )}
+            {hasScreens && (
+              <button
+                onClick={onExportAllScreens}
+                disabled={extracting}
+                style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: 11 }}
+                title="Export all screens as PNG files"
+              >
+                All Screens
+              </button>
+            )}
+          </>
+        )}
+
+        <button
+          onClick={onCreateTap}
+          style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: 11 }}
+          title="Create TAP from external files (Cmd/Ctrl+Shift+A)"
+        >
+          Create TAP
+        </button>
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
