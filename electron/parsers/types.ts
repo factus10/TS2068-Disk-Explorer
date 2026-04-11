@@ -7,7 +7,12 @@ export type DiskFormat =
   | 'zebra-dirscp'
   | 'zebra-cpm'
   | 'ql'
-  | 'tap';
+  | 'tap'
+  | 'tzx'
+  | 'sna'
+  | 'z80'
+  | 'scr'
+  | 'mgt';
 
 export type FileType =
   | 'basic'

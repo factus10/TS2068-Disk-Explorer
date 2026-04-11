@@ -43,7 +43,12 @@
     "fileAssociations": [
       { "ext": "img", "name": "Disk Image", "role": "Viewer" },
       { "ext": "dsk", "name": "Disk Image", "role": "Viewer" },
-      { "ext": "tap", "name": "TAP File", "role": "Viewer" }
+      { "ext": "tap", "name": "TAP File", "role": "Viewer" },
+      { "ext": "tzx", "name": "TZX File", "role": "Viewer" },
+      { "ext": "sna", "name": "SNA Snapshot", "role": "Viewer" },
+      { "ext": "z80", "name": "Z80 Snapshot", "role": "Viewer" },
+      { "ext": "scr", "name": "Screen File", "role": "Viewer" },
+      { "ext": "mgt", "name": "MGT Disk Image", "role": "Viewer" }
     ],
     "mac": {
       "target": [

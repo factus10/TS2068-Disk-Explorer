@@ -4,16 +4,30 @@ import { detect as detectQL } from './ql';
 import { detect as detectLarken } from './larken';
 import { detect as detectAerco } from './aerco';
 import { detect as detectOliger } from './oliger';
+import { detect as detectSNA } from './sna-reader';
+import { detect as detectSCR } from './scr-reader';
+import { detect as detectMGT } from './mgt-reader';
 
 /**
  * Auto-detect disk image format from file contents.
- * Order matters: check formats with clear magic bytes first,
- * then fall back to heuristics.
+ * Order matters: check extension-based formats first,
+ * then magic bytes, then heuristics.
  */
 export function detectFormat(buffer: Buffer, filePath?: string): DiskFormat | null {
-  // 0. TAP files by extension
+  // 0. Extension-based detection for unambiguous formats
   const ext = filePath?.toLowerCase().split('.').pop();
   if (ext === 'tap') return 'tap';
+  if (ext === 'tzx') return 'tzx';
+  if (ext === 'z80') return 'z80';
+
+  // 0b. SNA by extension + size validation
+  if (ext === 'sna' && detectSNA(buffer)) return 'sna';
+
+  // 0c. SCR by extension + size validation
+  if (ext === 'scr' && detectSCR(buffer)) return 'scr';
+
+  // 0d. MGT by extension or size
+  if (ext === 'mgt' && detectMGT(buffer)) return 'mgt';
 
   // 1. CPC DSK magic → Zebra
   const zebraResult = detectZebra(buffer);
@@ -33,7 +47,16 @@ export function detectFormat(buffer: Buffer, filePath?: string): DiskFormat | nu
   const oligerResult = detectOliger(buffer);
   if (oligerResult) return oligerResult;
 
-  // 6. Fallback: if it's a .img file, try by size
+  // 6. MGT by size heuristic (819200 bytes)
+  if (detectMGT(buffer)) return 'mgt';
+
+  // 7. SNA by size heuristic (49179 bytes)
+  if (detectSNA(buffer)) return 'sna';
+
+  // 8. SCR by size heuristic (6912 bytes) — last because it's very small
+  if (detectSCR(buffer)) return 'scr';
+
+  // 9. Fallback: if it's a .img file, try by size
   if (ext === 'img') {
     if (buffer.length > 300000) return 'larken';
   }

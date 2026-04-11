@@ -1,93 +1,104 @@
 # TS-2068 Disk Browser
 
-Cross-platform desktop app for browsing and extracting files from vintage Timex Sinclair 2068 and ZX Spectrum disk images and TAP tape files.
+Cross-platform desktop app for browsing, viewing, editing, and extracting files from vintage Timex Sinclair 2068 and ZX Spectrum disk images, tape files, and emulator snapshots.
 
 Built with Electron, React, and TypeScript.
 
-## Features
-
-- **Drag-and-drop** disk images or TAP files to browse their file catalogs
-- **Auto-detect** disk format from file contents (no manual selection needed)
-- **Sortable file table** with type badges, sizes, and block maps
-- **Content viewers** — tabbed panel auto-selects the best view for each file type:
-  - **BASIC listing** with syntax highlighting (statements, functions, operators, UDG, block graphics)
-  - **Variable viewer** — displays all BASIC variables with types, values, and expandable arrays
-  - **SCREEN$ viewer** — canvas rendering of 6912-byte screens with invert toggle and PNG export
-  - **Data array decoder** — numeric and character array values with dimensions
-  - **Text viewer** — auto-detected for word processor and plain text files
-  - **Hex viewer** for raw byte inspection
-- **Inline BASIC editor** — double-click lines to edit, with smart re-tokenization preserving original binary for unedited lines. Edits tracked per-file across the disk with dirty indicators
-- **TS2068 token support** — auto-disambiguates extended tokens (`ON ERR`, `STICK`, `SOUND`, `FREE`, `RESET`) from ZX Spectrum characters, with manual Auto/TS2068/Spectrum toggle
-- **Disk command highlighting** — detects and highlights DOS-specific I/O commands:
-  - Oliger: `OUT 244,1` ROM paging + `LOAD /"name"` syntax
-  - Larken: `USR 100` activation (after any keyword) + `PRINT #4:` channel shorthand + `OPEN #4,"dd"` setup
-- **TAP file support** — open `.tap` files directly; each header+data pair shown as a catalog entry with full viewer support
-- **TAP package bundling** — auto-detects BASIC programs that LOAD other files and bundles them into a single multi-file TAP for emulator compatibility
-- **Manual TAP package assembly** — drag files onto each other to create custom packages, reorder with drag-and-drop, Auto/Manual PKG toggle per disk
-- **State capture support** — Oliger type-4 state captures with extracted BASIC listing, variable viewer, and **Extract BASIC** button to save as standalone TAP
-- **TAP export** for ZX Spectrum-compatible files (BASIC, CODE, arrays) — edited files export with changes
-- **Memory dump export** with auto-generated BASIC loader
-- **Extraction manifest** — `manifest.md` generated alongside extracted files with disk metadata and file mapping
-- **Resizable viewer panel** — drag the edge to resize the content viewer
-- **Copy buttons** on text and listing views
-- **Extract All** bundles detected packages automatically; standalone files export individually
-- **Multi-select** with Cmd/Ctrl+click for batch extraction
+**[Getting Started Guide](GETTING_STARTED.md)** | **[Help (F1 in app)](help/help.html)**
 
 ## Supported Formats
 
-| Format | Extensions | Notes |
-|--------|-----------|-------|
-| TAP tape file | `.tap` | Direct viewing with all content viewers |
+| Format | Extensions | Description |
+|--------|-----------|-------------|
+| **Disk Images** | | |
 | Larken LKDOS | `.img` | TAP export with memory dumps |
 | Oliger JLO SAFE V1 | `.img` | TAP export with heuristic type detection |
-| Oliger JLO SAFE V2 | `.img` | TAP export with ABS state saves + state captures |
+| Oliger JLO SAFE V2 | `.img` | TAP export, state captures |
 | Aerco DOS-64 | `.img` | TAP for BASIC/CODE, raw for MODULE |
-| Aerco RP/M | `.img` | Raw binary (CP/M-compatible files) |
+| Aerco RP/M | `.img` | Raw binary (CP/M files) |
 | Zebra DIRSCP | `.dsk` | CPC DSK with hierarchical directories |
 | Zebra CP/M | `.dsk` | CPC DSK flat catalog |
 | Sinclair QL | `.img` | QL5A/QL5B raw binary |
+| MGT +D/DISCiPLE | `.mgt` | Standard Spectrum disk interface |
+| **Tape Files** | | |
+| TAP | `.tap` | Standard tape format |
+| TZX | `.tzx` | Extended tape format with timing data |
+| **Snapshots** | | |
+| SNA | `.sna` | 48K emulator snapshot |
+| Z80 | `.z80` | v1/v2/v3 emulator snapshot (with decompression) |
+| **Screen Files** | | |
+| SCR | `.scr` | Raw 6912-byte ZX Spectrum screen |
 
-## Content Viewers
+## Features
 
-The side panel auto-selects the richest view based on file type:
+### Browsing
+- **Drag-and-drop** or **Cmd/Ctrl+O** to open any supported file
+- **Auto-detect** format from file contents (no manual selection needed)
+- **Sortable file table** with type badges, sizes, and block maps
+- **Search/filter** files by name (Cmd/Ctrl+F)
+- **Keyboard navigation** — Arrow keys, Enter to view, Space to expand, Escape to close
+- **Recent files** menu (File → Recent Files)
+- **Dark/light theme** toggle
 
-- **BASIC programs** → Listing + Variables + Hex tabs
-- **State captures** → Listing + Variables + Hex tabs (BASIC extracted from memory) + Extract BASIC button
-- **CODE files (6912 bytes)** → Screen + Hex tabs
-- **Numeric/string arrays** → Array + Hex tabs
-- **Text files** (90%+ printable) → Text + Hex tabs
-- **Everything else** → Hex tab
+### Content Viewers
+- **BASIC listing** — syntax highlighting with color-coded statements, functions, operators, UDG characters, block graphics
+- **Variables** — all BASIC variables with types, values, expandable arrays, FOR loop details
+- **Cross-reference (XRef)** — variable usage analysis showing SET/USE line numbers, unused variable detection
+- **SCREEN$ viewer** — canvas rendering with invert toggle, PNG export (1x/2x/4x), slideshow with auto-play for multiple screens
+- **Font viewer** — renders 768-byte ZX Spectrum fonts as character grids with sample text, PNG export, and **TTF conversion**
+- **Data arrays** — numeric and character array values with dimensions
+- **Text viewer** — auto-detected for word processor and plain text files (90%+ printable)
+- **Hex viewer** — raw byte inspection
 
-The TS2068 token toggle (Auto / TS2068 / Spectrum) appears on the listing tab for programs that may use extended keywords.
+### TS2068 Token Support
+- Auto-disambiguates `ON ERR`, `STICK`, `SOUND`, `FREE`, `RESET` from ZX Spectrum characters using context heuristics
+- Manual toggle: Auto / TS2068 / Spectrum modes
+- Handles all five `ON ERR` variants (GO TO, GO SUB, RESET, CONTINUE, STOP)
 
-## Inline BASIC Editing
+### Disk Command Highlighting
+- **Oliger**: `OUT 244,1` ROM paging + `LOAD /"name"` syntax
+- **Larken**: `USR 100` activation + `PRINT #4:` channel shorthand + `OPEN #4,"dd"` setup
 
-Double-click any line in the listing viewer to edit it. Edited lines are highlighted and tracked per-file across the entire disk image. On extraction:
+### BASIC Editing
+- Double-click any line to edit inline
+- Smart re-tokenization: only edited lines re-tokenized, unedited lines preserve original binary
+- Edits tracked per-file across the entire disk with EDITED badges
+- Per-line revert and Revert All
+- All extraction paths export edited versions
 
-- Only edited lines are re-tokenized; unedited lines preserve original binary
-- All extraction paths (Extract Selected, Extract as Package, Extract All) use edited content
-- Per-line revert and Revert All to undo changes
-- EDITED badge shown on modified files in the file table
+### TAP Package Bundling
+- **Auto-detected**: scans BASIC LOAD commands and matches to catalog entries
+- **Manual assembly**: drag files onto each other, reorder within packages, remove with x button
+- **Auto/Manual PKG toggle** per disk
+- Extract as Package creates single multi-file TAP
 
-## TAP Package Bundling
+### State Capture & Snapshot Support
+- Oliger type-4 state captures, SNA and Z80 emulator snapshots
+- BASIC programs extracted from memory via system variable pointers
+- Variable viewer shows runtime state
+- **Extract BASIC** button saves extracted program as standalone TAP
+- SCREEN$ extracted and viewable from snapshots
 
-On disk systems each file is standalone, but on tape (TAP format) a BASIC program and the files it LOADs must appear sequentially in the same file.
+### Extraction & Export
+- **Extract Selected** / **Extract as Package** / **Extract All**
+- Auto-exports alongside TAP/raw files:
+  - BASIC listings → `.txt`
+  - Text/word processor files → `.txt`
+  - Fonts (768-byte CODE) → `.ttf`
+  - Screens (6912-byte CODE) → `.png`
+- **Batch export**: "All Fonts" and "All Screens" toolbar buttons
+- **Save PDF** — formatted BASIC listing with syntax highlighting
+- **Create TAP** — import external files, configure headers, save as `.tap`
+- **Extraction manifest** — `manifest.md` with disk metadata and file mapping
+- **Disk map** — color-coded block allocation visualization
 
-**Auto-detected packages:**
-- Scans BASIC programs for LOAD commands and matches to catalog entries
-- Supports tape-style `LOAD ""CODE`, Oliger disk-style `LOAD /"name"CODE`, and Larken `USR 100: LOAD "name"`
-- SCREEN$ loads validated against 6912-byte size
-- Toggle on/off with the Auto PKG / Manual PKG button
-
-**Manual package assembly:**
-- Drag a file onto another to create a custom package
-- Drag within an expanded package to reorder files
-- Remove files with the x button on dependency rows
-- Manual packages show a teal PKG badge with pencil icon
+### Analysis
+- **BASIC cross-reference** — variable usage with SET/USE line numbers and unused detection
+- **Disk map** — block allocation grid with file colors, hover info, and legend
 
 ## Installation
 
-Download the latest release for your platform from the [Releases](https://github.com/factus10/TS2068-Disk-Explorer/releases) page:
+Download the latest release from [Releases](https://github.com/factus10/TS2068-Disk-Explorer/releases):
 
 - **macOS** — Universal binary (Intel + Apple Silicon) `.dmg`
 - **Windows** — `.exe` installer (NSIS)
@@ -116,8 +127,6 @@ npx electron .       # Launch Electron (after build)
 npm run electron:build   # Full build with electron-builder
 ```
 
-Outputs to `release/` — DMG/ZIP (macOS), NSIS installer (Windows), AppImage/deb (Linux).
-
 ### Type Checking
 
 ```bash
@@ -125,11 +134,24 @@ npx tsc --noEmit                              # Renderer (src/)
 npx tsc -p tsconfig.electron.json --noEmit    # Main process (electron/)
 ```
 
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Cmd/Ctrl+O | Open file |
+| Cmd/Ctrl+F | Focus search / filter files |
+| Cmd/Ctrl+Shift+A | Create TAP from files |
+| Arrow Up/Down | Navigate file list |
+| Enter | Open viewer for selected file |
+| Space | Expand/collapse package or directory |
+| Escape | Close viewer / exit search |
+| F1 | Open help |
+
 ## Architecture
 
 All file I/O and parsing runs in the **main process**. The renderer communicates via IPC and only receives serialized data (no Buffer objects cross the boundary).
 
-Format detection is automatic based on magic bytes, boot sector patterns, directory structure markers, and file extension (`.tap`). See `electron/parsers/detect.ts` for the detection order.
+Format detection order: extension-based (.tap/.tzx/.sna/.z80/.scr/.mgt) → magic bytes (Zebra, QL) → boot sector heuristics (Aerco, Larken, Oliger) → size fallback (MGT, SNA, SCR). See `electron/parsers/detect.ts`.
 
 ## License
 

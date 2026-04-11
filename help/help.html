@@ -33,23 +33,32 @@
   th, td { padding: 6px 12px; border: 1px solid var(--border); text-align: left; font-size: 13px; }
   th { background: var(--bg2); font-weight: 600; }
   .subtitle { color: var(--text2); font-size: 14px; margin-bottom: 24px; }
-  .shortcut { display: flex; gap: 12px; padding: 4px 0; }
-  .shortcut .key { min-width: 160px; }
 </style>
 </head>
 <body>
 
-<h1>TS-2068 Disk Browser</h1>
-<p class="subtitle">Browse and extract files from vintage Timex Sinclair 2068 and ZX Spectrum disk images and TAP tape files.</p>
+<h1>TS-2068 Disk Browser Help</h1>
+<p class="subtitle">Browse, view, edit, and extract files from vintage Timex Sinclair 2068 and ZX Spectrum disk images, tape files, and emulator snapshots.</p>
 
-<h2>Getting Started</h2>
-<p>Open a disk image or TAP file using <kbd>Cmd/Ctrl+O</kbd>, or drag and drop a file onto the window. The app auto-detects the format and displays the file catalog.</p>
-<p>Click any file in the catalog to select it. Double-click or press <kbd>Enter</kbd> to open the content viewer. The viewer automatically selects the best view for the file type.</p>
+<h2>Opening Files</h2>
+<p>Open a file using any of these methods:</p>
+<ul>
+  <li><strong>Drag and drop</strong> onto the app window</li>
+  <li><kbd>Cmd/Ctrl+O</kbd> or <strong>File &rarr; Open</strong></li>
+  <li><strong>File &rarr; Recent Files</strong> to reopen a previously viewed file</li>
+  <li>Double-click a supported file in Finder/Explorer (when app is installed)</li>
+</ul>
+<p>The app auto-detects the format from file contents &mdash; no manual selection needed.</p>
 
 <h2>Supported Formats</h2>
 <table>
   <tr><th>Format</th><th>Extension</th><th>Notes</th></tr>
-  <tr><td>TAP tape file</td><td>.tap</td><td>Direct viewing with all content viewers</td></tr>
+  <tr><td>TAP tape file</td><td>.tap</td><td>Standard tape format</td></tr>
+  <tr><td>TZX tape file</td><td>.tzx</td><td>Extended tape format with timing data</td></tr>
+  <tr><td>SNA snapshot</td><td>.sna</td><td>48K emulator snapshot</td></tr>
+  <tr><td>Z80 snapshot</td><td>.z80</td><td>v1/v2/v3 emulator snapshot with decompression</td></tr>
+  <tr><td>SCR screen file</td><td>.scr</td><td>Raw 6912-byte ZX Spectrum screen</td></tr>
+  <tr><td>MGT +D/DISCiPLE</td><td>.mgt</td><td>Standard Spectrum disk interface</td></tr>
   <tr><td>Larken LKDOS</td><td>.img</td><td>TAP export with memory dumps</td></tr>
   <tr><td>Oliger JLO SAFE V1</td><td>.img</td><td>TAP export, heuristic type detection</td></tr>
   <tr><td>Oliger JLO SAFE V2</td><td>.img</td><td>TAP export, state captures</td></tr>
@@ -61,45 +70,69 @@
 </table>
 
 <h2>File Table</h2>
-<p>The file table shows all files on the disk with sortable columns (click column headers). Files are color-coded by type.</p>
-
+<p>The file table shows all files on the disk with sortable columns (click column headers).</p>
 <h3>Selection</h3>
 <ul>
-  <li>Click to select a single file</li>
+  <li><strong>Click</strong> to select a single file</li>
   <li><kbd>Cmd/Ctrl+Click</kbd> for multi-select</li>
   <li><kbd>Arrow Up/Down</kbd> to navigate</li>
-  <li>Use the search box (<kbd>Cmd/Ctrl+F</kbd>) to filter files by name</li>
+  <li><kbd>Cmd/Ctrl+F</kbd> to search/filter by filename</li>
+</ul>
+<h3>File Badges</h3>
+<ul>
+  <li><strong>PKG</strong> (red) &mdash; auto-detected TAP package</li>
+  <li><strong>PKG</strong> (teal with pencil) &mdash; manually assembled package</li>
+  <li><strong>DUMP</strong> &mdash; memory dump / state capture</li>
+  <li><strong>EDITED</strong> &mdash; file has pending BASIC edits</li>
 </ul>
 
-<h3>File Type Badges</h3>
-<ul>
-  <li><strong>PKG</strong> — auto-detected TAP package (BASIC + dependencies)</li>
-  <li><strong>DUMP</strong> — memory dump / state capture</li>
-  <li><strong>EDITED</strong> — file has pending BASIC edits</li>
-</ul>
+<h2>Disk Map</h2>
+<p>Below the disk info, a color-coded grid shows block allocation. Each colored square represents a disk block assigned to a file. Gray squares are free blocks. Hover to see which file owns a block. The legend maps colors to filenames.</p>
 
 <h2>Content Viewers</h2>
-<p>The side panel opens when you double-click a file or press <kbd>Enter</kbd>. It auto-selects the best view with tabs to switch between views.</p>
+<p>Double-click a file or press <kbd>Enter</kbd> to open the viewer panel. Tabs auto-select the best view.</p>
 
 <h3>BASIC Listing</h3>
-<p>Syntax-highlighted BASIC program listing with line numbers. Keywords are color-coded:</p>
+<p>Syntax-highlighted program listing with line numbers.</p>
 <ul>
-  <li>Statements (PRINT, LET, IF, etc.) in cyan</li>
-  <li>Functions (SIN, PEEK, USR, etc.) in yellow</li>
-  <li>Operators (AND, OR, etc.) in orange</li>
-  <li>Disk commands (LOAD /, RANDOMIZE USR 100, etc.) in red with underline</li>
-  <li>TS2068 keywords (ON ERR, SOUND, STICK, etc.) in purple</li>
+  <li>Statements (PRINT, LET, IF) in <span style="color:#4ecdc4">cyan</span></li>
+  <li>Functions (SIN, PEEK, USR) in <span style="color:#fce38a">yellow</span></li>
+  <li>Operators (AND, OR) in <span style="color:#f0a050">orange</span></li>
+  <li>Disk commands (LOAD /, USR 100) in <span style="color:#ff6b6b">red</span> with underline</li>
+  <li>TS2068 keywords (ON ERR, SOUND) in <span style="color:#c084fc">purple</span></li>
 </ul>
-<p>The <strong>Tokens</strong> toggle (Auto / TS2068 / Spectrum) controls how bytes 0x7B-0x7F are interpreted — as TS2068 extended keywords or ZX Spectrum characters.</p>
+<p><strong>Tokens toggle</strong>: Auto / TS2068 / Spectrum &mdash; controls interpretation of bytes 0x7B-0x7F (TS2068 keywords vs ZX Spectrum characters like <code>{</code> <code>}</code> <code>&copy;</code>).</p>
+<p><strong>Save PDF</strong>: exports the listing as a formatted PDF with syntax highlighting.</p>
+<p><strong>Copy</strong>: copies the entire listing as plain text.</p>
 
 <h3>Variables</h3>
-<p>Displays all BASIC variables with their types, values, and array contents. Available for BASIC programs and state captures.</p>
+<p>Displays all BASIC variables with type badges (NUM, STR$, NUM(), STR$(), FOR). Arrays are expandable. FOR loops show value, limit, step, and loop line.</p>
 
-<h3>Screen</h3>
-<p>Renders 6912-byte CODE files as ZX Spectrum screens (256x192 with color attributes). Includes invert toggle and PNG export at 1x/2x/4x scale.</p>
+<h3>Cross-Reference (XRef)</h3>
+<p>Variable usage analysis:</p>
+<ul>
+  <li><strong>SET</strong> line numbers &mdash; where the variable is assigned (LET, FOR, DIM, READ, INPUT)</li>
+  <li><strong>USE</strong> line numbers &mdash; where the variable is read</li>
+  <li>Variables assigned but never read are flagged as <strong>unused</strong></li>
+  <li>Filter box to search for specific variables</li>
+</ul>
+
+<h3>Screen (SCREEN$)</h3>
+<p>Renders 6912-byte CODE files as ZX Spectrum screens (256&times;192 with color attributes).</p>
+<ul>
+  <li><strong>Invert</strong> &mdash; swap ink/paper colors</li>
+  <li><strong>Prev/Next</strong> and <strong>Play/Stop</strong> &mdash; slideshow through all screens on the disk (3-second auto-advance)</li>
+  <li><strong>Save PNG</strong> &mdash; export at 1x, 2x, or 4x scale</li>
+</ul>
 
 <h3>Font</h3>
-<p>Renders 768-byte CODE files as ZX Spectrum font character grids (96 characters, 8x8 pixels each). Includes a live sample text preview, PNG export, and <strong>Save TTF</strong> to convert the bitmap font to a TrueType font file.</p>
+<p>Renders 768-byte CODE files as ZX Spectrum font character grids (96 characters, 8&times;8 pixels).</p>
+<ul>
+  <li>Live <strong>sample text</strong> preview &mdash; type to see text rendered in the font</li>
+  <li><strong>Scale</strong> buttons (2x, 3x, 4x)</li>
+  <li><strong>Save PNG</strong> &mdash; export the character grid</li>
+  <li><strong>Save TTF</strong> &mdash; converts the bitmap font to a TrueType font file you can install on your computer</li>
+</ul>
 
 <h3>Array</h3>
 <p>Decodes numeric and character arrays with dimension info and values.</p>
@@ -111,49 +144,81 @@
 <p>Raw byte inspection with hex dump and ASCII representation. Always available as the last tab.</p>
 
 <h2>Inline BASIC Editing</h2>
-<p>Double-click any line in the BASIC listing to edit it. Edited lines are shown in teal.</p>
+<p>Double-click any line in the BASIC listing to edit it.</p>
 <ul>
-  <li><kbd>Enter</kbd> to confirm an edit</li>
+  <li><kbd>Enter</kbd> to confirm the edit</li>
   <li><kbd>Escape</kbd> to cancel</li>
-  <li>Click the revert arrow (<code>↶</code>) on an edited line to undo that edit</li>
-  <li>Click <strong>Revert all</strong> to undo all edits for the file</li>
+  <li>Edited lines show in teal with a revert arrow (<code>&cularr;</code>)</li>
+  <li><strong>Revert all</strong> link undoes all edits for the file</li>
+  <li>Files with edits show an <strong>EDITED</strong> badge in the file table</li>
 </ul>
-<p>Edits are tracked per-file across the entire disk. On extraction, only edited lines are re-tokenized — unedited lines preserve their original binary.</p>
+<p>On extraction, only edited lines are re-tokenized &mdash; unedited lines preserve their original binary. This avoids re-tokenization ambiguities.</p>
 
 <h2>TAP Package Bundling</h2>
-<p>On disk systems each file is standalone, but on tape (TAP format) a BASIC program and the files it LOADs must appear sequentially.</p>
+<p>On disk systems each file is standalone, but on tape a BASIC program and the files it LOADs must appear sequentially in the same TAP file.</p>
 
 <h3>Auto-Detected Packages</h3>
-<p>The app scans BASIC programs for LOAD commands and matches them to catalog entries. Packages show a <strong>PKG</strong> badge. Click the expand arrow to see dependencies.</p>
+<p>The app scans BASIC programs for LOAD commands and matches them to catalog entries. Detected packages show a <strong>PKG</strong> badge. Click the expand arrow to see dependencies.</p>
+<p>Supports: <code>LOAD ""CODE</code>, Oliger <code>LOAD /"name"</code>, and Larken <code>USR 100: LOAD "name"</code>.</p>
 
 <h3>Manual Package Assembly</h3>
-<p>Click <strong>Manual PKG</strong> in the toolbar to disable auto-detection and work with a flat file list.</p>
+<p>Click <strong>Manual PKG</strong> in the toolbar to disable auto-detection.</p>
 <ul>
-  <li>Drag a file onto another to create a package</li>
-  <li>Drag within an expanded package to reorder</li>
-  <li>Drag from the main list into a package to add</li>
-  <li>Click the <strong>x</strong> button on a dependency to remove it</li>
+  <li><strong>Drag</strong> a file onto another to create a package</li>
+  <li><strong>Drag within</strong> an expanded package to reorder</li>
+  <li><strong>Drag from</strong> the main list into a package to add</li>
+  <li>Click <strong>&times;</strong> to remove a file from a package</li>
 </ul>
-<p>Manual packages show a teal badge with a pencil icon.</p>
 
-<h2>State Captures</h2>
-<p>Oliger type-4 state captures contain full memory snapshots. The app extracts the BASIC program using system variable pointers (PROG/VARS) and shows it in the listing viewer.</p>
-<p>Click <strong>Extract BASIC</strong> in the viewer header to save the extracted program as a standalone TAP file.</p>
+<h2>State Captures &amp; Snapshots</h2>
+<p>The app extracts BASIC programs from memory snapshots using system variable pointers (PROG/VARS at 0x5C53/0x5C4B).</p>
+<p>Supported sources: Oliger type-4 state captures, SNA files (.sna), Z80 files (.z80).</p>
+<ul>
+  <li><strong>Listing</strong> tab shows the extracted BASIC program</li>
+  <li><strong>Variables</strong> tab shows runtime variable state</li>
+  <li><strong>Extract BASIC</strong> button saves the program as a standalone .tap</li>
+  <li>SNA/Z80 snapshots also show the SCREEN$ at capture time</li>
+</ul>
 
 <h2>Extraction</h2>
 <ul>
-  <li><strong>Extract Selected</strong> — extract selected files individually</li>
-  <li><strong>Extract as Package</strong> — export a package as a single multi-file TAP</li>
-  <li><strong>Extract All</strong> — extract all files, bundling auto-detected packages</li>
+  <li><strong>Extract Selected</strong> &mdash; extract selected files individually</li>
+  <li><strong>Extract as Package</strong> &mdash; export a package as a single multi-file TAP</li>
+  <li><strong>Extract All</strong> &mdash; extract all files with auto-bundled packages, plus:
+    <ul>
+      <li>BASIC listings &rarr; <code>.txt</code></li>
+      <li>Text/word processor files &rarr; <code>.txt</code></li>
+      <li>Font files &rarr; <code>.ttf</code></li>
+      <li>Screen files &rarr; <code>.png</code></li>
+    </ul>
+  </li>
 </ul>
-<p>A <code>manifest.md</code> file is generated alongside extracted files with disk metadata and a file mapping table.</p>
+<p>A <code>manifest.md</code> file is generated with disk metadata and file mapping.</p>
 <p>If any BASIC files have pending edits, the edited versions are exported.</p>
 
+<h3>Batch Export</h3>
+<ul>
+  <li><strong>All Fonts</strong> button &mdash; exports all 768-byte font files as .ttf</li>
+  <li><strong>All Screens</strong> button &mdash; exports all 6912-byte screen files as .png</li>
+</ul>
+
+<h3>Save PDF</h3>
+<p>On the Listing tab, click <strong>Save PDF</strong> to export a syntax-highlighted listing as a PDF document.</p>
+
+<h3>Create TAP</h3>
+<p>File &rarr; Create TAP (or <kbd>Cmd/Ctrl+Shift+A</kbd>) opens a dialog to build a TAP from external files:</p>
+<ol>
+  <li>Click <strong>Add Files</strong> to select files from your computer</li>
+  <li>Configure each file: name (max 10 chars), type (BASIC/CODE/Array), address or autostart line</li>
+  <li>Use arrow buttons to reorder</li>
+  <li>Click <strong>Save TAP</strong></li>
+</ol>
+
 <h2>Disk Command Highlighting</h2>
-<p>The BASIC listing highlights DOS-specific I/O commands:</p>
+<p>The BASIC listing highlights DOS-specific I/O commands in red:</p>
 <ul>
   <li><strong>Oliger</strong>: <code>OUT 244,1</code> ROM paging + <code>LOAD /"name"</code> syntax</li>
-  <li><strong>Larken</strong>: <code>USR 100</code> activation + <code>PRINT #4:</code> channel shorthand + <code>OPEN #4,"dd"</code> setup</li>
+  <li><strong>Larken</strong>: <code>USR 100</code> activation (after any keyword) + <code>PRINT #4:</code> channel shorthand + <code>OPEN #4,"dd"</code> setup</li>
 </ul>
 
 <h2>Keyboard Shortcuts</h2>
@@ -161,6 +226,7 @@
   <tr><th>Shortcut</th><th>Action</th></tr>
   <tr><td><kbd>Cmd/Ctrl+O</kbd></td><td>Open file</td></tr>
   <tr><td><kbd>Cmd/Ctrl+F</kbd></td><td>Focus search / filter files</td></tr>
+  <tr><td><kbd>Cmd/Ctrl+Shift+A</kbd></td><td>Create TAP from files</td></tr>
   <tr><td><kbd>Arrow Up/Down</kbd></td><td>Navigate file list</td></tr>
   <tr><td><kbd>Enter</kbd></td><td>Open viewer for selected file</td></tr>
   <tr><td><kbd>Space</kbd></td><td>Expand/collapse package or directory</td></tr>
@@ -169,7 +235,10 @@
 </table>
 
 <h2>Theme</h2>
-<p>Click the sun/moon button in the toolbar to toggle between dark and light themes. Your preference is saved.</p>
+<p>Click the sun/moon button in the toolbar to toggle between dark and light themes. Your preference is saved across sessions.</p>
+
+<h2>Viewer Panel</h2>
+<p>The viewer panel on the right is resizable &mdash; drag its left edge to adjust width. When the viewer is open, clicking a different file in the table auto-switches to show that file.</p>
 
 </body>
 </html>

@@ -9,6 +9,11 @@ import { readCatalog as readAerco, readFileData as readAercoFile } from './parse
 import { readCatalog as readZebra, readFileData as readZebraFile } from './parsers/zebra';
 import { readCatalog as readQL, readFileData as readQLFile } from './parsers/ql';
 import { readCatalog as readTap, readFileData as readTapFile } from './parsers/tap-reader';
+import { readCatalog as readTzx, readFileData as readTzxFile } from './parsers/tzx-reader';
+import { readCatalog as readSNA, readFileData as readSNAFile } from './parsers/sna-reader';
+import { readCatalog as readZ80, readFileData as readZ80File } from './parsers/z80-reader';
+import { readCatalog as readSCR, readFileData as readSCRFile } from './parsers/scr-reader';
+import { readCatalog as readMGT, readFileData as readMGTFile } from './parsers/mgt-reader';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
 import { detokenize } from './parsers/basic-detokenizer';
@@ -175,6 +180,11 @@ function getParser(format: DiskFormat) {
     case 'zebra-cpm': return { readCatalog: readZebra, readFileData: readZebraFile };
     case 'ql': return { readCatalog: readQL, readFileData: readQLFile };
     case 'tap': return { readCatalog: readTap, readFileData: readTapFile };
+    case 'tzx': return { readCatalog: readTzx, readFileData: readTzxFile };
+    case 'sna': return { readCatalog: readSNA, readFileData: readSNAFile };
+    case 'z80': return { readCatalog: readZ80, readFileData: readZ80File };
+    case 'scr': return { readCatalog: readSCR, readFileData: readSCRFile };
+    case 'mgt': return { readCatalog: readMGT, readFileData: readMGTFile };
     default: throw new Error(`Unknown format: ${format}`);
   }
 }
@@ -203,7 +213,7 @@ ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openFile'],
     filters: [
-      { name: 'Disk & Tape Images', extensions: ['img', 'dsk', 'tap', 'IMG', 'DSK', 'TAP'] },
+      { name: 'Disk & Tape Images', extensions: ['img', 'dsk', 'tap', 'tzx', 'sna', 'z80', 'scr', 'mgt'] },
       { name: 'All Files', extensions: ['*'] },
     ],
   });
