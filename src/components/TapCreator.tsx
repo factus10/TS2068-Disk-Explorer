@@ -69,10 +69,8 @@ export function TapCreator({ onClose, onStatus }: Props) {
   const handleSave = useCallback(async () => {
     if (files.length === 0) return;
 
-    const result = await api.selectDirectory();
-    if (!result) return;
-
-    const destPath = result + '/' + (files[0].tapName || 'output') + '.tap';
+    const destPath = await api.saveTapDialog((files[0].tapName || 'output') + '.tap');
+    if (!destPath) return;
     const specs: TapFileSpec[] = files.map((f) => ({
       filePath: f.filePath,
       tapName: f.tapName,

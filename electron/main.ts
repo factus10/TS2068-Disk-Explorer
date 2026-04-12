@@ -805,6 +805,15 @@ ipcMain.handle('print-listing-pdf', async (
 });
 
 // Create TAP from external files
+ipcMain.handle('save-tap-dialog', async (_event, defaultName: string): Promise<string | null> => {
+  const result = await dialog.showSaveDialog(mainWindow!, {
+    defaultPath: defaultName,
+    filters: [{ name: 'TAP Files', extensions: ['tap'] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+  return result.filePath;
+});
+
 ipcMain.handle('select-files-for-tap', async (): Promise<string[] | null> => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openFile', 'multiSelections'],

@@ -46,6 +46,8 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('export-all-screens', imagePath, destDir),
   printListingPdf: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
     ipcRenderer.invoke('print-listing-pdf', imagePath, entryIndex, ts2068Mode ?? 'auto'),
+  saveTapDialog: (defaultName: string) =>
+    ipcRenderer.invoke('save-tap-dialog', defaultName),
   selectFilesForTap: () =>
     ipcRenderer.invoke('select-files-for-tap'),
   createTapFromFiles: (specs: any[], destPath: string) =>

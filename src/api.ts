@@ -146,6 +146,7 @@ interface DiskToolsAPI {
   exportAllFonts: (imagePath: string, destDir: string) => Promise<number>;
   exportAllScreens: (imagePath: string, destDir: string) => Promise<number>;
   printListingPdf: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<string | null>;
+  saveTapDialog: (defaultName: string) => Promise<string | null>;
   selectFilesForTap: () => Promise<string[] | null>;
   createTapFromFiles: (specs: TapFileSpec[], destPath: string) => Promise<string | null>;
 }

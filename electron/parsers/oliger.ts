@@ -39,7 +39,12 @@ function detectVersion(firstBlock: Buffer): 'V1' | 'V2' {
   return 'V1';
 }
 
-function calculateCylinderNumber(b0: number, b1: number): number {
+function calculateCylinderNumber(b0: number, b1: number, sides: number): number {
+  if (sides === 1) {
+    // Single-sided: cylinder number = track number directly
+    return b0;
+  }
+  // Double-sided: interleave sides (cyl 0 = T0S0, cyl 1 = T0S1, cyl 2 = T1S0, ...)
   let result = b0 * 2;
   if (b1 !== 0) result += 1;
   return result;
@@ -79,7 +84,7 @@ function readV2Catalog(buffer: Buffer): CatalogResult {
     const filesize = readUint16LE(entry, 11);
     const staline = readUint16LE(entry, 13);
     const param2 = readUint16LE(entry, 15);
-    const cylinder = calculateCylinderNumber(entry[17], entry[18]);
+    const cylinder = calculateCylinderNumber(entry[17], entry[18], sides);
     const cylused = entry[19];
 
     const ft = typeCodeToFileType(filetype);
