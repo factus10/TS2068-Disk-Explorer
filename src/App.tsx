@@ -9,6 +9,7 @@ import { StatusBar } from './components/StatusBar';
 import { DiskMap } from './components/DiskMap';
 import { ContentViewer } from './components/ContentViewer';
 import { TapCreator } from './components/TapCreator';
+import { FileBrowser } from './components/FileBrowser';
 
 function App() {
   const [disk, setDisk] = useState<DiskImage | null>(null);
@@ -27,6 +28,9 @@ function App() {
   );
 
   const [showTapCreator, setShowTapCreator] = useState(false);
+  const [showBrowser, setShowBrowser] = useState(() =>
+    typeof localStorage !== 'undefined' ? localStorage.getItem('showBrowser') !== 'false' : true,
+  );
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const fileTableRef = useRef<FileTableHandle>(null);
@@ -36,6 +40,11 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Persist browser panel visibility
+  useEffect(() => {
+    localStorage.setItem('showBrowser', String(showBrowser));
+  }, [showBrowser]);
 
   // Merge auto and manual packages into a unified TapPackage[] for display
   const packages = useMemo(() => {
@@ -359,6 +368,13 @@ function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+B: toggle file browser
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+        e.preventDefault();
+        setShowBrowser((v) => !v);
+        return;
+      }
+
       // Cmd/Ctrl+F: focus search
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
@@ -454,9 +470,14 @@ function App() {
         onExportAllFonts={handleExportAllFonts}
         onExportAllScreens={handleExportAllScreens}
         onCreateTap={() => setShowTapCreator(true)}
+        showBrowser={showBrowser}
+        onToggleBrowser={() => setShowBrowser((v) => !v)}
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {showBrowser && (
+          <FileBrowser onOpenFile={handleDrop} />
+        )}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {disk && <DiskInfo header={disk.header} path={disk.path} />}
           {disk && showDiskMap && diskMapBlocks > 0 && (

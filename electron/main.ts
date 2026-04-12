@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { getRecent, addRecent, clearRecent } from './recent-files';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -233,6 +234,38 @@ ipcMain.handle('open-path', async (_event, filePath: string) => {
   addRecent(filePath);
   buildMenu();
   return disk;
+});
+
+ipcMain.handle('get-home-directory', async () => {
+  return os.homedir();
+});
+
+ipcMain.handle('list-directory', async (_event, dirPath: string) => {
+  try {
+    const items = fs.readdirSync(dirPath, { withFileTypes: true });
+    const results: { name: string; isDirectory: boolean; size: number; path: string }[] = [];
+
+    for (const item of items) {
+      if (item.name.startsWith('.')) continue; // skip hidden files
+      const fullPath = path.join(dirPath, item.name);
+      let size = 0;
+      const isDir = item.isDirectory();
+      if (!isDir) {
+        try { size = fs.statSync(fullPath).size; } catch { /* skip */ }
+      }
+      results.push({ name: item.name, isDirectory: isDir, size, path: fullPath });
+    }
+
+    // Sort: folders first, then files, alphabetical within each
+    results.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+
+    return results;
+  } catch {
+    return [];
+  }
 });
 
 ipcMain.handle('select-directory', async () => {

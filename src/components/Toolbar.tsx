@@ -20,6 +20,8 @@ interface Props {
   onExportAllFonts: () => void;
   onExportAllScreens: () => void;
   onCreateTap: () => void;
+  showBrowser: boolean;
+  onToggleBrowser: () => void;
 }
 
 export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
@@ -29,6 +31,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
   searchQuery, onSearchChange,
   theme, onToggleTheme,
   hasFonts, hasScreens, onExportAllFonts, onExportAllScreens, onCreateTap,
+  showBrowser, onToggleBrowser,
 }, searchRef) {
   return (
     <div style={{
@@ -53,6 +56,19 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
 
       {/* @ts-expect-error Electron-specific CSS property */}
       <div style={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: 6, alignItems: 'center', flex: 1 }}>
+        <button
+          onClick={onToggleBrowser}
+          style={{
+            background: showBrowser ? 'var(--accent)' : 'var(--bg-tertiary)',
+            color: showBrowser ? '#fff' : 'var(--text-secondary)',
+            fontSize: 13,
+            padding: '4px 8px',
+            minWidth: 28,
+          }}
+          title={showBrowser ? 'Hide file browser (Cmd/Ctrl+B)' : 'Show file browser (Cmd/Ctrl+B)'}
+        >
+          {'\uD83D\uDCC1'}
+        </button>
         <button
           onClick={onOpen}
           style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}

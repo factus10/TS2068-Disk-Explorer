@@ -1,3 +1,10 @@
+export interface DirEntry {
+  name: string;
+  isDirectory: boolean;
+  size: number;
+  path: string;
+}
+
 export interface DiskHeader {
   format: string;
   formatName: string;
@@ -125,6 +132,8 @@ export interface BasicVariable {
 }
 
 interface DiskToolsAPI {
+  getHomeDirectory: () => Promise<string>;
+  listDirectory: (dirPath: string) => Promise<DirEntry[]>;
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
   selectDirectory: () => Promise<string | null>;

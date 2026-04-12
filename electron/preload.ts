@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('diskTools', {
+  getHomeDirectory: () => ipcRenderer.invoke('get-home-directory'),
+  listDirectory: (dirPath: string) => ipcRenderer.invoke('list-directory', dirPath),
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
   openPath: (filePath: string) => ipcRenderer.invoke('open-path', filePath),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
