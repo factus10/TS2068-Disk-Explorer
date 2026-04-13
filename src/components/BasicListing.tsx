@@ -48,18 +48,28 @@ export function BasicListing({ listing, fileEdits, onEditLine, onRevertLine, onR
     });
   }, [plainText]);
 
+  const originalTextRef = useRef(''); // original detokenized text for comparison
+
   const startEdit = useCallback((lineNumber: number, currentText: string) => {
     if (!onEditLine) return;
     setEditingLine(lineNumber);
+    originalTextRef.current = currentText; // always the original detokenized text
     setEditText(fileEdits?.[lineNumber] ?? currentText);
   }, [onEditLine, fileEdits]);
 
   const confirmEdit = useCallback(() => {
     if (editingLine !== null && onEditLine) {
-      onEditLine(editingLine, editText);
+      if (editText !== originalTextRef.current) {
+        // Text changed — mark as edited
+        onEditLine(editingLine, editText);
+      } else if (fileEdits && editingLine in fileEdits) {
+        // Was previously edited, now reverted to original — remove the edit
+        if (onRevertLine) onRevertLine(editingLine);
+      }
+      // If text matches original and was never edited, do nothing
     }
     setEditingLine(null);
-  }, [editingLine, editText, onEditLine]);
+  }, [editingLine, editText, onEditLine, onRevertLine, fileEdits]);
 
   const cancelEdit = useCallback(() => {
     setEditingLine(null);

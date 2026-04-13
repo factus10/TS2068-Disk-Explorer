@@ -41,6 +41,10 @@ for (const [kw, byte] of Object.entries(KEYWORD_TO_BYTE)) {
 const SORTED_KEYWORDS = Object.keys(KEYWORD_TO_BYTE).sort((a, b) => b.length - a.length);
 const INFIX_KEYWORDS = new Set(['OR', 'AND', 'THEN', 'TO', 'STEP', 'LINE']);
 
+// Zero-argument keywords that are always keywords, never variable names.
+// These can appear before : or end-of-line without being reverted.
+const ALWAYS_KEYWORD = new Set(['PI', 'RND', 'INKEY$']);
+
 function isAlpha(ch: string): boolean {
   return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
 }
@@ -104,7 +108,8 @@ export function tokenizeLine(text: string): Buffer {
       }
 
       const endsWithDollar = kw.endsWith('$');
-      if (match && !isOperator && !endsWithDollar) {
+      const isAlwaysKeyword = ALWAYS_KEYWORD.has(kw);
+      if (match && !isOperator && !endsWithDollar && !isAlwaysKeyword) {
         const realCharAfter = pos + kwLen < padded.length ? padded[pos + kwLen] : '';
         if (realCharAfter === '=' && (pos + kwLen + 1 >= padded.length || (padded[pos + kwLen + 1] !== '>' && padded[pos + kwLen + 1] !== '<'))) {
           match = false;
@@ -165,9 +170,9 @@ export function tokenizeLine(text: string): Buffer {
       continue;
     }
 
-    // Keyword used as value
+    // Keyword used as value (but not zero-arg functions like PI, RND)
     const realCharAfter = pos + kwLen < padded.length ? padded[pos + kwLen] : '';
-    if (realCharAfter === '' || realCharAfter === ':' || realCharAfter === '\n') {
+    if (!ALWAYS_KEYWORD.has(kw) && (realCharAfter === '' || realCharAfter === ':' || realCharAfter === '\n')) {
       let revert = false;
       for (let j = pos - 1; j >= 1; j--) {
         if (padded[j] === ' ') continue;
