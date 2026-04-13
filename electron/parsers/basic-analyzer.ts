@@ -76,6 +76,15 @@ export function scanBasicForLoads(content: Buffer): LoadReference[] {
     }
 
     offset = lineEnd;
+
+    // Handle off-by-one line lengths (stray 0x0D between lines)
+    if (offset < content.length && content[offset] === NEWLINE && offset + 5 < content.length) {
+      const nextLn = readUint16BE(content, offset + 1);
+      const nextLen = readUint16LE(content, offset + 3);
+      if (nextLn > lineNumber && nextLn <= 9999 && nextLen > 0 && nextLen < 5000) {
+        offset++;
+      }
+    }
   }
 
   return refs;

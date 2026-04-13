@@ -232,6 +232,18 @@ export function detokenize(data: Buffer, variablesOffset?: number, mode: Ts2068M
     lines.push({ lineNumber, tokens });
 
     pos = lineStart + lineLen;
+
+    // Handle off-by-one line lengths: if we land on a 0x0D and the bytes after
+    // it look like a valid next line (line number > current, reasonable length),
+    // skip the stray terminator. But don't skip if 0x0D could be the high byte
+    // of a valid line number (e.g., line 3328 = 0x0D00).
+    if (pos < programEnd && data[pos] === 0x0d && pos + 5 < programEnd) {
+      const nextLn = (data[pos + 1] << 8) | data[pos + 2];
+      const nextLen = data[pos + 3] | (data[pos + 4] << 8);
+      if (nextLn > lineNumber && nextLn <= 9999 && nextLen > 0 && nextLen < 5000) {
+        pos++; // skip the stray 0x0D
+      }
+    }
   }
 
   return { lines };
