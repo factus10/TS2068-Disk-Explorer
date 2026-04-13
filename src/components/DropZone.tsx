@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { api } from '../api';
 
 interface Props {
   onDrop: (filePath: string) => void;
@@ -30,7 +31,14 @@ export function DropZone({ onDrop, overlay = false }: Props) {
       const file = files[0];
       const name = file.name.toLowerCase();
       if (/\.(img|dsk|tap|tzx|sna|z80|scr|mgt)$/i.test(name)) {
-        onDrop((file as any).path);
+        try {
+          const filePath = api.getPathForFile(file);
+          if (filePath) onDrop(filePath);
+        } catch {
+          // fallback for older Electron
+          const legacyPath = (file as any).path;
+          if (legacyPath) onDrop(legacyPath);
+        }
       }
     }
   }, [onDrop]);

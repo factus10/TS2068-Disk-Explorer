@@ -1,6 +1,7 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 contextBridge.exposeInMainWorld('diskTools', {
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getHomeDirectory: () => ipcRenderer.invoke('get-home-directory'),
   listDirectory: (dirPath: string) => ipcRenderer.invoke('list-directory', dirPath),
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),

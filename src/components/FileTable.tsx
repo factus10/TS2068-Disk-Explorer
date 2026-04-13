@@ -156,8 +156,10 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent, entryIndex: number, isDepRow: boolean, loaderIdx: number | null) => {
+    // Only handle internal row drags, not external file drops from the OS
+    if (dragIndex.current === null) return;
     e.preventDefault();
-    if (dragIndex.current === null || dragIndex.current === entryIndex) return;
+    if (dragIndex.current === entryIndex) return;
 
     // Determine drop position: 'on' for creating/adding, 'before' for reordering
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -183,9 +185,11 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent, targetIndex: number, isDepRow: boolean, loaderIdx: number | null) => {
-    e.preventDefault();
+    // Only handle internal row drags
     const srcIndex = dragIndex.current;
-    if (srcIndex === null || srcIndex === targetIndex) return;
+    if (srcIndex === null) return;
+    e.preventDefault();
+    if (srcIndex === targetIndex) return;
 
     const srcPkg = dragSourcePkg.current;
     const targetPkg = loaderIdx; // the package this dep row belongs to

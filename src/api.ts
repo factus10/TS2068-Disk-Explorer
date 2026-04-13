@@ -132,6 +132,7 @@ export interface BasicVariable {
 }
 
 interface DiskToolsAPI {
+  getPathForFile: (file: File) => string;
   getHomeDirectory: () => Promise<string>;
   listDirectory: (dirPath: string) => Promise<DirEntry[]>;
   openFileDialog: () => Promise<DiskImage | null>;

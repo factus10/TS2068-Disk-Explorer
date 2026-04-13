@@ -95,6 +95,7 @@ function App() {
   }, []);
 
   const handleDrop = useCallback(async (filePath: string) => {
+    if (!filePath) return;
     try {
       setStatus('Loading...');
       const result = await api.openPath(filePath);
@@ -258,7 +259,7 @@ function App() {
 
     setExtracting(false);
     setStatus(`Extracted ${results.length} file(s)`);
-  }, [disk, selectedIndices]);
+  }, [disk, selectedIndices, editState]);
 
   const handleExtractPackage = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
@@ -279,7 +280,7 @@ function App() {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk, selectedIndices, packages]);
+  }, [disk, selectedIndices, packages, editState]);
 
   const handleExtractAll = useCallback(async () => {
     if (!disk) return;
@@ -295,7 +296,7 @@ function App() {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk]);
+  }, [disk, editState]);
 
   const handleExportAllFonts = useCallback(async () => {
     if (!disk) return;
