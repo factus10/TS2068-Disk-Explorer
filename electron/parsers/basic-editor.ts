@@ -72,7 +72,14 @@ function decodeLineWithMap(data: Buffer, start: number, end: number): CharByteMa
 
     if (inRem) {
       if (byte === 0x0e) { i += 6; continue; }
-      const ch = mapCharacter(byte);
+      let ch = '';
+      if (byte >= 0xa5 && TOKENS[byte]) {
+        ch = TOKENS[byte];
+      } else if (byte >= 0x90 && byte <= 0xa4) {
+        ch = `[UDG-${String.fromCharCode(0x41 + (byte - 0x90))}]`;
+      } else {
+        ch = mapCharacter(byte);
+      }
       if (ch) {
         for (const c of ch) map.push({ start: i, end: i + 1 });
         text += ch;

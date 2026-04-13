@@ -266,11 +266,23 @@ function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode):
       inQuote = !inQuote;
     }
 
-    // After REM, everything is literal
+    // After REM, everything is literal — but tokens still need to be rendered
     if (inRem) {
       if (byte === 0x0e) { i += 6; continue; }
-      const ch = mapCharacter(byte);
-      if (ch) tokens.push({ type: 'text', text: ch });
+      // Render token bytes as their keyword text
+      if (byte >= 0xa5 && TOKENS[byte]) {
+        tokens.push({ type: 'text', text: TOKENS[byte] });
+      } else if (byte >= 0x7b && byte <= 0x7f) {
+        tokens.push({ type: 'text', text: SPECTRUM_CHARS[byte] ?? String.fromCharCode(byte) });
+      } else if (byte >= 0x90 && byte <= 0xa4) {
+        const letter = String.fromCharCode(0x41 + (byte - 0x90));
+        tokens.push({ type: 'text', text: `[UDG-${letter}]` });
+      } else if (byte >= 0x80 && byte <= 0x8f) {
+        tokens.push({ type: 'text', text: BLOCK_CHARS[byte - 0x80] });
+      } else {
+        const ch = mapCharacter(byte);
+        if (ch) tokens.push({ type: 'text', text: ch });
+      }
       prevByte = byte;
       i++;
       continue;
