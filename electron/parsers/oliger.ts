@@ -62,13 +62,20 @@ function readV2Catalog(buffer: Buffer): CatalogResult {
   const availCylinders = dirHeader[4];
   const diskName = dirHeader.subarray(16, 32).toString('ascii').replace(/\0/g, '').trim();
 
+  const expectedSize = totalCylinders * BLOCK_SIZE;
+  const isTruncated = buffer.length < expectedSize;
+
   const header: DiskHeader = {
     format: 'oliger-v2',
     formatName: 'Oliger (JLO SAFE V2)',
     diskName,
     sides,
     tracks,
-    extra: { totalCylinders, availableCylinders: availCylinders },
+    extra: {
+      totalCylinders,
+      availableCylinders: availCylinders,
+      ...(isTruncated ? { warning: `Image truncated: ${buffer.length} of ${expectedSize} bytes` } : {}),
+    },
   };
 
   const entries: FileEntry[] = [];
@@ -90,6 +97,26 @@ function readV2Catalog(buffer: Buffer): CatalogResult {
     const ft = typeCodeToFileType(filetype);
     const isAbs = filesize >= ABS_SAVE_MIN && filetype === TYPE_BASIC && param2 === 0;
 
+    // Check if file data is within the image boundaries
+    const startOffset = cylinder * BLOCK_SIZE;
+    const endOffset = (cylinder + cylused) * BLOCK_SIZE;
+    const truncated = endOffset > buffer.length;
+    const beyond = startOffset >= buffer.length;
+
+    // Check for blank/formatted data (all 0xE5 fill bytes)
+    let isBlank = false;
+    if (!beyond && startOffset + 32 <= buffer.length) {
+      isBlank = true;
+      for (let j = startOffset; j < Math.min(startOffset + 32, buffer.length); j++) {
+        if (buffer[j] !== 0xe5) { isBlank = false; break; }
+      }
+    }
+
+    const metadata: Record<string, string> = {};
+    if (beyond) metadata['Status'] = 'Beyond image boundary';
+    else if (isBlank) metadata['Status'] = 'Empty (unwritten data)';
+    else if (truncated) metadata['Status'] = 'Truncated (image too small)';
+
     entries.push({
       index: idx++,
       filename,
@@ -108,7 +135,7 @@ function readV2Catalog(buffer: Buffer): CatalogResult {
       blocks: Array.from({ length: cylused }, (_, i) => cylinder + i),
       isMemoryDump: isAbs,
       isDirectory: false,
-      metadata: {},
+      metadata,
     });
 
     offset += DIR_ENTRY_SIZE;
