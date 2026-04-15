@@ -7,6 +7,7 @@ import { ArrayViewer } from './ArrayViewer';
 import { TextView } from './TextView';
 import { VariableViewer } from './VariableViewer';
 import { FontViewer, isFontData } from './FontViewer';
+import { IconViewer, isIconData } from './IconViewer';
 import { XRefViewer, XRefEntry } from './XRefViewer';
 
 const DEFAULT_WIDTH = 560;
@@ -24,7 +25,7 @@ interface Props {
   screenEntries?: FileEntry[];
 }
 
-type ViewTab = 'listing' | 'variables' | 'xref' | 'screen' | 'font' | 'array' | 'text' | 'hex';
+type ViewTab = 'listing' | 'variables' | 'xref' | 'screen' | 'font' | 'icon' | 'array' | 'text' | 'hex';
 
 const SCREEN_SIZE = 6912;
 const TEXT_PRINTABLE_THRESHOLD = 0.9;
@@ -70,6 +71,7 @@ const TAB_LABELS: Record<ViewTab, string> = {
   xref: 'XRef',
   screen: 'Screen',
   font: 'Font',
+  icon: 'Icon',
   array: 'Array',
   text: 'Text',
   hex: 'Hex',
@@ -86,16 +88,18 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');
 
-  // Compute available tabs (text/font tabs depend on data)
+  // Compute available tabs (text/font/icon tabs depend on data)
   const hasText = hexData ? isTextContent(hexData) : false;
   const hasFont = hexData ? isFontData(hexData) : false;
+  const hasIcon = hexData ? isIconData(hexData) : false;
   const tabs = useMemo(() => {
     const t = getStaticTabs(entry);
     if (hasFont && entry.type === 'code') t.push('font');
+    if (hasIcon && entry.type === 'code') t.push('icon');
     if (hasText) t.push('text');
     t.push('hex');
     return t;
-  }, [entry.index, entry.type, entry.size, entry.isMemoryDump, hasText, hasFont]);
+  }, [entry.index, entry.type, entry.size, entry.isMemoryDump, hasText, hasFont, hasIcon]);
 
   // Decoded text content (memoized)
   const textContent = useMemo(() => {
@@ -122,6 +126,8 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
         setActiveTab(staticTabs[0]);
       } else if (data && isFontData(data) && entry.type === 'code') {
         setActiveTab('font');
+      } else if (data && isIconData(data) && entry.type === 'code') {
+        setActiveTab('icon');
       } else if (data && isTextContent(data)) {
         setActiveTab('text');
       } else {
@@ -379,6 +385,7 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
         {activeTab === 'variables' && variables && <VariableViewer variables={variables} />}
         {activeTab === 'xref' && xrefData && <XRefViewer entries={xrefData} />}
         {activeTab === 'font' && hexData && <FontViewer data={hexData} filename={entry.filename.trim()} />}
+        {activeTab === 'icon' && hexData && <IconViewer data={hexData} filename={entry.filename.trim()} />}
         {activeTab === 'array' && arrayData && <ArrayViewer data={arrayData} />}
       </div>
       </div>

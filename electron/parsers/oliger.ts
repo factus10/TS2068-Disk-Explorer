@@ -256,6 +256,23 @@ function readV1Catalog(buffer: Buffer): CatalogResult {
   const entries: FileEntry[] = [];
   let idx = 0;
 
+  // First pass: collect raw file data to detect shared BASIC templates.
+  // Only BASIC discovered via a deep scan (far from offset 0) is considered
+  // a "template" candidate — shallow detections are usually real per-file
+  // loaders even when multiple slots happen to match byte-for-byte.
+  const rawByFnum = new Map<number, V1RawFile | null>();
+  const deepBasicHashCounts = new Map<string, number>();
+  for (const fnum of boot.fileNumbers) {
+    const slotOffset = fnum * V1_SLOT_SIZE;
+    if (slotOffset + V1_SLOT_SIZE > fileSize) continue;
+    const raw = readV1FileDataInternal(buffer, fnum);
+    rawByFnum.set(fnum, raw);
+    if (raw && raw.filetype === TYPE_BASIC && (raw.basicOffset ?? 0) >= 256) {
+      const key = raw.content.toString('binary');
+      deepBasicHashCounts.set(key, (deepBasicHashCounts.get(key) ?? 0) + 1);
+    }
+  }
+
   for (const fnum of boot.fileNumbers) {
     const slotOffset = fnum * V1_SLOT_SIZE;
     if (slotOffset + V1_SLOT_SIZE > fileSize) continue;
@@ -274,8 +291,25 @@ function readV1Catalog(buffer: Buffer): CatalogResult {
     }
 
     // Read file data to determine type and size
-    const fileData = readV1FileDataInternal(buffer, fnum);
+    let fileData = rawByFnum.get(fnum);
+    if (fileData === undefined) fileData = readV1FileDataInternal(buffer, fnum);
     const name = boot.names[fnum] ?? `File ${fnum}`;
+
+    // Demote shared deep-scan BASIC templates to CODE so the unique payload
+    // (the CODE block around the shared loader) is surfaced instead.
+    if (fileData && fileData.filetype === TYPE_BASIC && (fileData.basicOffset ?? 0) >= 256) {
+      const key = fileData.content.toString('binary');
+      if ((deepBasicHashCounts.get(key) ?? 0) >= 2) {
+        // Fall back to the full slot contents as a CODE memory dump
+        fileData = {
+          filetype: TYPE_CODE,
+          filesize: V1_SLOT_SIZE,
+          staline: 0,
+          param2: 32768,
+          content: Buffer.from(slotData),
+        };
+      }
+    }
 
     const ft = fileData ? typeCodeToFileType(fileData.filetype) : 'code';
 
@@ -311,6 +345,10 @@ interface V1RawFile {
   staline: number;
   param2: number;
   content: Buffer;
+  // Offset within the slot's effective data where BASIC was detected.
+  // Used to distinguish shallow detections (trusted) from deep scans
+  // (which may pick up shared loader templates).
+  basicOffset?: number;
 }
 
 function readV1FileDataInternal(buffer: Buffer, fnum: number): V1RawFile | null {
@@ -336,7 +374,7 @@ function readV1FileDataInternal(buffer: Buffer, fnum: number): V1RawFile | null 
   const effective = raw.subarray(dataStart, end);
   if (effective.length === 0) return null;
 
-  // Heuristic BASIC detection
+  // Heuristic BASIC detection: standard [progLen][varsOff] header
   if (effective.length >= 8) {
     const progLen = readUint16LE(effective, 0);
     const varsOff = readUint16LE(effective, 2);
@@ -360,6 +398,10 @@ function readV1FileDataInternal(buffer: Buffer, fnum: number): V1RawFile | null 
     }
   }
 
+  // Detect raw Spectrum BASIC stream (possibly with an orphan first line body)
+  const rawBasic = detectV1RawBasic(effective);
+  if (rawBasic) return rawBasic;
+
   // Default to CODE
   return {
     filetype: TYPE_CODE,
@@ -367,6 +409,120 @@ function readV1FileDataInternal(buffer: Buffer, fnum: number): V1RawFile | null 
     staline: 0,
     param2: 32768,
     content: Buffer.from(effective),
+  };
+}
+
+// Validate how many consecutive Spectrum BASIC lines can be parsed starting
+// at `startOffset` in the buffer. Standard format: [lineNum BE:2][lineLen LE:2][body ending 0x0D].
+function validateStandardBasic(data: Buffer, startOffset: number): { lines: number; endOffset: number } {
+  let off = startOffset;
+  let valid = 0;
+  let lastLineNum = 0;
+  while (off + 4 < data.length) {
+    const lineNum = (data[off] << 8) | data[off + 1];
+    const lineLen = data[off + 2] | (data[off + 3] << 8);
+    if (lineNum < 1 || lineNum > 9999) break;
+    if (lineLen < 2 || lineLen > 500) break;
+    if (lineNum <= lastLineNum) break;
+    const bodyEnd = off + 4 + lineLen;
+    if (bodyEnd > data.length) break;
+    if (data[bodyEnd - 1] !== 0x0d) break;
+    valid++;
+    lastLineNum = lineNum;
+    off = bodyEnd;
+  }
+  return { lines: valid, endOffset: off };
+}
+
+// Detect a raw Spectrum BASIC stream anywhere within `effective`. Handles:
+//   - Standard format starting at offset 0
+//   - Orphan first-line body (ending 0x0D) followed by standard format (Disk21)
+//   - BASIC embedded deep inside a slot after CODE/data (Disk20)
+function detectV1RawBasic(effective: Buffer): V1RawFile | null {
+  // First, check for a shallow orphan-body candidate (Disk21 pattern)
+  const shallowLimit = Math.min(256, effective.length - 6);
+  for (let i = 0; i < shallowLimit; i++) {
+    if (effective[i] !== 0x0d) continue;
+    const stdStart = i + 1;
+    const res = validateStandardBasic(effective, stdStart);
+    if (res.lines >= 2) {
+      let orphan: Buffer = effective.subarray(0, stdStart);
+      if (orphan.length >= 4) {
+        const lenPrefix = orphan[0] | (orphan[1] << 8);
+        if (lenPrefix === orphan.length - 2) {
+          orphan = orphan.subarray(2);
+        }
+      }
+      return buildV1BasicResult(effective, stdStart, res.endOffset, orphan);
+    }
+  }
+
+  // Fallback: scan the full buffer for the longest run of valid BASIC lines.
+  // This catches Disk20-style files where BASIC sits behind a CODE region.
+  let best: { start: number; end: number; lines: number } | null = null;
+  let o = 0;
+  while (o < effective.length - 6) {
+    const res = validateStandardBasic(effective, o);
+    if (res.lines > 0) {
+      if (!best || res.lines > best.lines) {
+        best = { start: o, end: res.endOffset, lines: res.lines };
+      }
+      o = res.endOffset;
+    } else {
+      o++;
+    }
+  }
+
+  // Require 3+ consecutive lines to rule out false positives in random data.
+  if (!best || best.lines < 3) return null;
+
+  return buildV1BasicResult(effective, best.start, best.end, null);
+}
+
+// Build a V1RawFile for the detokenizer using standard Spectrum BASIC format.
+// If an orphan first-line body is present, synthesize a line header for it.
+function buildV1BasicResult(
+  effective: Buffer,
+  stdStart: number,
+  stdEndOffset: number,
+  orphanBody: Buffer | null,
+): V1RawFile {
+  // Derive the first standard line number so we can synthesize a line number
+  // for the orphan body that sorts before it.
+  let firstStdLineNum = 0;
+  if (stdEndOffset > stdStart + 4) {
+    firstStdLineNum = (effective[stdStart] << 8) | effective[stdStart + 1];
+  }
+
+  const stdChunk = effective.subarray(stdStart, stdEndOffset);
+
+  if (orphanBody && orphanBody.length > 0 && orphanBody[orphanBody.length - 1] === 0x0d) {
+    const synthLineNum = firstStdLineNum > 1 ? firstStdLineNum - 1 : 1;
+    const orphanLen = orphanBody.length;
+    const content = Buffer.alloc(4 + orphanLen + stdChunk.length);
+    content[0] = (synthLineNum >> 8) & 0xff;
+    content[1] = synthLineNum & 0xff;
+    content[2] = orphanLen & 0xff;
+    content[3] = (orphanLen >> 8) & 0xff;
+    orphanBody.copy(content, 4);
+    stdChunk.copy(content, 4 + orphanLen);
+    return {
+      filetype: TYPE_BASIC,
+      filesize: content.length,
+      staline: 0,
+      param2: content.length,
+      content,
+      basicOffset: 0,
+    };
+  }
+
+  return {
+    filetype: TYPE_BASIC,
+    filesize: stdChunk.length,
+    staline: 0,
+    param2: stdChunk.length,
+    content: Buffer.from(stdChunk),
+    basicOffset: stdStart,
   };
 }
 
