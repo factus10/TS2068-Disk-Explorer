@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -163,6 +163,24 @@ function buildMenu() {
           accelerator: 'F1',
           click: () => openHelpWindow(),
         },
+        { type: 'separator' },
+        ...(process.platform === 'darwin'
+          ? [{ role: 'about' as const }]
+          : [{
+              label: 'About TS-2068 Disk Browser',
+              click: () => {
+                const aboutIcon = nativeImage.createFromPath(
+                  path.join(__dirname, '..', 'build', 'icon.png'),
+                );
+                dialog.showMessageBox({
+                  type: 'info',
+                  icon: aboutIcon.isEmpty() ? undefined : aboutIcon,
+                  title: 'About TS-2068 Disk Browser',
+                  message: 'TS-2068 Disk Browser',
+                  detail: `Version ${app.getVersion()}\n\nBrowse and extract files from vintage\nTimex/Sinclair disk images.\n\n© 2025 David Anderson`,
+                });
+              },
+            }]),
       ],
     },
   ];
@@ -1040,7 +1058,18 @@ function writeExtractedFile(
   };
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
+  app.setAboutPanelOptions({
+    applicationName: 'TS-2068 Disk Browser',
+    applicationVersion: app.getVersion(),
+    version: '',
+    credits: 'Browse and extract files from vintage\nTimex/Sinclair disk images.',
+    copyright: '© 2025 David Anderson',
+    iconPath,
+  });
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   app.quit();
