@@ -10,6 +10,12 @@ import { DiskMap } from './components/DiskMap';
 import { ContentViewer } from './components/ContentViewer';
 import { TapCreator } from './components/TapCreator';
 import { FileBrowser } from './components/FileBrowser';
+import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './components/ArchiveExportDialog';
+
+function buildArchiveZipName(diskBase: string, meta: ArchiveMetadata): string {
+  const clean = diskBase.replace(/[<>:"/\\|?*]/g, '-').replace(/\s+/g, ' ').trim() || 'archive';
+  return `${clean} (${meta.year})(${meta.publisher})(${meta.system})(${meta.country})`;
+}
 
 function App() {
   const [disk, setDisk] = useState<DiskImage | null>(null);
@@ -28,6 +34,7 @@ function App() {
   );
 
   const [showTapCreator, setShowTapCreator] = useState(false);
+  const [showArchiveExport, setShowArchiveExport] = useState(false);
   const [showBrowser, setShowBrowser] = useState(() =>
     typeof localStorage !== 'undefined' ? localStorage.getItem('showBrowser') !== 'false' : true,
   );
@@ -298,6 +305,40 @@ function App() {
     setExtracting(false);
   }, [disk, editState]);
 
+  const handleExportArchive = useCallback(async (metadata: ArchiveMetadata) => {
+    if (!disk) return;
+    setShowArchiveExport(false);
+
+    if (metadata.format === 'zip') {
+      // For ZIP, use save dialog to pick the .zip file path
+      const diskBase = disk.path.split('/').pop()?.replace(/\.[^.]+$/, '') || 'archive';
+      const zipName = buildArchiveZipName(diskBase, metadata);
+      const zipPath = await api.saveZipDialog(zipName + '.zip');
+      if (!zipPath) return;
+      setExtracting(true);
+      setStatus('Exporting archive ZIP...');
+      try {
+        const results = await api.exportArchive(disk.path, zipPath, metadata, editState);
+        setStatus(`Exported ${results.length} file(s) to ZIP`);
+      } catch (err: any) {
+        setStatus(`Error: ${err.message}`);
+      }
+      setExtracting(false);
+    } else {
+      const destDir = await api.selectDirectory();
+      if (!destDir) return;
+      setExtracting(true);
+      setStatus('Exporting for archive.org...');
+      try {
+        const results = await api.exportArchive(disk.path, destDir, metadata, editState);
+        setStatus(`Exported ${results.length} file(s) for archive.org`);
+      } catch (err: any) {
+        setStatus(`Error: ${err.message}`);
+      }
+      setExtracting(false);
+    }
+  }, [disk, editState]);
+
   const handleExportAllFonts = useCallback(async () => {
     if (!disk) return;
     const destDir = await api.selectDirectory();
@@ -471,6 +512,7 @@ function App() {
         onExportAllFonts={handleExportAllFonts}
         onExportAllScreens={handleExportAllScreens}
         onCreateTap={() => setShowTapCreator(true)}
+        onExportArchive={() => setShowArchiveExport(true)}
         showBrowser={showBrowser}
         onToggleBrowser={() => setShowBrowser((v) => !v)}
       />
@@ -538,6 +580,14 @@ function App() {
         <TapCreator
           onClose={() => setShowTapCreator(false)}
           onStatus={setStatus}
+        />
+      )}
+
+      {showArchiveExport && (
+        <ArchiveExportDialog
+          diskName={disk?.header.diskName || disk?.path.split('/').pop() || ''}
+          onExport={handleExportArchive}
+          onCancel={() => setShowArchiveExport(false)}
         />
       )}
     </div>

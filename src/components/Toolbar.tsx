@@ -20,6 +20,7 @@ interface Props {
   onExportAllFonts: () => void;
   onExportAllScreens: () => void;
   onCreateTap: () => void;
+  onExportArchive: () => void;
   showBrowser: boolean;
   onToggleBrowser: () => void;
 }
@@ -31,7 +32,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
   searchQuery, onSearchChange,
   theme, onToggleTheme,
   hasFonts, hasScreens, onExportAllFonts, onExportAllScreens, onCreateTap,
-  showBrowser, onToggleBrowser,
+  onExportArchive, showBrowser, onToggleBrowser,
 }, searchRef) {
   return (
     <div style={{
@@ -151,6 +152,16 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
         >
           Create TAP
         </button>
+        {hasDisk && (
+          <button
+            onClick={onExportArchive}
+            disabled={extracting}
+            style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: 11 }}
+            title="Export all files with archive.org naming conventions"
+          >
+            Archive.org
+          </button>
+        )}
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />

@@ -75,7 +75,7 @@ export interface DiskImage {
 export interface ExtractionResult {
   filename: string;
   outputPaths: string[];
-  format: 'tap' | 'raw' | 'dump+tap';
+  format: 'tap' | 'raw' | 'dump+tap' | 'zip';
   size: number;
 }
 

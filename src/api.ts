@@ -140,6 +140,7 @@ interface DiskToolsAPI {
   selectDirectory: () => Promise<string | null>;
   extractFile: (imagePath: string, entryIndex: number, destDir: string, editedLines?: Record<number, string>) => Promise<ExtractionResult | null>;
   extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult[]>;
+  exportArchive: (imagePath: string, destOrZipPath: string, metadata: { year: string; publisher: string; system: string; country: string; format: string }, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult[]>;
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult | null>;
@@ -157,6 +158,7 @@ interface DiskToolsAPI {
   exportAllScreens: (imagePath: string, destDir: string) => Promise<number>;
   printListingPdf: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<string | null>;
   saveTapDialog: (defaultName: string) => Promise<string | null>;
+  saveZipDialog: (defaultName: string) => Promise<string | null>;
   selectFilesForTap: () => Promise<string[] | null>;
   createTapFromFiles: (specs: TapFileSpec[], destPath: string) => Promise<string | null>;
 }

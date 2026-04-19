@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('extract-file', imagePath, entryIndex, destDir, editedLines),
   extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>) =>
     ipcRenderer.invoke('extract-all', imagePath, destDir, allEdits),
+  exportArchive: (imagePath: string, destDir: string, metadata: any, allEdits?: Record<number, Record<number, string>>) =>
+    ipcRenderer.invoke('export-archive', imagePath, destDir, metadata, allEdits),
+  saveZipDialog: (defaultName: string) =>
+    ipcRenderer.invoke('save-zip-dialog', defaultName),
   getFileData: (imagePath: string, entryIndex: number) =>
     ipcRenderer.invoke('get-file-data', imagePath, entryIndex),
   analyzePackages: (imagePath: string) =>

@@ -437,6 +437,166 @@ ipcMain.handle('extract-all', async (
   return results;
 });
 
+// Archive.org TOSEC-style export
+interface ArchiveMetadata {
+  year: string;
+  publisher: string;
+  system: string;
+  country: string;
+}
+
+function buildArchiveName(title: string, meta: ArchiveMetadata, typeSuffix: string): string {
+  // Clean up the title: strip Larken-style extensions (.B1, .C$, .C1, .CG, .CS, .CL, etc.)
+  let clean = title.trim();
+  clean = clean.replace(/\.[BCAbca][\w$]*$/, '');
+  // Replace characters unsafe for filenames
+  clean = clean.replace(/[<>:"/\\|?*]/g, '-').replace(/\s+/g, ' ').trim();
+  if (!clean) clean = 'Unknown';
+
+  const parts = [
+    clean,
+    ` (${meta.year})`,
+    `(${meta.publisher})`,
+    `(${meta.system})`,
+    `(${meta.country})`,
+    `(${typeSuffix})`,
+  ];
+  return parts.join('');
+}
+
+function fileTypeToArchiveSuffix(entry: FileEntry): string {
+  switch (entry.type) {
+    case 'basic': return 'Program';
+    case 'code':
+      if (entry.size === 6912) return 'Screen';
+      if (entry.size === 256) return 'Icon';
+      if (entry.size === 768) return 'Font';
+      return 'Code';
+    case 'num-array': return 'Data';
+    case 'str-array': return 'Data';
+    case 'state': return 'Snapshot';
+    default: return 'Program';
+  }
+}
+
+// Collect all archive-named file buffers from a disk image.
+function buildArchiveFiles(
+  imagePath: string, metadata: ArchiveMetadata,
+  allEdits?: Record<number, Record<number, string>>,
+): { name: string; data: Buffer; entry: FileEntry }[] {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return [];
+
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+
+  const fileDataMap = new Map<number, Buffer>();
+  for (const entry of allEntries) {
+    if (entry.isDirectory) continue;
+    const data = parser.readFileData(buffer, entry);
+    if (data) fileDataMap.set(entry.index, data);
+  }
+
+  const usesTap = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64'].includes(format);
+  const packages = usesTap ? buildTapPackages(entries, fileDataMap) : [];
+  const bundledIndices = new Set<number>();
+  const files: { name: string; data: Buffer; entry: FileEntry }[] = [];
+
+  // Packages
+  for (const pkg of packages) {
+    const tapData = buildMultiFileTap(pkg, fileDataMap, allEdits);
+    if (!tapData) continue;
+
+    const archiveName = buildArchiveName(pkg.loader.filename, metadata, 'Program');
+    files.push({ name: archiveName + '.tap', data: tapData, entry: pkg.loader });
+
+    bundledIndices.add(pkg.loader.index);
+    for (const dep of pkg.dependencies) bundledIndices.add(dep.index);
+  }
+
+  // Individual files
+  for (const entry of allEntries) {
+    if (entry.isDirectory || bundledIndices.has(entry.index)) continue;
+    const fileData = fileDataMap.get(entry.index);
+    if (!fileData) continue;
+
+    const typeSuffix = fileTypeToArchiveSuffix(entry);
+    const archiveName = buildArchiveName(entry.filename, metadata, typeSuffix);
+
+    if (usesTap && entry.type !== 'module') {
+      const edits = allEdits?.[entry.index];
+      let tapData: Buffer;
+      if (edits && entry.type === 'basic' && Object.keys(edits).length > 0) {
+        const rebuilt = rebuildBasicProgram(fileData, edits, entry);
+        if (!rebuilt) continue;
+        tapData = rebuilt;
+      } else {
+        tapData = buildTapFile(entry, fileData);
+      }
+      files.push({ name: archiveName + '.tap', data: tapData, entry });
+    } else {
+      const ext = entry.type === 'module' ? '.bin' : '';
+      files.push({ name: archiveName + ext, data: fileData, entry });
+    }
+  }
+
+  return files;
+}
+
+ipcMain.handle('export-archive', async (
+  _event, imagePath: string, destOrZipPath: string,
+  metadata: ArchiveMetadata & { format?: string },
+  allEdits?: Record<number, Record<number, string>>,
+): Promise<ExtractionResult[]> => {
+  const archiveFiles = buildArchiveFiles(imagePath, metadata, allEdits);
+  if (archiveFiles.length === 0) return [];
+
+  const isZip = metadata.format === 'zip' || destOrZipPath.endsWith('.zip');
+
+  if (isZip) {
+    // Write all files into a ZIP archive
+    const archiver = require('archiver');
+    const output = fs.createWriteStream(destOrZipPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    const done = new Promise<void>((resolve, reject) => {
+      output.on('close', resolve);
+      archive.on('error', reject);
+    });
+
+    archive.pipe(output);
+    for (const f of archiveFiles) {
+      archive.append(f.data, { name: f.name });
+    }
+    await archive.finalize();
+    await done;
+
+    return archiveFiles.map((f) => ({
+      filename: f.entry.filename,
+      outputPaths: [destOrZipPath],
+      format: 'zip',
+      size: f.data.length,
+    }));
+  }
+
+  // Folder export
+  fs.mkdirSync(destOrZipPath, { recursive: true });
+  const results: ExtractionResult[] = [];
+  for (const f of archiveFiles) {
+    const outPath = uniquePath(path.join(destOrZipPath, f.name));
+    fs.writeFileSync(outPath, f.data);
+    results.push({
+      filename: f.entry.filename,
+      outputPaths: [outPath],
+      format: 'tap',
+      size: f.data.length,
+    });
+  }
+  return results;
+});
+
 ipcMain.handle('get-file-data', async (_event, imagePath: string, entryIndex: number): Promise<number[] | null> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -860,6 +1020,15 @@ ipcMain.handle('save-tap-dialog', async (_event, defaultName: string): Promise<s
   const result = await dialog.showSaveDialog(mainWindow!, {
     defaultPath: defaultName,
     filters: [{ name: 'TAP Files', extensions: ['tap'] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+  return result.filePath;
+});
+
+ipcMain.handle('save-zip-dialog', async (_event, defaultName: string): Promise<string | null> => {
+  const result = await dialog.showSaveDialog(mainWindow!, {
+    defaultPath: defaultName,
+    filters: [{ name: 'ZIP Archives', extensions: ['zip'] }],
   });
   if (result.canceled || !result.filePath) return null;
   return result.filePath;
