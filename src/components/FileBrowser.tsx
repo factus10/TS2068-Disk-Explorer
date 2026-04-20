@@ -5,7 +5,7 @@ interface Props {
   onOpenFile: (filePath: string) => void;
 }
 
-const SUPPORTED_EXTENSIONS = new Set(['img', 'dsk', 'tap', 'tzx', 'sna', 'z80', 'scr', 'mgt']);
+const SUPPORTED_EXTENSIONS = new Set(['img', 'dsk', 'tap', 'tzx', 'sna', 'z80', 'scr', 'mgt', 'zip']);
 const DEFAULT_WIDTH = 250;
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 450;

@@ -121,7 +121,26 @@ function App() {
     }
   }, []);
 
-  const handleSelect = useCallback((index: number, multi: boolean) => {
+  const lastClickedRef = useRef<number>(-1);
+
+  const handleSelect = useCallback((index: number, multi: boolean, shift?: boolean) => {
+    if (shift && lastClickedRef.current >= 0) {
+      // Shift-click: select range between last clicked and current
+      const rows = fileTableRef.current?.visibleRowIndices ?? [];
+      const from = rows.indexOf(lastClickedRef.current);
+      const to = rows.indexOf(index);
+      if (from >= 0 && to >= 0) {
+        const lo = Math.min(from, to);
+        const hi = Math.max(from, to);
+        setSelectedIndices((prev) => {
+          const next = new Set(multi ? prev : []);
+          for (let i = lo; i <= hi; i++) next.add(rows[i]);
+          return next;
+        });
+        return;
+      }
+    }
+    lastClickedRef.current = index;
     setSelectedIndices((prev) => {
       const next = new Set(multi ? prev : []);
       if (next.has(index)) {

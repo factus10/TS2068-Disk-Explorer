@@ -12,7 +12,8 @@ export type DiskFormat =
   | 'sna'
   | 'z80'
   | 'scr'
-  | 'mgt';
+  | 'mgt'
+  | 'zip';
 
 export type FileType =
   | 'basic'

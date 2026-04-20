@@ -110,7 +110,7 @@ export function DropZone({ onDrop, overlay = false }: Props) {
         Drop a disk image here
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        Supports .img, .dsk, .tap, .tzx, .sna, .z80, .scr, .mgt
+        Supports .img, .dsk, .tap, .tzx, .sna, .z80, .scr, .mgt, .zip
       </div>
     </div>
   );

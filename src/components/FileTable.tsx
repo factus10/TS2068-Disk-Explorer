@@ -10,7 +10,7 @@ export interface FileTableHandle {
 interface Props {
   entries: FileEntry[];
   selectedIndices: Set<number>;
-  onSelect: (index: number, multi: boolean) => void;
+  onSelect: (index: number, multi: boolean, shift?: boolean) => void;
   onViewHex: (entry: FileEntry) => void;
   packages: TapPackage[];
   manualLoaderIndices: Set<number>;
@@ -253,7 +253,7 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
           onDragOver={(e) => handleDragOver(e, entry.index, isDepRow, parentLoaderIdx)}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, entry.index, isDepRow, parentLoaderIdx)}
-          onClick={(e) => onSelect(entry.index, e.metaKey || e.ctrlKey)}
+          onClick={(e) => onSelect(entry.index, e.metaKey || e.ctrlKey, e.shiftKey)}
           onDoubleClick={() => {
             if (isExpandable) toggleExpand(entry.index);
             else onViewHex(entry);

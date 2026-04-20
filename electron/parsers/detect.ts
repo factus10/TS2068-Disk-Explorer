@@ -14,7 +14,13 @@ import { detect as detectMGT } from './mgt-reader';
  * then magic bytes, then heuristics.
  */
 export function detectFormat(buffer: Buffer, filePath?: string): DiskFormat | null {
-  // 0. Extension-based detection for unambiguous formats
+  // 0. ZIP container (check magic bytes before extension-based detection)
+  if (buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4B &&
+      buffer[2] === 0x03 && buffer[3] === 0x04) {
+    return 'zip';
+  }
+
+  // 0a. Extension-based detection for unambiguous formats
   const ext = filePath?.toLowerCase().split('.').pop();
   if (ext === 'tap') return 'tap';
   if (ext === 'tzx') return 'tzx';

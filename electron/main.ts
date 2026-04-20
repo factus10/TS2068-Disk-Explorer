@@ -16,6 +16,7 @@ import { readCatalog as readSNA, readFileData as readSNAFile } from './parsers/s
 import { readCatalog as readZ80, readFileData as readZ80File } from './parsers/z80-reader';
 import { readCatalog as readSCR, readFileData as readSCRFile } from './parsers/scr-reader';
 import { readCatalog as readMGT, readFileData as readMGTFile } from './parsers/mgt-reader';
+import { readCatalog as readZIP, readFileData as readZIPFile } from './parsers/zip-reader';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
 import { detokenize } from './parsers/basic-detokenizer';
@@ -205,6 +206,7 @@ function getParser(format: DiskFormat) {
     case 'z80': return { readCatalog: readZ80, readFileData: readZ80File };
     case 'scr': return { readCatalog: readSCR, readFileData: readSCRFile };
     case 'mgt': return { readCatalog: readMGT, readFileData: readMGTFile };
+    case 'zip': return { readCatalog: readZIP, readFileData: readZIPFile };
     default: throw new Error(`Unknown format: ${format}`);
   }
 }
@@ -233,7 +235,7 @@ ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openFile'],
     filters: [
-      { name: 'Disk & Tape Images', extensions: ['img', 'dsk', 'tap', 'tzx', 'sna', 'z80', 'scr', 'mgt'] },
+      { name: 'Disk & Tape Images', extensions: ['img', 'dsk', 'tap', 'tzx', 'sna', 'z80', 'scr', 'mgt', 'zip'] },
       { name: 'All Files', extensions: ['*'] },
     ],
   });
@@ -635,26 +637,27 @@ ipcMain.handle('export-archive', async (
   metadata: ArchiveMetadata & { format?: string },
   allEdits?: Record<number, Record<number, string>>,
 ): Promise<ExtractionResult[]> => {
-  const archiveFiles = buildArchiveFiles(imagePath, metadata, allEdits);
-  if (archiveFiles.length === 0) return [];
-
   const isZip = metadata.format === 'zip' || destOrZipPath.endsWith('.zip');
 
   if (isZip) {
-    // Write all files into a ZIP archive using Node's built-in zlib
-    // (no external dependencies needed in the packaged app)
-    const zipData = buildZipArchive(archiveFiles.map((f) => ({ name: f.name, data: f.data })));
+    // ZIP mode: archive the original disk image file as-is
+    const rawImage = fs.readFileSync(imagePath);
+    const innerName = path.basename(imagePath);
+    const zipData = buildZipArchive([{ name: innerName, data: rawImage }]);
     fs.writeFileSync(destOrZipPath, zipData);
 
-    return archiveFiles.map((f) => ({
-      filename: f.entry.filename,
+    return [{
+      filename: innerName,
       outputPaths: [destOrZipPath],
       format: 'zip',
-      size: f.data.length,
-    }));
+      size: rawImage.length,
+    }];
   }
 
-  // Folder export
+  // Folder mode: export individual files with archive.org naming
+  const archiveFiles = buildArchiveFiles(imagePath, metadata, allEdits);
+  if (archiveFiles.length === 0) return [];
+
   fs.mkdirSync(destOrZipPath, { recursive: true });
   const results: ExtractionResult[] = [];
   for (const f of archiveFiles) {
