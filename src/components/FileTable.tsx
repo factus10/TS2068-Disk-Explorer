@@ -285,6 +285,27 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
             <span style={{ fontFamily: 'monospace' }}>
               {entry.filename.trim()}{entry.isDirectory ? '/' : ''}
             </span>
+            {entry.metadata?.Status && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  alert(`${entry.filename.trim()}\n\n${entry.metadata.Status}`);
+                }}
+                style={{
+                  marginLeft: 8,
+                  fontSize: 10,
+                  padding: '1px 6px',
+                  borderRadius: 8,
+                  background: '#ff6b6b',
+                  color: '#1a1a2e',
+                  fontWeight: 700,
+                  cursor: 'help',
+                }}
+                title={entry.metadata.Status}
+              >
+                ⚠ ISSUE
+              </span>
+            )}
             {entry.isMemoryDump && (
               <span style={{
                 marginLeft: 8,
