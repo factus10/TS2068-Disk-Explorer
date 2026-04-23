@@ -16,11 +16,10 @@ interface Props {
   onCancel: () => void;
 }
 
-const SYSTEMS = ['TS2068', 'TS1000', 'ZX Spectrum', 'ZX81'];
+const SYSTEMS = ['TS2068', 'TS1000', 'ZX Spectrum', 'ZX81', 'Sinclair QL'];
 const COUNTRIES = ['US', 'UK', 'CA', 'BR', 'Pt', 'SP'];
 
 const PUBLISHER_HISTORY_KEY = 'archivePublisherHistory';
-const PUBLISHER_LAST_KEY = 'archivePublisherLast';
 const MAX_PUBLISHER_HISTORY = 50;
 
 function loadPublisherHistory(): string[] {
@@ -36,14 +35,11 @@ function savePublisherToHistory(value: string) {
   history.unshift(value);
   if (history.length > MAX_PUBLISHER_HISTORY) history.length = MAX_PUBLISHER_HISTORY;
   localStorage.setItem(PUBLISHER_HISTORY_KEY, JSON.stringify(history));
-  localStorage.setItem(PUBLISHER_LAST_KEY, value);
 }
 
 export function ArchiveExportDialog({ diskName, onExport, onCancel }: Props) {
   const [year, setYear] = useState('198x');
-  const [publisher, setPublisher] = useState(() =>
-    localStorage.getItem(PUBLISHER_LAST_KEY) || '',
-  );
+  const [publisher, setPublisher] = useState('');
   const [system, setSystem] = useState('TS2068');
   const [country, setCountry] = useState('US');
   const [format, setFormat] = useState<ArchiveFormat>('zip');
