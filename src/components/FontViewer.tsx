@@ -150,11 +150,12 @@ export function FontViewer({ data, filename }: Props) {
   const handleExportPng = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const baseName = (filename || 'font').replace(/\.[^.]+$/, '').trim() || 'font';
     const link = document.createElement('a');
-    link.download = `font_${scale}x.png`;
+    link.download = `${baseName}_${scale}x.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
-  }, [scale]);
+  }, [scale, filename]);
 
   const handleExportTtf = useCallback(() => {
     if (data.length < FONT_SIZE) return;

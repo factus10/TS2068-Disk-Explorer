@@ -300,6 +300,7 @@ ipcMain.handle('select-directory', async () => {
 ipcMain.handle('extract-file', async (
   _event, imagePath: string, entryIndex: number, destDir: string,
   editedLines?: Record<number, string>,
+  customBaseName?: string,
 ): Promise<ExtractionResult | null> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -316,7 +317,13 @@ ipcMain.handle('extract-file', async (
 
   fs.mkdirSync(destDir, { recursive: true });
 
-  return writeExtractedFile(destDir, entry, fileData, format, editedLines);
+  // Optionally override the filename used by writeExtractedFile by
+  // wrapping the entry with a renamed copy.
+  const effectiveEntry: FileEntry = customBaseName
+    ? { ...entry, filename: customBaseName }
+    : entry;
+
+  return writeExtractedFile(destDir, effectiveEntry, fileData, format, editedLines);
 });
 
 ipcMain.handle('extract-all', async (
@@ -716,6 +723,7 @@ ipcMain.handle('analyze-packages', async (_event, imagePath: string): Promise<Ta
 ipcMain.handle('extract-package', async (
   _event, imagePath: string, loaderIndex: number, depIndices: number[], destDir: string,
   allEdits?: Record<number, Record<number, string>>,
+  customBaseName?: string,
 ): Promise<ExtractionResult | null> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -742,7 +750,8 @@ ipcMain.handle('extract-package', async (
   if (!tapData) return null;
 
   fs.mkdirSync(destDir, { recursive: true });
-  const safeName = makeSafeFilename(loader.filename.trim());
+  const baseName = customBaseName?.trim() || loader.filename.trim();
+  const safeName = makeSafeFilename(baseName);
   const tapPath = uniquePath(path.join(destDir, (safeName || 'package') + '.tap'));
   fs.writeFileSync(tapPath, tapData);
 

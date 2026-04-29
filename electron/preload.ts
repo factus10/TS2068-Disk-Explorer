@@ -7,8 +7,8 @@ contextBridge.exposeInMainWorld('diskTools', {
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
   openPath: (filePath: string) => ipcRenderer.invoke('open-path', filePath),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
-  extractFile: (imagePath: string, entryIndex: number, destDir: string, editedLines?: Record<number, string>) =>
-    ipcRenderer.invoke('extract-file', imagePath, entryIndex, destDir, editedLines),
+  extractFile: (imagePath: string, entryIndex: number, destDir: string, editedLines?: Record<number, string>, customBaseName?: string) =>
+    ipcRenderer.invoke('extract-file', imagePath, entryIndex, destDir, editedLines, customBaseName),
   extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>) =>
     ipcRenderer.invoke('extract-all', imagePath, destDir, allEdits),
   exportArchive: (imagePath: string, destDir: string, metadata: any, allEdits?: Record<number, Record<number, string>>) =>
@@ -19,8 +19,8 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('get-file-data', imagePath, entryIndex),
   analyzePackages: (imagePath: string) =>
     ipcRenderer.invoke('analyze-packages', imagePath),
-  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>) =>
-    ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir, allEdits),
+  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) =>
+    ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir, allEdits, customBaseName),
   getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
     ipcRenderer.invoke('get-basic-listing', imagePath, entryIndex, ts2068Mode ?? 'auto'),
   getBasicVariables: (imagePath: string, entryIndex: number) =>

@@ -138,12 +138,12 @@ interface DiskToolsAPI {
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
   selectDirectory: () => Promise<string | null>;
-  extractFile: (imagePath: string, entryIndex: number, destDir: string, editedLines?: Record<number, string>) => Promise<ExtractionResult | null>;
+  extractFile: (imagePath: string, entryIndex: number, destDir: string, editedLines?: Record<number, string>, customBaseName?: string) => Promise<ExtractionResult | null>;
   extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult[]>;
   exportArchive: (imagePath: string, destOrZipPath: string, metadata: { year: string; publisher: string; system: string; country: string; format: string }, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult[]>;
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
-  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult | null>;
+  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) => Promise<ExtractionResult | null>;
   getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<BasicListing | null>;
   getBasicVariables: (imagePath: string, entryIndex: number) => Promise<BasicVariable[] | null>;
   getBasicXref: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<XRefResult | null>;

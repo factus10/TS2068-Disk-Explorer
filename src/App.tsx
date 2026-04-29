@@ -11,6 +11,7 @@ import { ContentViewer } from './components/ContentViewer';
 import { TapCreator } from './components/TapCreator';
 import { FileBrowser } from './components/FileBrowser';
 import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './components/ArchiveExportDialog';
+import { RenamePrompt } from './components/RenamePrompt';
 
 function buildArchiveZipName(diskBase: string, meta: ArchiveMetadata): string {
   const clean = diskBase.replace(/[<>:"/\\|?*]/g, '-').replace(/\s+/g, ' ').trim() || 'archive';
@@ -35,6 +36,17 @@ function App() {
 
   const [showTapCreator, setShowTapCreator] = useState(false);
   const [showArchiveExport, setShowArchiveExport] = useState(false);
+  const [renamePrompt, setRenamePrompt] = useState<{
+    title: string;
+    defaultValue: string;
+    resolve: (value: string | null) => void;
+  } | null>(null);
+
+  const askForRename = useCallback((title: string, defaultValue: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      setRenamePrompt({ title, defaultValue, resolve });
+    });
+  }, []);
   const [showBrowser, setShowBrowser] = useState(() =>
     typeof localStorage !== 'undefined' ? localStorage.getItem('showBrowser') !== 'false' : true,
   );
@@ -267,6 +279,27 @@ function App() {
 
   const handleExtractSelected = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
+
+    // Single-file extracts: prompt for a custom filename so users can fix
+    // mismatched directory/block names or disambiguate same-named programs.
+    const all = flattenEntries(disk.catalog);
+    const isSingle = selectedIndices.size === 1;
+    let customNames: Map<number, string> | null = null;
+
+    if (isSingle) {
+      const idx = [...selectedIndices][0];
+      const entry = all.find((e) => e.index === idx);
+      if (entry) {
+        const suggested = entry.filename.trim();
+        const newName = await askForRename('Save file as', suggested);
+        if (newName === null) return; // cancelled
+        const trimmed = newName.trim();
+        if (trimmed && trimmed !== suggested) {
+          customNames = new Map([[idx, trimmed]]);
+        }
+      }
+    }
+
     const destDir = await api.selectDirectory();
     if (!destDir) return;
 
@@ -276,7 +309,8 @@ function App() {
 
     for (const idx of selectedIndices) {
       try {
-        const result = await api.extractFile(disk.path, idx, destDir, editState[idx]);
+        const customName = customNames?.get(idx);
+        const result = await api.extractFile(disk.path, idx, destDir, editState[idx], customName);
         if (result) results.push(result);
       } catch {
         // continue
@@ -285,13 +319,19 @@ function App() {
 
     setExtracting(false);
     setStatus(`Extracted ${results.length} file(s)`);
-  }, [disk, selectedIndices, editState]);
+  }, [disk, selectedIndices, editState, askForRename]);
 
   const handleExtractPackage = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
 
     const pkg = packages.find((p) => selectedIndices.has(p.loader.index));
     if (!pkg) return;
+
+    // Prompt for a custom filename for the .tap package
+    const suggested = pkg.loader.filename.trim();
+    const newName = await askForRename('Save package as', suggested);
+    if (newName === null) return; // cancelled
+    const customName = newName.trim() && newName.trim() !== suggested ? newName.trim() : undefined;
 
     const destDir = await api.selectDirectory();
     if (!destDir) return;
@@ -300,13 +340,13 @@ function App() {
     setStatus('Extracting package...');
     try {
       const depIndices = pkg.dependencies.map((d) => d.index);
-      const result = await api.extractPackage(disk.path, pkg.loader.index, depIndices, destDir, editState);
+      const result = await api.extractPackage(disk.path, pkg.loader.index, depIndices, destDir, editState, customName);
       setStatus(result ? `Extracted package: ${result.filename.trim()}` : 'Package extraction failed');
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk, selectedIndices, packages, editState]);
+  }, [disk, selectedIndices, packages, editState, askForRename]);
 
   const handleExtractAll = useCallback(async () => {
     if (!disk) return;
@@ -538,7 +578,7 @@ function App() {
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {showBrowser && (
-          <FileBrowser onOpenFile={handleDrop} />
+          <FileBrowser onOpenFile={handleDrop} currentDiskPath={disk?.path ?? null} />
         )}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {disk && <DiskInfo header={disk.header} path={disk.path} />}
@@ -607,6 +647,22 @@ function App() {
           diskName={disk?.header.diskName || disk?.path.split('/').pop() || ''}
           onExport={handleExportArchive}
           onCancel={() => setShowArchiveExport(false)}
+        />
+      )}
+
+      {renamePrompt && (
+        <RenamePrompt
+          title={renamePrompt.title}
+          message="Filename without extension. Tap will add .tap automatically."
+          defaultValue={renamePrompt.defaultValue}
+          onConfirm={(value) => {
+            renamePrompt.resolve(value);
+            setRenamePrompt(null);
+          }}
+          onCancel={() => {
+            renamePrompt.resolve(null);
+            setRenamePrompt(null);
+          }}
         />
       )}
     </div>

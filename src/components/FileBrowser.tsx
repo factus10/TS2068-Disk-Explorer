@@ -3,6 +3,8 @@ import { api, DirEntry } from '../api';
 
 interface Props {
   onOpenFile: (filePath: string) => void;
+  /** The currently-loaded disk file path, highlighted in the listing. */
+  currentDiskPath?: string | null;
 }
 
 const SUPPORTED_EXTENSIONS = new Set(['img', 'dsk', 'tap', 'tzx', 'sna', 'z80', 'scr', 'mgt', 'zip']);
@@ -25,7 +27,7 @@ function isSupported(name: string): boolean {
   return SUPPORTED_EXTENSIONS.has(getExtension(name));
 }
 
-export function FileBrowser({ onOpenFile }: Props) {
+export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
   const [currentPath, setCurrentPath] = useState('');
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -222,6 +224,9 @@ export function FileBrowser({ onOpenFile }: Props) {
             const ext = getExtension(entry.name);
             const supported = isSupported(entry.name);
             const isSelected = selectedPath === entry.path;
+            const isCurrentDisk = !!currentDiskPath && currentDiskPath === entry.path;
+            const bg = isCurrentDisk ? 'var(--accent)' : isSelected ? 'var(--row-selected)' : 'transparent';
+            const fg = isCurrentDisk ? '#fff' : 'inherit';
 
             return (
               <div
@@ -234,14 +239,16 @@ export function FileBrowser({ onOpenFile }: Props) {
                   padding: '3px 8px',
                   fontSize: 11,
                   cursor: entry.isDirectory || supported ? 'pointer' : 'default',
-                  background: isSelected ? 'var(--row-selected)' : 'transparent',
+                  background: bg,
+                  color: fg,
+                  fontWeight: isCurrentDisk ? 600 : 400,
                   opacity: !entry.isDirectory && !supported ? 0.4 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--row-hover)';
+                  if (!isSelected && !isCurrentDisk) (e.currentTarget as HTMLElement).style.background = 'var(--row-hover)';
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = isSelected ? 'var(--row-selected)' : 'transparent';
+                  (e.currentTarget as HTMLElement).style.background = bg;
                 }}
               >
                 {/* Icon */}
@@ -255,12 +262,14 @@ export function FileBrowser({ onOpenFile }: Props) {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  color: entry.isDirectory
-                    ? 'var(--text-primary)'
-                    : supported
-                      ? 'var(--badge-basic)'
-                      : 'var(--text-muted)',
-                  fontWeight: supported ? 600 : 400,
+                  color: isCurrentDisk
+                    ? '#fff'
+                    : entry.isDirectory
+                      ? 'var(--text-primary)'
+                      : supported
+                        ? 'var(--badge-basic)'
+                        : 'var(--text-muted)',
+                  fontWeight: isCurrentDisk || supported ? 600 : 400,
                 }}>
                   {entry.name}
                 </span>
@@ -269,7 +278,7 @@ export function FileBrowser({ onOpenFile }: Props) {
                 {!entry.isDirectory && (
                   <span style={{
                     fontSize: 10,
-                    color: 'var(--text-muted)',
+                    color: isCurrentDisk ? 'rgba(255,255,255,0.85)' : 'var(--text-muted)',
                     marginLeft: 8,
                     flexShrink: 0,
                     fontFamily: 'monospace',
