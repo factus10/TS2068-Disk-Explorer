@@ -22,7 +22,7 @@ interface Props {
   searchQuery: string;
 }
 
-type SortKey = 'filename' | 'typeName' | 'size';
+type SortKey = 'index' | 'filename' | 'typeName' | 'size';
 type SortDir = 'asc' | 'desc';
 
 const TYPE_COLORS: Record<string, string> = {
@@ -46,7 +46,7 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
   manualLoaderIndices, onCreatePackage, onAddToPackage, onReorderInPackage, onRemoveFromPackage,
   editedIndices, searchQuery,
 }, ref) {
-  const [sortKey, setSortKey] = useState<SortKey>('filename');
+  const [sortKey, setSortKey] = useState<SortKey>('index');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const tableRef = useRef<HTMLDivElement>(null);
@@ -92,7 +92,9 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
 
   const sortedEntries = [...entries].sort((a, b) => {
     let cmp: number;
-    if (sortKey === 'size') {
+    if (sortKey === 'index') {
+      cmp = a.index - b.index;
+    } else if (sortKey === 'size') {
       cmp = a.size - b.size;
     } else {
       cmp = a[sortKey].localeCompare(b[sortKey]);
@@ -270,7 +272,18 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
             (e.currentTarget as HTMLElement).style.background = isSelected ? 'var(--row-selected)' : 'transparent';
           }}
         >
-          <td style={{ paddingLeft: 14 + depth * 20, whiteSpace: 'nowrap' }}>
+          <td style={{
+            paddingLeft: 14,
+            paddingRight: 8,
+            textAlign: 'right',
+            color: 'var(--text-muted)',
+            fontSize: 10,
+            fontFamily: 'monospace',
+            width: 36,
+          }}>
+            {isDepRow ? '' : entry.index + 1}
+          </td>
+          <td style={{ paddingLeft: 8 + depth * 20, whiteSpace: 'nowrap' }}>
             {isExpandable && (
               <span
                 onClick={(e) => { e.stopPropagation(); toggleExpand(entry.index); }}
@@ -416,7 +429,14 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
       <thead>
         <tr>
-          <th style={{ ...headerStyle, paddingLeft: 14 }} onClick={() => handleSort('filename')}>
+          <th
+            style={{ ...headerStyle, paddingLeft: 14, width: 36, textAlign: 'right' }}
+            onClick={() => handleSort('index')}
+            title="Disk order — the original order files appear in the catalog. Click to keep tape-load order intact."
+          >
+            #{sortArrow('index')}
+          </th>
+          <th style={headerStyle} onClick={() => handleSort('filename')}>
             Name{sortArrow('filename')}
           </th>
           <th style={headerStyle} onClick={() => handleSort('typeName')}>

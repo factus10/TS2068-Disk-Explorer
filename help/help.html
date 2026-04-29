@@ -67,14 +67,28 @@
   <tr><td>Zebra DIRSCP</td><td>.dsk</td><td>CPC DSK with hierarchical directories</td></tr>
   <tr><td>Zebra CP/M</td><td>.dsk</td><td>CPC DSK flat catalog</td></tr>
   <tr><td>Sinclair QL</td><td>.img</td><td>QL5A/QL5B raw binary</td></tr>
+  <tr><td>ZIP archive</td><td>.zip</td><td>Container — opens all inner disk/tape images as one unified catalog</td></tr>
 </table>
+
+<h2>File Browser Sidebar</h2>
+<p>A toggleable sidebar on the left shows your filesystem so you can browse for disk images without leaving the app.</p>
+<ul>
+  <li><strong>Toggle</strong> with the folder button in the toolbar or <kbd>Cmd/Ctrl+B</kbd></li>
+  <li><strong>Click</strong> a supported file to load it; <strong>double-click</strong> a folder to navigate into it</li>
+  <li><strong>Breadcrumb</strong> at the top &mdash; click any segment to jump back up the path</li>
+  <li>The currently-loaded disk is <strong>highlighted</strong> in accent color so you always see what's open</li>
+  <li><strong>Resizable</strong> &mdash; drag the divider to adjust width</li>
+</ul>
 
 <h2>File Table</h2>
 <p>The file table shows all files on the disk with sortable columns (click column headers).</p>
+<h3>Disk Order (#)</h3>
+<p>The first column shows each file's position in the disk catalog. Click the <strong>#</strong> header to sort in disk order &mdash; the default. This is critical for tape images where programs use <code>LOAD ""CODE</code> (load the next file on tape) since the order on disk must match the playback order. Click again to reverse.</p>
 <h3>Selection</h3>
 <ul>
   <li><strong>Click</strong> to select a single file</li>
-  <li><kbd>Cmd/Ctrl+Click</kbd> for multi-select</li>
+  <li><kbd>Cmd/Ctrl+Click</kbd> to toggle individual files</li>
+  <li><kbd>Shift+Click</kbd> to select a range from the last click to the current row</li>
   <li><kbd>Arrow Up/Down</kbd> to navigate</li>
   <li><kbd>Cmd/Ctrl+F</kbd> to search/filter by filename</li>
 </ul>
@@ -84,6 +98,7 @@
   <li><strong>PKG</strong> (teal with pencil) &mdash; manually assembled package</li>
   <li><strong>DUMP</strong> &mdash; memory dump / state capture</li>
   <li><strong>EDITED</strong> &mdash; file has pending BASIC edits</li>
+  <li><strong>&#9888; ISSUE</strong> (red) &mdash; file has a directory or block-level problem (truncated, mismatched header, declared size exceeds capacity). Click for the full detail.</li>
 </ul>
 
 <h2>Disk Map</h2>
@@ -130,8 +145,15 @@
 <ul>
   <li>Live <strong>sample text</strong> preview &mdash; type to see text rendered in the font</li>
   <li><strong>Scale</strong> buttons (2x, 3x, 4x)</li>
-  <li><strong>Save PNG</strong> &mdash; export the character grid</li>
+  <li><strong>Save PNG</strong> &mdash; export the character grid (file named after the source file, e.g. <code>Broadway_4x.png</code>)</li>
   <li><strong>Save TTF</strong> &mdash; converts the bitmap font to a TrueType font file you can install on your computer</li>
+</ul>
+
+<h3>Icon</h3>
+<p>Renders 256-byte CODE files as 32&times;64 pixel monochrome icons. Used by Larken <code>.CG</code> files in icon collections.</p>
+<ul>
+  <li><strong>Invert</strong> toggle</li>
+  <li><strong>Save PNG</strong> at 1x, 2x, 4x, or 8x scale</li>
 </ul>
 
 <h3>Array</h3>
@@ -182,8 +204,8 @@
 
 <h2>Extraction</h2>
 <ul>
-  <li><strong>Extract Selected</strong> &mdash; extract selected files individually</li>
-  <li><strong>Extract as Package</strong> &mdash; export a package as a single multi-file TAP</li>
+  <li><strong>Extract Selected</strong> &mdash; extract selected files individually. With a single file selected, prompts for a custom filename so you can fix mismatched directory/block names or disambiguate same-named programs. With multiple selected, uses each file's own name with auto-suffixes (<code>_2</code>, <code>_3</code>) for collisions.</li>
+  <li><strong>Extract as Package</strong> &mdash; export a package as a single multi-file TAP. Also prompts for a custom filename.</li>
   <li><strong>Extract All</strong> &mdash; extract all files with auto-bundled packages, plus:
     <ul>
       <li>BASIC listings &rarr; <code>.txt</code></li>
@@ -195,6 +217,14 @@
 </ul>
 <p>A <code>manifest.md</code> file is generated with disk metadata and file mapping.</p>
 <p>If any BASIC files have pending edits, the edited versions are exported.</p>
+
+<h3>Archive.org Export</h3>
+<p>The <strong>Archive.org</strong> toolbar button bundles a disk for upload to archive.org using TOSEC-style naming.</p>
+<ul>
+  <li>Fill in <strong>Year</strong>, <strong>Publisher / Author</strong>, <strong>System</strong>, and <strong>Country</strong>. The publisher field remembers all values you've used and offers them as autocomplete suggestions.</li>
+  <li>Choose <strong>ZIP file</strong> (default) to compress the original disk image as-is &mdash; the cleanest archival format. The ZIP filename follows <code>Title (Year)(Publisher)(System)(Country).zip</code>.</li>
+  <li>Choose <strong>Folder</strong> to extract every file individually with TOSEC names: <code>Title (Year)(Publisher)(System)(Country)(Type).tap</code>. Type is auto-derived (Program, Code, Screen, Font, Icon, Data, Snapshot).</li>
+</ul>
 
 <h3>Batch Export</h3>
 <ul>
@@ -225,8 +255,12 @@
 <table>
   <tr><th>Shortcut</th><th>Action</th></tr>
   <tr><td><kbd>Cmd/Ctrl+O</kbd></td><td>Open file</td></tr>
+  <tr><td><kbd>Cmd/Ctrl+B</kbd></td><td>Toggle file browser sidebar</td></tr>
   <tr><td><kbd>Cmd/Ctrl+F</kbd></td><td>Focus search / filter files</td></tr>
   <tr><td><kbd>Cmd/Ctrl+Shift+A</kbd></td><td>Create TAP from files</td></tr>
+  <tr><td><kbd>Click</kbd></td><td>Select single file</td></tr>
+  <tr><td><kbd>Cmd/Ctrl+Click</kbd></td><td>Toggle file in selection</td></tr>
+  <tr><td><kbd>Shift+Click</kbd></td><td>Select range from last click</td></tr>
   <tr><td><kbd>Arrow Up/Down</kbd></td><td>Navigate file list</td></tr>
   <tr><td><kbd>Enter</kbd></td><td>Open viewer for selected file</td></tr>
   <tr><td><kbd>Space</kbd></td><td>Expand/collapse package or directory</td></tr>
