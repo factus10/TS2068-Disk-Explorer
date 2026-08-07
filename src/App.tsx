@@ -621,6 +621,7 @@ function App() {
           <ContentViewer
             entry={viewerEntry}
             diskPath={disk.path}
+            diskFormat={disk.format}
             onClose={() => setViewerEntry(null)}
             fileEdits={editState[viewerEntry.index]}
             onEditLine={(ln, text) => handleEditLine(viewerEntry.index, ln, text)}

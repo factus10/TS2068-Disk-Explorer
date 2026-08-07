@@ -17,6 +17,7 @@ const MAX_WIDTH = 900;
 interface Props {
   entry: FileEntry;
   diskPath: string;
+  diskFormat: string;
   onClose: () => void;
   fileEdits?: FileEdits;
   onEditLine?: (lineNumber: number, text: string) => void;
@@ -77,7 +78,7 @@ const TAB_LABELS: Record<ViewTab, string> = {
   hex: 'Hex',
 };
 
-export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine, onRevertLine, onRevertAll, screenEntries }: Props) {
+export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits, onEditLine, onRevertLine, onRevertAll, screenEntries }: Props) {
   // Raw file data — loaded eagerly for text detection
   const [hexData, setHexData] = useState<number[] | null>(null);
   const [listing, setListing] = useState<BasicListingData | null>(null);
@@ -87,6 +88,11 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
   const [loading, setLoading] = useState(false);
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');
+
+  // The Tokens toggle chooses how to read the bytes the Spectrum and the
+  // TS2068 disagree about. ZX81 BASIC is a separate dialect with its own token
+  // table and ignores the setting, so the choice is meaningless there.
+  const hasTokenDialects = diskFormat !== 'zx81-larken';
 
   // Compute available tabs (text/font/icon tabs depend on data)
   const hasText = hexData ? isTextContent(hexData) : false;
@@ -330,22 +336,26 @@ export function ContentViewer({ entry, diskPath, onClose, fileEdits, onEditLine,
           borderBottom: '1px solid var(--border)',
           alignItems: 'center',
         }}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>Tokens:</span>
-          {(['auto', 'ts2068', 'spectrum'] as Ts2068Mode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => setTs2068Mode(m)}
-              style={{
-                background: ts2068Mode === m ? 'var(--accent)' : 'var(--bg-tertiary)',
-                color: ts2068Mode === m ? '#fff' : 'var(--text-secondary)',
-                fontSize: 10,
-                padding: '2px 8px',
-                borderRadius: 3,
-              }}
-            >
-              {m === 'auto' ? 'Auto' : m === 'ts2068' ? 'TS2068' : 'Spectrum'}
-            </button>
-          ))}
+          {hasTokenDialects && (
+            <>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>Tokens:</span>
+              {(['auto', 'ts2068', 'spectrum'] as Ts2068Mode[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setTs2068Mode(m)}
+                  style={{
+                    background: ts2068Mode === m ? 'var(--accent)' : 'var(--bg-tertiary)',
+                    color: ts2068Mode === m ? '#fff' : 'var(--text-secondary)',
+                    fontSize: 10,
+                    padding: '2px 8px',
+                    borderRadius: 3,
+                  }}
+                >
+                  {m === 'auto' ? 'Auto' : m === 'ts2068' ? 'TS2068' : 'Spectrum'}
+                </button>
+              ))}
+            </>
+          )}
           <div style={{ flex: 1 }} />
           <button
             onClick={() => api.printListingPdf(diskPath, entry.index, ts2068Mode)}

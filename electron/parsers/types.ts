@@ -7,6 +7,7 @@ export type DiskFormat =
   | 'zebra-dirscp'
   | 'zebra-cpm'
   | 'ql'
+  | 'zx81-larken'
   | 'tap'
   | 'tzx'
   | 'sna'

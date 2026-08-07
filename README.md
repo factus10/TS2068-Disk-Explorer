@@ -19,6 +19,7 @@ Built with Electron, React, and TypeScript.
 | Zebra DIRSCP | `.dsk` | CPC DSK with hierarchical directories |
 | Zebra CP/M | `.dsk` | CPC DSK flat catalog |
 | Sinclair QL | `.img` | QL5A/QL5B raw binary |
+| ZX81 Larken | `.img` | ZX81 disks (BBDOS 4.0 directory, or SADOS+/bare disks listed by page); ZX81 BASIC listings, `.p` export |
 | MGT +D/DISCiPLE | `.mgt` | Standard Spectrum disk interface |
 | **Tape Files** | | |
 | TAP | `.tap` | Standard tape format |
