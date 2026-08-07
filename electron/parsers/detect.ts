@@ -7,6 +7,7 @@ import { detect as detectOliger } from './oliger';
 import { detect as detectSNA } from './sna-reader';
 import { detect as detectSCR } from './scr-reader';
 import { detect as detectMGT } from './mgt-reader';
+import { detect as detectZX81Larken } from './zx81-larken';
 
 /**
  * Auto-detect disk image format from file contents.
@@ -42,27 +43,30 @@ export function detectFormat(buffer: Buffer, filePath?: string): DiskFormat | nu
   // 2. QL5A/QL5B magic → Sinclair QL
   if (detectQL(buffer)) return 'ql';
 
-  // 3. Aerco: JR at byte 0 (0x18) + JP 0x3539 or RP/M
+  // 3. ZX81 Larken: BBDOS directory sector, or ZX81 memory images at the slot starts
+  if (detectZX81Larken(buffer)) return 'zx81-larken';
+
+  // 4. Aerco: JR at byte 0 (0x18) + JP 0x3539 or RP/M
   const aercoResult = detectAerco(buffer);
   if (aercoResult) return aercoResult;
 
-  // 4. Larken: directory markers near 0xBC
+  // 5. Larken: directory markers near 0xBC
   if (detectLarken(buffer)) return 'larken';
 
-  // 5. Oliger V1/V2
+  // 6. Oliger V1/V2
   const oligerResult = detectOliger(buffer);
   if (oligerResult) return oligerResult;
 
-  // 6. MGT by size heuristic (819200 bytes)
+  // 7. MGT by size heuristic (819200 bytes)
   if (detectMGT(buffer)) return 'mgt';
 
-  // 7. SNA by size heuristic (49179 bytes)
+  // 8. SNA by size heuristic (49179 bytes)
   if (detectSNA(buffer)) return 'sna';
 
-  // 8. SCR by size heuristic (6912 bytes) — last because it's very small
+  // 9. SCR by size heuristic (6912 bytes) — last because it's very small
   if (detectSCR(buffer)) return 'scr';
 
-  // 9. Fallback: if it's a .img file, try by size
+  // 10. Fallback: if it's a .img file, try by size
   if (ext === 'img') {
     if (buffer.length > 300000) return 'larken';
   }

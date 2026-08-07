@@ -17,6 +17,9 @@ import { readCatalog as readZ80, readFileData as readZ80File } from './parsers/z
 import { readCatalog as readSCR, readFileData as readSCRFile } from './parsers/scr-reader';
 import { readCatalog as readMGT, readFileData as readMGTFile } from './parsers/mgt-reader';
 import { readCatalog as readZIP, readFileData as readZIPFile } from './parsers/zip-reader';
+import {
+  readCatalog as readZX81Larken, readFileData as readZX81LarkenFile, readBasicListing as readZX81Listing,
+} from './parsers/zx81-larken';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
 import { detokenize } from './parsers/basic-detokenizer';
@@ -200,6 +203,7 @@ function getParser(format: DiskFormat) {
     case 'zebra-dirscp':
     case 'zebra-cpm': return { readCatalog: readZebra, readFileData: readZebraFile };
     case 'ql': return { readCatalog: readQL, readFileData: readQLFile };
+    case 'zx81-larken': return { readCatalog: readZX81Larken, readFileData: readZX81LarkenFile };
     case 'tap': return { readCatalog: readTap, readFileData: readTapFile };
     case 'tzx': return { readCatalog: readTzx, readFileData: readTzxFile };
     case 'sna': return { readCatalog: readSNA, readFileData: readSNAFile };
@@ -209,6 +213,19 @@ function getParser(format: DiskFormat) {
     case 'zip': return { readCatalog: readZIP, readFileData: readZIPFile };
     default: throw new Error(`Unknown format: ${format}`);
   }
+}
+
+/**
+ * Detokenize a BASIC file, picking the dialect from the disk format. ZX81
+ * disks hold Sinclair BASIC for the ZX81, which has its own character set,
+ * token table and line layout; everything else is Spectrum/TS2068 BASIC.
+ */
+function detokenizeEntry(
+  format: DiskFormat, fileData: Buffer, entry: FileEntry, ts2068Mode?: Ts2068Mode,
+): BasicListing {
+  if (format === 'zx81-larken') return readZX81Listing(fileData, entry);
+  const varsOffset = entry.params.varsOffset ?? entry.params.param2;
+  return detokenize(fileData, varsOffset, ts2068Mode);
 }
 
 function parseDiskImage(filePath: string): DiskImage {
@@ -409,8 +426,7 @@ ipcMain.handle('extract-all', async (
 
     // BASIC programs → .txt listing
     if (entry.type === 'basic') {
-      const varsOffset = entry.params.varsOffset ?? entry.params.param2;
-      const listing = detokenize(fileData, varsOffset);
+      const listing = detokenizeEntry(format, fileData, entry);
       if (listing.lines.length > 0) {
         const txt = listingToText(listing);
         const txtPath = uniquePath(path.join(destDir, safeName + '.txt'));
@@ -558,6 +574,15 @@ function buildArchiveName(title: string, meta: ArchiveMetadata, typeSuffix: stri
   return parts.join('');
 }
 
+/**
+ * Extension for files written out verbatim. ZX81 files are memory images
+ * starting at 0x4009, which is exactly the `.p` tape format emulators expect.
+ */
+function rawFileExtension(format: DiskFormat, entry: FileEntry): string {
+  if (format === 'zx81-larken') return '.p';
+  return entry.type === 'module' ? '.bin' : '';
+}
+
 function fileTypeToArchiveSuffix(entry: FileEntry): string {
   switch (entry.type) {
     case 'basic': return 'Program';
@@ -631,8 +656,7 @@ function buildArchiveFiles(
       }
       files.push({ name: archiveName + '.tap', data: tapData, entry });
     } else {
-      const ext = entry.type === 'module' ? '.bin' : '';
-      files.push({ name: archiveName + ext, data: fileData, entry });
+      files.push({ name: archiveName + rawFileExtension(format, entry), data: fileData, entry });
     }
   }
 
@@ -789,8 +813,7 @@ ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex
 
   if (entry.type !== 'basic') return null;
 
-  const varsOffset = entry.params.varsOffset ?? entry.params.param2;
-  const listing = detokenize(fileData, varsOffset, ts2068Mode);
+  const listing = detokenizeEntry(format, fileData, entry, ts2068Mode);
   const autostart = entry.params.autostartLine ?? entry.params.param1;
   if (autostart && autostart > 0 && autostart < 10000) {
     listing.autostartLine = autostart;
@@ -877,6 +900,9 @@ ipcMain.handle('get-basic-variables', async (_event, imagePath: string, entryInd
 
   // Regular BASIC file: variables area starts at varsOffset
   if (entry.type !== 'basic') return null;
+  // ZX81 variables use a different encoding from the Spectrum's; the parser
+  // below would only produce nonsense for them.
+  if (format === 'zx81-larken') return [];
   const varsOffset = entry.params.varsOffset ?? entry.params.param2;
   if (!varsOffset || varsOffset >= fileData.length) return [];
   return parseVariables(Buffer.from(fileData.subarray(varsOffset)));
@@ -939,8 +965,7 @@ ipcMain.handle('get-basic-xref', async (_event, imagePath: string, entryIndex: n
     const stateInfo = extractBasicFromState(fileData, origin);
     if (stateInfo) listing = detokenize(stateInfo.basicData, undefined, ts2068Mode);
   } else if (entry.type === 'basic') {
-    const varsOffset = entry.params.varsOffset ?? entry.params.param2;
-    listing = detokenize(fileData, varsOffset, ts2068Mode);
+    listing = detokenizeEntry(format, fileData, entry, ts2068Mode);
   }
 
   if (!listing) return null;
@@ -956,7 +981,7 @@ ipcMain.handle('get-disk-map', async (_event, imagePath: string): Promise<{ tota
   const blockSizes: Record<string, number> = {
     'larken': 5120, 'oliger-v1': 5120, 'oliger-v2': 5120,
     'aerco-dos64': 5120, 'aerco-rpm': 2048, 'zebra-dirscp': 4096,
-    'zebra-cpm': 4096, 'ql': 1536, 'tap': 0,
+    'zebra-cpm': 4096, 'ql': 1536, 'zx81-larken': 5120, 'tap': 0,
   };
   const blockSize = blockSizes[format] ?? 5120;
   if (blockSize === 0) return null;
@@ -1045,8 +1070,7 @@ ipcMain.handle('print-listing-pdf', async (
     const stateInfo = extractBasicFromState(fileData, origin);
     if (stateInfo) listing = detokenize(stateInfo.basicData, undefined, ts2068Mode);
   } else if (entry.type === 'basic') {
-    const varsOffset = entry.params.varsOffset ?? entry.params.param2;
-    listing = detokenize(fileData, varsOffset, ts2068Mode);
+    listing = detokenizeEntry(format, fileData, entry, ts2068Mode);
   }
 
   if (!listing || listing.lines.length === 0) return null;
@@ -1300,8 +1324,7 @@ function writeExtractedFile(
   }
 
   // Raw binary output
-  const ext = entry.type === 'module' ? '.bin' : '';
-  const outPath = uniquePath(path.join(destDir, safeName + ext));
+  const outPath = uniquePath(path.join(destDir, safeName + rawFileExtension(format, entry)));
   fs.writeFileSync(outPath, fileData);
 
   return {
