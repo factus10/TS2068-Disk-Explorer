@@ -27,9 +27,10 @@ export interface BasicVariable {
 }
 
 /**
- * Decode a ZX Spectrum 5-byte floating point number.
+ * Decode a 5-byte floating point number. The ZX81 uses the same
+ * representation, so the ZX81 decoder shares this.
  */
-function decodeFloat(data: Buffer, offset: number): number {
+export function decodeFloat(data: Buffer, offset: number): number {
   const exp = data[offset];
   if (exp === 0) {
     const sign = data[offset + 1];
@@ -48,7 +49,7 @@ function decodeFloat(data: Buffer, offset: number): number {
   return sign ? -value : value;
 }
 
-function formatNum(v: number): string {
+export function formatNum(v: number): string {
   if (Number.isInteger(v)) return String(v);
   const s = v.toPrecision(10);
   return s.includes('.') ? s.replace(/\.?0+$/, '') : s;

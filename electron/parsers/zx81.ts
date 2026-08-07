@@ -19,6 +19,8 @@
  */
 
 import type { BasicListing, BasicLine, BasicToken } from './basic-detokenizer';
+import { decodeFloat, formatNum } from './basic-variables';
+import type { BasicVariable } from './basic-variables';
 
 // Block graphics for codes 0x01-0x0A. Codes 8-10 are half-tone (dithered)
 // patterns — full, top half and bottom half — approximated with the same
@@ -188,3 +190,134 @@ function tokenizeLine(body: Buffer): BasicToken[] {
   flush();
   return tokens;
 }
+
+/**
+ * Decode the ZX81 variables area, which follows the display file in memory.
+ *
+ * The layout matches the Spectrum's closely enough to share the floating point
+ * format, but differs in two ways that matter. Names are ZX81 character codes
+ * (0x26-0x3F for A-Z) rather than ASCII, and since every letter has bit 5 set
+ * the first byte only carries the low five: the letter is 0x20 | (byte & 0x1F).
+ * And the FOR control block is 18 bytes rather than 19 — the ZX81 records the
+ * looping line but not the statement within it.
+ *
+ * Variable type, from the top three bits of the first byte:
+ *   010 string          011 number, one letter    100 number array
+ *   101 number, longer name                       110 character array
+ *   111 FOR control variable
+ * A byte of 0x80 ends the area.
+ */
+export function parseZX81Variables(varsData: Buffer): BasicVariable[] {
+  const vars: BasicVariable[] = [];
+  const letterOf = (b: number) => CHARS[0x20 | (b & 0x1f)];
+  const stringAt = (o: number, len: number) => decodeZX81Text(varsData.subarray(o, o + len));
+  let pos = 0;
+
+  while (pos < varsData.length) {
+    const first = varsData[pos];
+    if (first === 0x80) break; // end marker
+    const letter = letterOf(first);
+
+    switch ((first >> 5) & 0x07) {
+      case 3: { // number, single-letter name
+        if (pos + 6 > varsData.length) return vars;
+        vars.push({ name: letter, kind: 'number', value: formatNum(decodeFloat(varsData, pos + 1)) });
+        pos += 6;
+        break;
+      }
+
+      case 5: { // number, longer name — trailing letters are plain character
+        let name = letter;         // codes, with bit 7 set on the last one
+        pos++;
+        while (pos < varsData.length && !(varsData[pos] & 0x80)) {
+          name += decodeZX81Text(varsData.subarray(pos, pos + 1));
+          pos++;
+        }
+        if (pos < varsData.length) {
+          name += decodeZX81Text(Buffer.from([varsData[pos] & 0x7f]));
+          pos++;
+        }
+        if (pos + 5 > varsData.length) return vars;
+        vars.push({ name, kind: 'number', value: formatNum(decodeFloat(varsData, pos)) });
+        pos += 5;
+        break;
+      }
+
+      case 2: { // string
+        pos++;
+        if (pos + 2 > varsData.length) return vars;
+        const len = varsData[pos] | (varsData[pos + 1] << 8);
+        pos += 2;
+        if (pos + len > varsData.length) return vars;
+        vars.push({ name: letter + '$', kind: 'string', value: `"${stringAt(pos, len)}"` });
+        pos += len;
+        break;
+      }
+
+      case 4:
+      case 6: {
+        const isString = ((first >> 5) & 0x07) === 6;
+        pos++;
+        if (pos + 2 > varsData.length) return vars;
+        const totalLen = varsData[pos] | (varsData[pos + 1] << 8);
+        pos += 2;
+        const start = pos;
+        const end = start + totalLen;
+        if (end > varsData.length) { pos = end; break; }
+        const numDims = varsData[pos++];
+        const dimensions: number[] = [];
+        let elements = 1;
+        for (let d = 0; d < numDims; d++) {
+          const dim = varsData[pos] | (varsData[pos + 1] << 8);
+          dimensions.push(dim);
+          elements *= dim;
+          pos += 2;
+        }
+        const values: string[] = [];
+        if (isString) {
+          // The last dimension is the length of each string, not a count.
+          const strLen = dimensions.length > 0 ? dimensions[dimensions.length - 1] : 1;
+          const count = strLen > 0 ? Math.floor(elements / strLen) : 0;
+          for (let i = 0; i < count && pos + strLen <= end; i++) {
+            values.push(`"${stringAt(pos, strLen)}"`);
+            pos += strLen;
+          }
+        } else {
+          for (let i = 0; i < elements && pos + 5 <= end; i++) {
+            values.push(formatNum(decodeFloat(varsData, pos)));
+            pos += 5;
+          }
+        }
+        vars.push({
+          name: letter + (isString ? '$()' : '()'),
+          kind: isString ? 'string-array' : 'number-array',
+          dimensions,
+          values,
+        });
+        pos = end;
+        break;
+      }
+
+      case 7: { // FOR control variable — no statement byte on the ZX81
+        if (pos + FOR_BLOCK_SIZE > varsData.length) return vars;
+        vars.push({
+          name: letter,
+          kind: 'for',
+          forValue: decodeFloat(varsData, pos + 1),
+          forLimit: decodeFloat(varsData, pos + 6),
+          forStep: decodeFloat(varsData, pos + 11),
+          forLine: varsData[pos + 16] | (varsData[pos + 17] << 8),
+        });
+        pos += FOR_BLOCK_SIZE;
+        break;
+      }
+
+      default:
+        return vars; // 000/001 are not variable types — the area is corrupt
+    }
+  }
+
+  return vars;
+}
+
+const FOR_BLOCK_SIZE = 18;

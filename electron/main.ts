@@ -20,6 +20,7 @@ import { readCatalog as readZIP, readFileData as readZIPFile } from './parsers/z
 import {
   readCatalog as readZX81Larken, readFileData as readZX81LarkenFile, readBasicListing as readZX81Listing,
 } from './parsers/zx81-larken';
+import { parseZX81Variables } from './parsers/zx81';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
 import { detokenize } from './parsers/basic-detokenizer';
@@ -900,12 +901,12 @@ ipcMain.handle('get-basic-variables', async (_event, imagePath: string, entryInd
 
   // Regular BASIC file: variables area starts at varsOffset
   if (entry.type !== 'basic') return null;
-  // ZX81 variables use a different encoding from the Spectrum's; the parser
-  // below would only produce nonsense for them.
-  if (format === 'zx81-larken') return [];
   const varsOffset = entry.params.varsOffset ?? entry.params.param2;
   if (!varsOffset || varsOffset >= fileData.length) return [];
-  return parseVariables(Buffer.from(fileData.subarray(varsOffset)));
+  const varsData = Buffer.from(fileData.subarray(varsOffset));
+  // ZX81 names its variables in its own character set and sizes FOR blocks
+  // differently, so it needs its own decoder.
+  return format === 'zx81-larken' ? parseZX81Variables(varsData) : parseVariables(varsData);
 });
 
 ipcMain.handle('get-screen-data', async (_event, imagePath: string, entryIndex: number, invert: boolean): Promise<number[] | null> => {
