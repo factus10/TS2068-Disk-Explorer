@@ -26,6 +26,9 @@
 >   in the reference library are modified — 147 and 99 bytes against the stock
 >   dumps — and a documentation-derived pack validates 44/45 against either.
 >
+> The origin override is built, which closes one of the open questions below and is
+> what makes an Aerco MODULE — no recorded load address — worth disassembling at all.
+>
 > Still open: jump-table detection, which caps whole-ROM coverage at about 37%
 > because the interpreter dispatches through `JP (HL)`; disk programs, which are
 > what the feature is for, do far better. Layer 2 remains deliberately unbuilt —
@@ -399,8 +402,13 @@ address/label index rather than the annotated text.
 
 ## Open questions
 
-- Origin for TS2068 `CODE` files with no sibling BASIC — offer the UI override and
-  default to the `SAVE … CODE` address when one is found, else leave the user to set it.
+- ~~Origin for TS2068 `CODE` files with no sibling BASIC~~ — **done.** The planner
+  prefers the `SAVE … CODE` address, falls back to the file header, then to zero, and
+  the Disasm tab carries an origin field with a Detected button to restore the inferred
+  value. The conflict count sits beside it, since that is the signal for whether the
+  origin is right: `cale41.C1` gives 2 conflicts at the inferred `$F658` and 14 at
+  `$0000`. An Aerco MODULE, which has no discoverable address at all, is where this
+  earns its keep.
 - Whether to auto-seed from the interrupt vector / `RST` targets for full ROM images, or
   keep seeding to harvested entry points only.
 - Which ROM was paged in when a given file ran. For a disk of known format the DOS pack
