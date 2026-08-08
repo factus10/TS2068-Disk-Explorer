@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { harvestUsrTargets, harvestCodeAddresses } from '../electron/parsers/disasm-entry-points';
+import { harvestUsrTargets, harvestCodeAddresses, harvestUsrReferences } from '../electron/parsers/disasm-entry-points';
 import { canDisassemble, disassemble, disassembleForExport } from '../electron/parsers/disasm';
 import { isTextData } from '../electron/parsers/utils';
 import { isTextData as rendererIsTextData } from '../src/api';
@@ -132,5 +132,57 @@ describe('a listing nothing supports', () => {
     });
     expect(r).not.toBeNull();
     expect(r!.origin).toBe(0xf000);
+  });
+});
+
+describe('numbers written with an exponent', () => {
+  it('reads USR 6e4 as 60000, not as address 6', () => {
+    // Sinclair BASIC accepts an exponent and this is a real way to write it.
+    // 14 operands across the sample disks are written this way; matching only
+    // the leading digits turned them into 6, 62 and 4.
+    expect(harvestUsrTargets(listing('RANDOMIZE USR 6e4'))).toEqual([60000]);
+    expect(harvestUsrTargets(listing('RANDOMIZE USR 62e3'))).toEqual([62000]);
+    expect(harvestUsrTargets(listing('RANDOMIZE USR 4E4'))).toEqual([40000]);
+    expect(harvestUsrTargets(listing('LET L= USR VAL "3e3"'))).toEqual([3000]);
+  });
+
+  it('still rejects one that lands outside the address space', () => {
+    expect(harvestUsrTargets(listing('RANDOMIZE USR 7e4'))).toEqual([]);
+  });
+
+  it('does not invent a fractional address', () => {
+    expect(harvestUsrTargets(listing('RANDOMIZE USR 1e-2'))).toEqual([]);
+  });
+});
+
+describe('recording which BASIC line calls an entry point', () => {
+  it('keeps the caller, the line number and the text', () => {
+    const refs = harvestUsrReferences(listing('PRINT ;:LET L= USR VAL "51461"'), 'CREATOR');
+    expect(refs).toEqual([
+      { addr: 51461, from: 'CREATOR', lineNumber: 1, text: 'PRINT ;:LET L= USR VAL "51461"' },
+    ]);
+  });
+
+  it('records each distinct address on a line once', () => {
+    const refs = harvestUsrReferences(listing('LET l= USR 61704+ USR 61209+ USR 61704'), 'QUICK SCRN');
+    expect(refs.map((r) => r.addr)).toEqual([61704, 61209]);
+  });
+
+  it('reaches the .dis header and the sidecar', () => {
+    const entry = {
+      index: 0, filename: 'LIB', type: 'code', size: 4, isDirectory: false,
+      params: { startAddr: 0x8000 },
+    } as unknown as FileEntry;
+    const caller = { index: 1, filename: 'MENU', type: 'basic' } as unknown as FileEntry;
+    const r = disassemble({
+      format: 'oliger-v2', entry, data: Buffer.from([0xc9, 0, 0, 0]),
+      siblings: [{ entry: caller, listing: listing('LET x= USR 32768: REM draw the border') }],
+    })!;
+    expect(r.text).toContain('entry points, and the BASIC that calls them');
+    expect(r.text).toContain('MENU line 1: LET x= USR 32768: REM draw the border');
+    expect(r.text).toContain('called from 1 BASIC program(s): MENU');
+    expect(r.sidecar.callSites).toEqual([
+      { addr: '$8000', from: 'MENU', line: 1, text: 'LET x= USR 32768: REM draw the border' },
+    ]);
   });
 });

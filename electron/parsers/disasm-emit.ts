@@ -55,6 +55,12 @@ export interface EmitOptions {
   packs?: SymbolPack[];
   /** Notes from the entry-point plan, recorded in the header. */
   notes?: string[];
+  /**
+   * The BASIC lines that call into this file. Worth the space: an address on
+   * its own says nothing about what the routine at it is for, and the calling
+   * line is the only place that is written down.
+   */
+  callSites?: { addr: number; from: string; lineNumber: number; text: string }[];
   /** SHA-256 of the disassembled bytes, so a narrative can be bound to them. */
   checksum?: string;
 }
@@ -131,6 +137,21 @@ export function emit(
   }
   out.push(`; traced from ${result.seeds.length} entry point(s): `
     + result.seeds.map((a) => `$${hex4(a)}`).join(' '));
+  const sites = options.callSites ?? [];
+  if (sites.length) {
+    // Group by address: the same routine is often called from several places,
+    // and from several different programs, which is itself the finding.
+    const byAddr = new Map<number, typeof sites>();
+    for (const c of sites) byAddr.set(c.addr, [...(byAddr.get(c.addr) ?? []), c]);
+    const callers = new Set(sites.map((c) => c.from));
+    out.push(`; called from ${callers.size} BASIC program(s): ${[...callers].join(', ')}`);
+    out.push(';');
+    out.push('; entry points, and the BASIC that calls them:');
+    for (const [addr, cs] of [...byAddr.entries()].sort((a, b) => a[0] - b[0])) {
+      out.push(`;   $${hex4(addr)}`);
+      for (const c of cs) out.push(`;     ${c.from} line ${c.lineNumber}: ${c.text}`);
+    }
+  }
   if (result.tables.length) {
     const n = result.tables.reduce((t, x) => t + x.entries, 0);
     out.push(`; ${result.tables.length} dispatch table(s) recovered, ${n} target(s) traced from them:`);

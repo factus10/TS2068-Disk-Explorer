@@ -27,6 +27,25 @@ const ZX81_PROG = 0x407d;
 /** Token for REM in ZX81 BASIC, and in Spectrum BASIC. */
 const ZX81_REM = 0xea;
 
+/**
+ * A `USR` call, with the BASIC line it sits in.
+ *
+ * The address alone is nearly useless to a reader: a header saying `traced
+ * from 19 entry point(s): $C899 $C8D4 …` does not say what any of them is
+ * for. The line does, and it is the only place that information exists —
+ * Print Factory's CREATOR is called from five separate BASIC programs, which
+ * is how you can tell it is a shared routine library rather than a program,
+ * and nothing in its bytes says so.
+ */
+export interface UsrReference {
+  addr: number;
+  /** The BASIC file the call was found in. */
+  from: string;
+  lineNumber: number;
+  /** The line as the detokenizer rendered it, trimmed. */
+  text: string;
+}
+
 export interface DisasmPlan {
   /** Address the first byte of `range` lives at. */
   origin: number;
@@ -35,6 +54,8 @@ export interface DisasmPlan {
   machine: Machine;
   /** Addresses inside the range to trace from. */
   seeds: number[];
+  /** Where each seed was called from, when a BASIC line named it. */
+  callSites: UsrReference[];
   /** USR/CALL targets outside the range — ROM and DOS entry points. */
   external: number[];
   /** How each of the above was arrived at, for the .dis header. */
@@ -69,18 +90,33 @@ export interface DisasmPlan {
  * while reporting instructions. `USR FN a()` and `USR CODE "n"` are the same
  * problem, the latter yielding a character code rather than an address.
  */
-export function harvestUsrTargets(listing: BasicListing): number[] {
-  const found = new Set<number>();
-  const add = (raw: string) => {
-    const n = Number(raw);
-    // A USR operand is a 16-bit address. Anything else is a mis-read.
-    if (Number.isFinite(n) && n >= 0 && n <= 0xffff) found.add(n);
-  };
+export function harvestUsrReferences(listing: BasicListing, from = ''): UsrReference[] {
+  const out: UsrReference[] = [];
   for (const line of listing.lines) {
-    const text = line.tokens.map((t) => t.text).join('');
-    for (const m of text.matchAll(/USR\s*(\d+)/g)) add(m[1]);
-    for (const m of text.matchAll(/USR\s*VAL\s*"(\d+)"/g)) add(m[1]);
+    const text = line.tokens.map((t) => t.text).join('').trim();
+    const seen = new Set<number>();
+    const add = (raw: string) => {
+      const n = Number(raw);
+      // A USR operand is a 16-bit address, and a whole one. Anything else is a
+      // mis-read.
+      if (!Number.isInteger(n) || n < 0 || n > 0xffff || seen.has(n)) return;
+      seen.add(n);
+      out.push({ addr: n, from, lineNumber: line.lineNumber, text: text.slice(0, 120) });
+    };
+    // Sinclair BASIC accepts an exponent, and `USR 6e4` is a real way to write
+    // 60000. Matching only the digits reads that as address 6 — a seed in the
+    // ROM, or worse, a plausible-looking one inside a file whose origin was
+    // assumed to be zero.
+    // The trailing guard matters as much as the exponent: without it `USR 1e-2`
+    // and `USR 1.5` match their first digit and yield address 1.
+    for (const m of text.matchAll(/USR\s*(\d+(?:[eE]\d+)?)(?![eE\d.])/g)) add(m[1]);
+    for (const m of text.matchAll(/USR\s*VAL\s*"(\d+(?:[eE]\d+)?)"/g)) add(m[1]);
   }
+  return out;
+}
+
+export function harvestUsrTargets(listing: BasicListing): number[] {
+  const found = new Set(harvestUsrReferences(listing).map((r) => r.addr));
   return [...found].sort((a, b) => a - b);
 }
 
@@ -154,9 +190,11 @@ function planZX81(input: PlanInput): DisasmPlan | null {
   const range: [number, number] = [0, Math.min(progEnd, data.length)];
   const limit = origin + range[1];
 
-  const all = listing ? harvestUsrTargets(listing) : [];
+  const refs = listing ? harvestUsrReferences(listing, entry.filename.trim()) : [];
+  const all = [...new Set(refs.map((r) => r.addr))].sort((a, b) => a - b);
   const seeds = all.filter((a) => a >= origin && a < limit);
   const external = all.filter((a) => a < origin || a >= limit);
+  const callSites = refs.filter((r) => r.addr >= origin && r.addr < limit);
   if (all.length) {
     notes.push(`${all.length} USR target(s) harvested from the BASIC: ${seeds.length} inside the file, ${external.length} into ROM or the disk interface`);
   }
@@ -172,7 +210,7 @@ function planZX81(input: PlanInput): DisasmPlan | null {
 
   if (!seeds.length) return null;
   // A ZX81 file is a memory image from VERSN, so its origin is never in doubt.
-  return { origin, range, machine: ZX81, seeds, external, notes, speculative: false };
+  return { origin, range, machine: ZX81, seeds, external, notes, callSites, speculative: false };
 }
 
 function planSpectrum(input: PlanInput): DisasmPlan | null {
@@ -210,12 +248,15 @@ function planSpectrum(input: PlanInput): DisasmPlan | null {
   const limit = origin + data.length;
   // Seeds come from this file's own BASIC if it has any, and from the loaders
   // that reference it.
-  const all = new Set<number>();
-  for (const l of [listing, ...siblings.map((s) => s.listing)]) {
-    if (l) for (const a of harvestUsrTargets(l)) all.add(a);
-  }
+  const refs: UsrReference[] = [];
+  if (listing) refs.push(...harvestUsrReferences(listing, entry.filename.trim()));
+  for (const s of siblings) refs.push(...harvestUsrReferences(s.listing, s.entry.filename.trim()));
+  const all = new Set(refs.map((r) => r.addr));
   const seeds = [...all].filter((a) => a >= origin && a < limit).sort((a, b) => a - b);
   const external = [...all].filter((a) => a < origin || a >= limit).sort((a, b) => a - b);
+  const callSites = refs
+    .filter((r) => r.addr >= origin && r.addr < limit)
+    .sort((a, b) => a.addr - b.addr);
   if (all.size) {
     notes.push(`${all.size} USR target(s) harvested: ${seeds.length} inside this file, ${external.length} into ROM or the disk interface`);
   }
@@ -233,5 +274,5 @@ function planSpectrum(input: PlanInput): DisasmPlan | null {
     }
   }
 
-  return { origin, range, machine: SPECTRUM, seeds, external, notes, speculative };
+  return { origin, range, machine: SPECTRUM, seeds, external, notes, callSites, speculative };
 }

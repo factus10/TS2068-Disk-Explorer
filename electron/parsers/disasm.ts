@@ -97,6 +97,8 @@ export interface DisassemblyResult {
     /** True when the origin and the entry point were both invented. */
     speculative: boolean;
     seeds: string[];
+    /** The BASIC lines that call into this file, per entry point. */
+    callSites: { addr: string; from: string; line: number; text: string }[];
     /** Dispatch tables whose targets were inferred and traced. */
     tables: { kind: string; base: string; entries: number; from?: string }[];
     external: string[];
@@ -134,6 +136,7 @@ export function disassemble(opts: {
     origin: plan.origin,
     packs,
     notes: plan.notes,
+    callSites: plan.callSites,
     checksum,
   });
   const hex = (n: number) => '$' + n.toString(16).toUpperCase().padStart(4, '0');
@@ -156,6 +159,9 @@ export function disassemble(opts: {
       sha256: checksum,
       speculative: plan.speculative,
       seeds: result.seeds.map(hex),
+      callSites: plan.callSites.map((c) => ({
+        addr: hex(c.addr), from: c.from, line: c.lineNumber, text: c.text,
+      })),
       tables: result.tables.map((t) => ({
         kind: t.kind, base: hex(t.base), entries: t.entries,
         ...(t.from !== undefined ? { from: hex(t.from) } : {}),
