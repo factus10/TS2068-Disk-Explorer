@@ -21,6 +21,7 @@ import {
   readCatalog as readZX81Aerco, readFileData as readZX81AercoFile, readBasicListing as readZX81Listing,
 } from './parsers/zx81-aerco';
 import { parseZX81Variables } from './parsers/zx81';
+import { disassemble, canDisassemble } from './parsers/disasm';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
 import { detokenize } from './parsers/basic-detokenizer';
@@ -229,6 +230,43 @@ function detokenizeEntry(
   return detokenize(fileData, varsOffset, ts2068Mode);
 }
 
+
+/**
+ * Detokenize every BASIC file on a disk once, so the disassembler can find a
+ * CODE file's load address and entry points in whichever program loads it.
+ */
+function collectLoaders(
+  format: DiskFormat, allEntries: FileEntry[], fileDataMap: Map<number, Buffer>,
+): { entry: FileEntry; listing: BasicListing }[] {
+  const loaders: { entry: FileEntry; listing: BasicListing }[] = [];
+  for (const e of allEntries) {
+    if (e.type !== 'basic' || e.isDirectory) continue;
+    const d = fileDataMap.get(e.index);
+    if (!d) continue;
+    try {
+      const l = detokenizeEntry(format, d, e);
+      if (l.lines.length) loaders.push({ entry: e, listing: l });
+    } catch { /* a file that will not detokenize simply offers no seeds */ }
+  }
+  return loaders;
+}
+
+/** The .dis text and its sidecar for one file, or null if it cannot be traced. */
+function disassembleForExport(
+  format: DiskFormat, entry: FileEntry, data: Buffer,
+  loaders: { entry: FileEntry; listing: BasicListing }[], source: string,
+) {
+  if (!canDisassemble(format, entry)) return null;
+  try {
+    return disassemble({
+      format, entry, data, siblings: loaders, source,
+      listing: loaders.find((l) => l.entry.index === entry.index)?.listing ?? null,
+    });
+  } catch {
+    return null;   // a file that will not trace must not stop the extraction
+  }
+}
+
 function parseDiskImage(filePath: string): DiskImage {
   const buffer = fs.readFileSync(filePath);
   const format = detectFormat(buffer, filePath);
@@ -402,6 +440,21 @@ ipcMain.handle('extract-all', async (
     const edits = allEdits?.[entry.index];
     const result = writeExtractedFile(destDir, entry, fileData, format, edits);
     if (result) results.push(result);
+  }
+
+  // Disassembly: .dis plus a .dis.json recording exactly what produced it.
+  const loaders = collectLoaders(format, allEntries, fileDataMap);
+  for (const entry of allEntries) {
+    if (entry.isDirectory) continue;
+    const fileData = fileDataMap.get(entry.index);
+    if (!fileData) continue;
+    const safeName = makeSafeFilename(entry.filename.trim());
+    if (!safeName) continue;
+    const dis = disassembleForExport(format, entry, fileData, loaders, path.basename(imagePath));
+    if (!dis) continue;
+    const disPath = uniquePath(path.join(destDir, safeName + '.dis'));
+    fs.writeFileSync(disPath, dis.text);
+    fs.writeFileSync(disPath + '.json', JSON.stringify(dis.sidecar, null, 2) + '\n');
   }
 
   // Auto-export extras: fonts as TTF, screens as PNG, BASIC/text as TXT
@@ -659,6 +712,25 @@ function buildArchiveFiles(
     } else {
       files.push({ name: archiveName + rawFileExtension(format, entry), data: fileData, entry });
     }
+  }
+
+  // Disassembly goes into the package as its own pair, never merged into the
+  // file it describes: the .dis is reproducible from the bytes, and the
+  // .dis.json records the checksum those bytes hashed to.
+  const loaders = collectLoaders(format, allEntries, fileDataMap);
+  for (const entry of allEntries) {
+    if (entry.isDirectory) continue;
+    const fileData = fileDataMap.get(entry.index);
+    if (!fileData) continue;
+    const dis = disassembleForExport(format, entry, fileData, loaders, path.basename(imagePath));
+    if (!dis) continue;
+    const archiveName = buildArchiveName(entry.filename, metadata, fileTypeToArchiveSuffix(entry));
+    files.push({ name: archiveName + '.dis', data: Buffer.from(dis.text, 'utf8'), entry });
+    files.push({
+      name: archiveName + '.dis.json',
+      data: Buffer.from(JSON.stringify(dis.sidecar, null, 2) + '\n', 'utf8'),
+      entry,
+    });
   }
 
   return files;
@@ -971,6 +1043,38 @@ ipcMain.handle('get-basic-xref', async (_event, imagePath: string, entryIndex: n
 
   if (!listing) return null;
   return buildXRef(listing);
+});
+
+ipcMain.handle('get-disassembly', async (
+  _event, imagePath: string, entryIndex: number, originOverride?: number,
+): Promise<{ text: string; origin: number; instructions: number; conflicts: number } | null> => {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+  const entry = allEntries.find((e) => e.index === entryIndex);
+  if (!entry || !canDisassemble(format, entry)) return null;
+  const data = parser.readFileData(buffer, entry);
+  if (!data) return null;
+
+  // Every BASIC file on the disk is a candidate loader: one of them may name
+  // this file's load address, and their USR calls are the entry points.
+  const listings = new Map<number, Buffer>();
+  for (const e of allEntries) {
+    if (e.type !== 'basic' || e.isDirectory) continue;
+    const d = parser.readFileData(buffer, e);
+    if (d) listings.set(e.index, d);
+  }
+  const loaders = collectLoaders(format, allEntries, listings);
+  const r = disassemble({
+    format, entry, data, siblings: loaders, originOverride,
+    listing: loaders.find((l) => l.entry.index === entry.index)?.listing ?? null,
+    source: path.basename(imagePath),
+  });
+  if (!r) return null;
+  return { text: r.text, origin: r.origin, instructions: r.instructions, conflicts: r.conflicts };
 });
 
 ipcMain.handle('get-disk-map', async (_event, imagePath: string): Promise<{ totalBlocks: number } | null> => {

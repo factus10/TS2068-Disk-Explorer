@@ -1,0 +1,191 @@
+{
+  "id": "aerco-zx81",
+  "name": "Aerco / BBDOS (ZX81)",
+  "range": [
+    8192,
+    16383
+  ],
+  "provenance": "AERCO Model FD-ZX Instructions; BBDOS HELP files on the disks",
+  "symbols": {
+    "11000": {
+      "name": "BBDOS-ENTER",
+      "note": "enter BBDOS from BASIC"
+    },
+    "12000": {
+      "name": "BBDOS-FUNC",
+      "note": "BBDOS function; Z selects, Z$ names"
+    },
+    "12291": {
+      "name": "AERCO-LOAD-1",
+      "note": "read disc page 1 into BASIC system RAM"
+    },
+    "12292": {
+      "name": "AERCO-LOAD-2",
+      "note": "read disc page 2 into BASIC system RAM"
+    },
+    "12293": {
+      "name": "AERCO-LOAD-3",
+      "note": "read disc page 3 into BASIC system RAM"
+    },
+    "12294": {
+      "name": "AERCO-LOAD-4",
+      "note": "read disc page 4 into BASIC system RAM"
+    },
+    "12295": {
+      "name": "AERCO-LOAD-5",
+      "note": "read disc page 5 into BASIC system RAM"
+    },
+    "12296": {
+      "name": "AERCO-LOAD-6",
+      "note": "read disc page 6 into BASIC system RAM"
+    },
+    "12297": {
+      "name": "AERCO-LOAD-7",
+      "note": "read disc page 7 into BASIC system RAM"
+    },
+    "12298": {
+      "name": "AERCO-LOAD-8",
+      "note": "read disc page 8 into BASIC system RAM"
+    },
+    "12299": {
+      "name": "AERCO-LOAD-9",
+      "note": "read disc page 9 into BASIC system RAM"
+    },
+    "12300": {
+      "name": "AERCO-LOAD-10",
+      "note": "read disc page 10 into BASIC system RAM"
+    },
+    "12301": {
+      "name": "AERCO-LOAD-11",
+      "note": "read disc page 11 into BASIC system RAM"
+    },
+    "12302": {
+      "name": "AERCO-LOAD-12",
+      "note": "read disc page 12 into BASIC system RAM"
+    },
+    "12303": {
+      "name": "AERCO-LOAD-13",
+      "note": "read disc page 13 into BASIC system RAM"
+    },
+    "12304": {
+      "name": "AERCO-LOAD-14",
+      "note": "read disc page 14 into BASIC system RAM"
+    },
+    "12305": {
+      "name": "AERCO-LOAD-15",
+      "note": "read disc page 15 into BASIC system RAM"
+    },
+    "12306": {
+      "name": "AERCO-LOAD-16",
+      "note": "read disc page 16 into BASIC system RAM"
+    },
+    "12307": {
+      "name": "AERCO-LOAD-17",
+      "note": "read disc page 17 into BASIC system RAM"
+    },
+    "12308": {
+      "name": "AERCO-LOAD-18",
+      "note": "read disc page 18 into BASIC system RAM"
+    },
+    "12309": {
+      "name": "AERCO-LOAD-19",
+      "note": "read disc page 19 into BASIC system RAM"
+    },
+    "12310": {
+      "name": "AERCO-LOAD-20",
+      "note": "read disc page 20 into BASIC system RAM"
+    },
+    "12721": {
+      "name": "AERCO-SAVE-1",
+      "note": "write BASIC system RAM onto disc page 1"
+    },
+    "12722": {
+      "name": "AERCO-SAVE-2",
+      "note": "write BASIC system RAM onto disc page 2"
+    },
+    "12723": {
+      "name": "AERCO-SAVE-3",
+      "note": "write BASIC system RAM onto disc page 3"
+    },
+    "12724": {
+      "name": "AERCO-SAVE-4",
+      "note": "write BASIC system RAM onto disc page 4"
+    },
+    "12725": {
+      "name": "AERCO-SAVE-5",
+      "note": "write BASIC system RAM onto disc page 5"
+    },
+    "12726": {
+      "name": "AERCO-SAVE-6",
+      "note": "write BASIC system RAM onto disc page 6"
+    },
+    "12727": {
+      "name": "AERCO-SAVE-7",
+      "note": "write BASIC system RAM onto disc page 7"
+    },
+    "12728": {
+      "name": "AERCO-SAVE-8",
+      "note": "write BASIC system RAM onto disc page 8"
+    },
+    "12729": {
+      "name": "AERCO-SAVE-9",
+      "note": "write BASIC system RAM onto disc page 9"
+    },
+    "12730": {
+      "name": "AERCO-SAVE-10",
+      "note": "write BASIC system RAM onto disc page 10"
+    },
+    "12731": {
+      "name": "AERCO-SAVE-11",
+      "note": "write BASIC system RAM onto disc page 11"
+    },
+    "12732": {
+      "name": "AERCO-SAVE-12",
+      "note": "write BASIC system RAM onto disc page 12"
+    },
+    "12733": {
+      "name": "AERCO-SAVE-13",
+      "note": "write BASIC system RAM onto disc page 13"
+    },
+    "12734": {
+      "name": "AERCO-SAVE-14",
+      "note": "write BASIC system RAM onto disc page 14"
+    },
+    "12735": {
+      "name": "AERCO-SAVE-15",
+      "note": "write BASIC system RAM onto disc page 15"
+    },
+    "12736": {
+      "name": "AERCO-SAVE-16",
+      "note": "write BASIC system RAM onto disc page 16"
+    },
+    "12737": {
+      "name": "AERCO-SAVE-17",
+      "note": "write BASIC system RAM onto disc page 17"
+    },
+    "12738": {
+      "name": "AERCO-SAVE-18",
+      "note": "write BASIC system RAM onto disc page 18"
+    },
+    "12739": {
+      "name": "AERCO-SAVE-19",
+      "note": "write BASIC system RAM onto disc page 19"
+    },
+    "12740": {
+      "name": "AERCO-SAVE-20",
+      "note": "write BASIC system RAM onto disc page 20"
+    },
+    "12865": {
+      "name": "AERCO-INIT-DD",
+      "note": "restore sysvars after a tape load, double density"
+    },
+    "12868": {
+      "name": "AERCO-INIT-SD",
+      "note": "restore sysvars after a tape load, single density"
+    },
+    "13303": {
+      "name": "SADOS-LOAD",
+      "note": "hand over to SADOS to load"
+    }
+  }
+}

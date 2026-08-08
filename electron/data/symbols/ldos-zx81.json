@@ -1,0 +1,27 @@
+{
+  "id": "ldos-zx81",
+  "name": "Larken LDOS (ZX81)",
+  "range": [
+    14336,
+    16383
+  ],
+  "provenance": "Unofficial Technical Manual for the ZX-81 LDOS Disk Controller (archive.org \"bill-harmer\")",
+  "symbols": {
+    "14336": {
+      "name": "LDOS",
+      "note": "LDOS entry from BASIC"
+    },
+    "14546": {
+      "name": "LOADBUFFER",
+      "note": "load buffer off disk"
+    },
+    "14778": {
+      "name": "SETTRK",
+      "note": "seek to the track in TRACKNO"
+    },
+    "16374": {
+      "name": "LDOS-OUT",
+      "note": "output entry point"
+    }
+  }
+}

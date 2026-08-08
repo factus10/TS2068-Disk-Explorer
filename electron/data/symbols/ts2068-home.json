@@ -1,0 +1,217 @@
+{
+  "id": "ts2068-home",
+  "name": "TS2068 HOME ROM",
+  "range": [
+    0,
+    16383
+  ],
+  "provenance": "ts2068_rom_entry_points.md (TS2068 Ref Library) — documented entry points",
+  "symbols": {
+    "0": {
+      "name": "START/RST0",
+      "note": "Power-on / reset. Disables interrupts, sets DE=$FFFF, jumps to START-NEW"
+    },
+    "8": {
+      "name": "ERROR-1/RST8",
+      "note": "Error handler. HL←CH_ADD, X_PTR←HL, then ERROR-2. On-stack byte = error code−1"
+    },
+    "16": {
+      "name": "PRINT-A-1",
+      "note": "JP to PRINT-A-2 (stream output)"
+    },
+    "19": {
+      "name": "SYS-VERSION",
+      "note": "Single byte $FF — ROM version identifier"
+    },
+    "24": {
+      "name": "GET-CHAR",
+      "note": "Fetch char at CH_ADD → A"
+    },
+    "28": {
+      "name": "TEST-CHAR",
+      "note": "Test if character is printable (called by GET-CHAR)"
+    },
+    "32": {
+      "name": "NEXT-CHAR",
+      "note": "Advance CH_ADD, fetch next char → A"
+    },
+    "40": {
+      "name": "CALCULATE",
+      "note": "Calculator entry point (RST $28)"
+    },
+    "48": {
+      "name": "BC-SPACES",
+      "note": "Create BC free bytes in workspace"
+    },
+    "56": {
+      "name": "MASK-INT/RST38",
+      "note": "Maskable interrupt: increment FRAMES, scan keyboard"
+    },
+    "83": {
+      "name": "ERROR-2"
+    },
+    "85": {
+      "name": "ERROR-3",
+      "note": "Store L to ERR_NR, restore SP from ERRSP, jump SET-STK"
+    },
+    "116": {
+      "name": "CH_ADD+1",
+      "note": "Increment CH_ADD, return new char in A"
+    },
+    "119": {
+      "name": "TEMP-PTR1",
+      "note": "Set CH_ADD = HL+1, return char"
+    },
+    "120": {
+      "name": "TEMP-PTR2",
+      "note": "Set CH_ADD = HL, return char"
+    },
+    "125": {
+      "name": "SKIP-OVER",
+      "note": "Advance past control codes ($10–$17); return NC if printable"
+    },
+    "590": {
+      "name": "EKEYS",
+      "note": "Extended-mode key table base",
+      "approx": true
+    },
+    "652": {
+      "name": "KKEYS",
+      "note": "Symbol-shift key table base",
+      "approx": true
+    },
+    "693": {
+      "name": "KEYBOARD",
+      "note": "Full keyboard scan: reads all half-rows, debounces, returns in KSTATE/LASTK",
+      "approx": true
+    },
+    "819": {
+      "name": "K-DECODE",
+      "note": "Decode raw key reading to character code",
+      "approx": true
+    },
+    "2638": {
+      "name": "CLS-LOWER",
+      "note": "Clear lower screen",
+      "approx": true
+    },
+    "2978": {
+      "name": "SELECT-S",
+      "note": "Select stream by number",
+      "approx": true
+    },
+    "3035": {
+      "name": "OPEN-CHAN",
+      "note": "Open channel for I/O",
+      "approx": true
+    },
+    "3435": {
+      "name": "SCROLL",
+      "note": "Scroll screen up one line",
+      "approx": true
+    },
+    "3503": {
+      "name": "CLS",
+      "note": "Clear entire screen",
+      "approx": true
+    },
+    "3545": {
+      "name": "PRINT-A-2",
+      "note": "Output A to stream",
+      "approx": true
+    },
+    "3884": {
+      "name": "PRINT-OUT",
+      "note": "Main character output dispatcher (handles control codes and printable chars)",
+      "approx": true
+    },
+    "4555": {
+      "name": "START-NEW",
+      "approx": true
+    },
+    "4633": {
+      "name": "SET-MIN",
+      "approx": true
+    },
+    "4948": {
+      "name": "SET-STK",
+      "note": "Reset calculator stack and memory pointers; return to MAIN loop",
+      "approx": true
+    },
+    "5717": {
+      "name": "RESERVE",
+      "note": "Allocate workspace (called by BC-SPACES)",
+      "approx": true
+    },
+    "6629": {
+      "name": "RECLAIM-1",
+      "note": "Reclaim memory: HL=start, DE=end",
+      "approx": true
+    },
+    "6632": {
+      "name": "RECLAIM-2",
+      "note": "Reclaim BC bytes from DE",
+      "approx": true
+    },
+    "6683": {
+      "name": "NEXT-STATEMENT",
+      "note": "Advance to next statement",
+      "approx": true
+    },
+    "6697": {
+      "name": "MAKE-ROOM",
+      "note": "Insert BC bytes at HL",
+      "approx": true
+    },
+    "6778": {
+      "name": "LINE-SCAN",
+      "note": "Scan/execute a BASIC statement",
+      "approx": true
+    },
+    "6997": {
+      "name": "MAIN-EXEC",
+      "note": "BASIC main execution loop (MAIN-1 through MAIN-9)",
+      "approx": true
+    },
+    "7002": {
+      "name": "MAIN-1",
+      "note": "Test BREAK, print report, clear lower screen",
+      "approx": true
+    },
+    "7018": {
+      "name": "MAIN-2",
+      "note": "Get BASIC line for execution",
+      "approx": true
+    },
+    "7034": {
+      "name": "MAIN-4",
+      "note": "Execute current BASIC line",
+      "approx": true
+    },
+    "7050": {
+      "name": "MAIN-G",
+      "note": "Error reporting and screen reset",
+      "approx": true
+    },
+    "7070": {
+      "name": "MAIN-9",
+      "note": "Wait for keypress",
+      "approx": true
+    },
+    "10418": {
+      "name": "SCANNING",
+      "note": "Evaluate expression; result on calculator stack",
+      "approx": true
+    },
+    "10878": {
+      "name": "S-NUMERIC",
+      "note": "Mark result as numeric",
+      "approx": true
+    },
+    "13150": {
+      "name": "CALC-ENTRY",
+      "note": "Main calculator interpreter loop",
+      "approx": true
+    }
+  }
+}

@@ -1,0 +1,196 @@
+/**
+ * Works out where a file's machine code starts and which addresses to trace
+ * from, by reading the BASIC that calls it.
+ *
+ * This is what lets the disassembler do better than a general-purpose tool on
+ * these disks. A bare `.C1` or a ZX81 `.p` carries no entry point and, on the
+ * Spectrum side, no load address either — but the BASIC alongside it says both
+ * out loud, and the app has already detokenized that BASIC for the listing view.
+ *
+ *   ZX81      a line-0 `REM` puts its first code byte at $407D+5 = $4082, and
+ *             the program says so: BBDOS's line 1 is `RAND USR 16514`
+ *   TS2068    `SAVE "cale27.C1"CODE 63064,2464` gives the ORG a disassembler
+ *             would otherwise have to guess
+ *
+ * Targets that fall outside the file are not seeds — they are calls into ROM or
+ * into the disk interface, and get resolved against a symbol pack instead.
+ */
+
+import { ZX81, SPECTRUM } from './z80-trace';
+import type { Machine } from './z80-trace';
+import type { BasicListing } from './basic-detokenizer';
+import type { DiskFormat, FileEntry } from './types';
+
+/** ZX81 files begin at VERSN; the BASIC program area starts at $407D. */
+const ZX81_SYSVARS = 0x4009;
+const ZX81_PROG = 0x407d;
+/** Token for REM in ZX81 BASIC, and in Spectrum BASIC. */
+const ZX81_REM = 0xea;
+
+export interface DisasmPlan {
+  /** Address the first byte of `range` lives at. */
+  origin: number;
+  /** Slice of the file worth disassembling, as [start, end) offsets. */
+  range: [number, number];
+  machine: Machine;
+  /** Addresses inside the range to trace from. */
+  seeds: number[];
+  /** USR/CALL targets outside the range — ROM and DOS entry points. */
+  external: number[];
+  /** How each of the above was arrived at, for the .dis header. */
+  notes: string[];
+}
+
+/** Pull `USR nnnnn` operands out of a detokenized listing. */
+export function harvestUsrTargets(listing: BasicListing): number[] {
+  const found = new Set<number>();
+  for (const line of listing.lines) {
+    const text = line.tokens.map((t) => t.text).join('');
+    for (const m of text.matchAll(/USR\s*(\d+)/g)) {
+      const n = Number(m[1]);
+      // A USR operand is a 16-bit address. Anything else is a mis-read.
+      if (Number.isFinite(n) && n >= 0 && n <= 0xffff) found.add(n);
+    }
+  }
+  return [...found].sort((a, b) => a - b);
+}
+
+/**
+ * Find `LOAD "name" CODE addr` / `SAVE "name" CODE addr,len` in a listing.
+ * The address is the ORG the file was assembled for.
+ */
+export function harvestCodeAddresses(
+  listing: BasicListing,
+): { filename: string; addr: number; length?: number }[] {
+  const out: { filename: string; addr: number; length?: number }[] = [];
+  for (const line of listing.lines) {
+    const text = line.tokens.map((t) => t.text).join('');
+    for (const m of text.matchAll(/(?:LOAD|SAVE)\s*"([^"]*)"\s*CODE\s*(\d+)(?:\s*,\s*(\d+))?/g)) {
+      const addr = Number(m[2]);
+      if (addr >= 0 && addr <= 0xffff) {
+        out.push({ filename: m[1], addr, ...(m[3] ? { length: Number(m[3]) } : {}) });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Offsets of the machine code inside each ZX81 `REM` line. Walking the program
+ * area is the only way to get byte offsets; the rendered listing has lost them.
+ */
+export function zx81RemCodeStarts(data: Buffer, progEnd: number): number[] {
+  const starts: number[] = [];
+  let pos = ZX81_PROG - ZX81_SYSVARS;                 // $74
+  while (pos + 4 <= progEnd && pos + 4 <= data.length) {
+    const lineNumber = (data[pos] << 8) | data[pos + 1];
+    const lineLength = data[pos + 2] | (data[pos + 3] << 8);
+    if (lineNumber > 9999 || lineLength < 1) break;
+    if (pos + 4 + lineLength > progEnd) break;
+    // A REM as the first token means the rest of the line is not BASIC.
+    if (data[pos + 4] === ZX81_REM && lineLength > 8) starts.push(pos + 5);
+    pos += 4 + lineLength;
+  }
+  return starts;
+}
+
+export interface PlanInput {
+  format: DiskFormat;
+  entry: FileEntry;
+  data: Buffer;
+  /** This file's own listing, when it is BASIC. */
+  listing?: BasicListing | null;
+  /** Other BASIC files on the disk, for finding a CODE file's load address. */
+  siblings?: { entry: FileEntry; listing: BasicListing }[];
+  /** Override discovered by the user in the UI. */
+  originOverride?: number;
+}
+
+export function planDisassembly(input: PlanInput): DisasmPlan | null {
+  const { format, entry, data } = input;
+  if (!data.length) return null;
+  return format === 'zx81-aerco' ? planZX81(input) : planSpectrum(input);
+}
+
+function planZX81(input: PlanInput): DisasmPlan | null {
+  const { entry, data, listing } = input;
+  const notes: string[] = [];
+  // A ZX81 file is a memory image from VERSN, so the origin is never in doubt.
+  const origin = input.originOverride ?? ZX81_SYSVARS;
+  // Only the BASIC program area can hold code; the display file and variables
+  // that follow it are not worth sweeping.
+  const progEnd = entry.params.progEnd || data.length;
+  const range: [number, number] = [0, Math.min(progEnd, data.length)];
+  const limit = origin + range[1];
+
+  const all = listing ? harvestUsrTargets(listing) : [];
+  const seeds = all.filter((a) => a >= origin && a < limit);
+  const external = all.filter((a) => a < origin || a >= limit);
+  if (all.length) {
+    notes.push(`${all.length} USR target(s) harvested from the BASIC: ${seeds.length} inside the file, ${external.length} into ROM or the disk interface`);
+  }
+
+  // With nothing to go on, fall back to the code inside a REM. On the ZX81 that
+  // is where machine code almost always lives, and its address is fixed.
+  if (!seeds.length) {
+    for (const off of zx81RemCodeStarts(data, range[1])) seeds.push(origin + off);
+    if (seeds.length) {
+      notes.push(`no USR target inside the file; seeded from the machine code in ${seeds.length} REM line(s)`);
+    }
+  }
+
+  if (!seeds.length) return null;
+  return { origin, range, machine: ZX81, seeds, external, notes };
+}
+
+function planSpectrum(input: PlanInput): DisasmPlan | null {
+  const { entry, data, listing, siblings = [] } = input;
+  const notes: string[] = [];
+  const name = entry.filename.trim().toLowerCase();
+
+  let origin = input.originOverride;
+  if (origin === undefined) {
+    // The loader BASIC records the load address of the CODE it pulls in.
+    for (const s of siblings) {
+      const hit = harvestCodeAddresses(s.listing).find(
+        (h) => h.filename.trim().toLowerCase() === name,
+      );
+      if (hit) {
+        origin = hit.addr;
+        notes.push(`origin ${hit.addr} taken from "${s.entry.filename.trim()}" line referencing this file as CODE`);
+        break;
+      }
+    }
+  } else {
+    notes.push(`origin ${origin} supplied by the user`);
+  }
+  if (origin === undefined) {
+    // Nothing said where it loads. A BASIC file's own params may, otherwise the
+    // caller has to ask.
+    origin = entry.params.startAddr || 0;
+    notes.push(origin ? `origin ${origin} from the file header` : 'no load address found; assuming 0 — set one to get meaningful addresses');
+  }
+
+  const range: [number, number] = [0, data.length];
+  const limit = origin + data.length;
+  // Seeds come from this file's own BASIC if it has any, and from the loaders
+  // that reference it.
+  const all = new Set<number>();
+  for (const l of [listing, ...siblings.map((s) => s.listing)]) {
+    if (l) for (const a of harvestUsrTargets(l)) all.add(a);
+  }
+  const seeds = [...all].filter((a) => a >= origin && a < limit).sort((a, b) => a - b);
+  const external = [...all].filter((a) => a < origin || a >= limit).sort((a, b) => a - b);
+  if (all.size) {
+    notes.push(`${all.size} USR target(s) harvested: ${seeds.length} inside this file, ${external.length} into ROM or the disk interface`);
+  }
+
+  // A CODE file with no USR pointing into it is still worth tracing from its
+  // first byte, which is where a loader would normally call.
+  if (!seeds.length) {
+    seeds.push(origin);
+    notes.push('no USR target inside the file; seeded from its first byte');
+  }
+
+  return { origin, range, machine: SPECTRUM, seeds, external, notes };
+}

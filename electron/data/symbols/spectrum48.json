@@ -1,0 +1,406 @@
+{
+  "id": "spectrum48",
+  "name": "ZX Spectrum 48K ROM",
+  "range": [
+    0,
+    16383
+  ],
+  "provenance": "spectrum48_rom_entry_points.md (TS2068 Ref Library) — documented entry points",
+  "symbols": {
+    "0": {
+      "name": "START",
+      "note": "Power-on reset. `DI`, `XOR A`, `LD DE,$FFFF`, `JP START-NEW`"
+    },
+    "8": {
+      "name": "ERROR-1"
+    },
+    "16": {
+      "name": "PRINT-A",
+      "note": "Write char in A to current output stream (`JP PRINT-A-2`)"
+    },
+    "24": {
+      "name": "GET-CHAR",
+      "note": "Fetch char at CH_ADD → A"
+    },
+    "28": {
+      "name": "TEST-CHAR",
+      "note": "Test if char is relevant (called by GET-CHAR)"
+    },
+    "32": {
+      "name": "NEXT-CHAR",
+      "note": "Advance CH_ADD, fetch next char → A"
+    },
+    "40": {
+      "name": "FP-CALC",
+      "note": "Enter floating-point calculator"
+    },
+    "48": {
+      "name": "BC-SPACES",
+      "note": "Create BC free bytes in workspace"
+    },
+    "56": {
+      "name": "MASK-INT",
+      "note": "Maskable interrupt: increment FRAMES, call KEYBOARD"
+    },
+    "72": {
+      "name": "KEY-INT",
+      "note": "Keyboard scan entry (called from MASK-INT)"
+    },
+    "83": {
+      "name": "ERROR-2",
+      "note": "Pop return addr → error code; `LD ERR_NR,L`; restore SP; `JP SET-STK`"
+    },
+    "85": {
+      "name": "ERROR-3",
+      "note": "As ERROR-2 but L already holds error code (no pop)"
+    },
+    "102": {
+      "name": "RESET",
+      "note": "NMI handler. Checks NMIADD ($5CB0); inverted-logic bug — see note"
+    },
+    "116": {
+      "name": "CH-ADD+1",
+      "note": "Increment CH_ADD, return new char in A"
+    },
+    "119": {
+      "name": "TEMP-PTR1",
+      "note": "`INC HL`, fall into TEMP-PTR2"
+    },
+    "120": {
+      "name": "TEMP-PTR2",
+      "note": "Store HL → CH_ADD; load A ← (HL); return"
+    },
+    "125": {
+      "name": "SKIP-OVER",
+      "note": "Skip embedded control codes $10–$17; return NC if char is printable"
+    },
+    "149": {
+      "name": "TKN-TABLE"
+    },
+    "517": {
+      "name": "MAIN-KEYS",
+      "note": "39-byte unshifted key table (B H Y 6 5 T G V … Q A)"
+    },
+    "556": {
+      "name": "E-UNSHIFT",
+      "note": "26 unshifted extended-mode letter keys (green legends)"
+    },
+    "582": {
+      "name": "EXT-SHIFT",
+      "note": "26 shifted extended-mode letter keys (red legends)"
+    },
+    "608": {
+      "name": "CTL-CODES",
+      "note": "10 control codes for CAPS+digit (DELETE, EDIT, CAPS LOCK…)"
+    },
+    "618": {
+      "name": "SYM-CODES",
+      "note": "26 symbol-shift+letter codes (STOP, *, ?, STEP, >=, TO…)"
+    },
+    "644": {
+      "name": "E-DIGITS",
+      "note": "10 extended+digit codes (FORMAT, DEF FN, FN, LINE…)"
+    },
+    "654": {
+      "name": "KEY-SCAN",
+      "note": "Scan all 8 half-rows; return raw reading"
+    },
+    "703": {
+      "name": "KEYBOARD",
+      "note": "Full keyboard scan: debounce, decode, update KSTATE/LASTK"
+    },
+    "819": {
+      "name": "K-DECODE",
+      "note": "Decode raw row/column → character code using tables above"
+    },
+    "949": {
+      "name": "BEEPER",
+      "note": "Low-level tone generator. Toggles EAR bit (port $FE) at precise timing"
+    },
+    "1016": {
+      "name": "beep",
+      "note": "BEEP command: convert BASIC pitch/duration params, call BEEPER"
+    },
+    "1218": {
+      "name": "SA-BYTES",
+      "note": "Save a block of bytes to tape"
+    },
+    "1287": {
+      "name": "SA-START",
+      "note": "Start of byte loop (entry inside SA-BYTES)"
+    },
+    "1343": {
+      "name": "SA/LD-RET",
+      "note": "Common return point for SAVE and LOAD"
+    },
+    "1366": {
+      "name": "LD-BYTES",
+      "note": "Load a block of bytes from tape"
+    },
+    "1541": {
+      "name": "SAVE-ETC",
+      "note": "Main SAVE/LOAD/MERGE dispatcher"
+    },
+    "1882": {
+      "name": "SA-ALL",
+      "note": "Build tape header and save program/data"
+    },
+    "1895": {
+      "name": "LD-LOOK-H",
+      "note": "Load and verify tape header"
+    },
+    "2548": {
+      "name": "PRINT-OUT"
+    },
+    "3035": {
+      "name": "PO-ATTR",
+      "note": "Set display attributes from ATTRP/ATTRT for current print position"
+    },
+    "3435": {
+      "name": "CLS",
+      "note": "Clear entire screen (calls CL-ALL then resets DFSZ)"
+    },
+    "3438": {
+      "name": "CLS-LOWER",
+      "note": "Clear lower screen only"
+    },
+    "3476": {
+      "name": "CL-CHAN",
+      "note": "Open channel for screen output"
+    },
+    "3545": {
+      "name": "CL-SET",
+      "note": "Set up display file pointers (DFCC, DFCCL)"
+    },
+    "3584": {
+      "name": "CL-SCROLL",
+      "note": "Scroll screen up one line. B=number of lines to scroll"
+    },
+    "3884": {
+      "name": "EDITOR",
+      "note": "Main editor loop entry"
+    },
+    "4264": {
+      "name": "KEY-INPUT",
+      "note": "Process a keypress in editor context"
+    },
+    "4381": {
+      "name": "ED-COPY",
+      "note": "Copy edit line to screen"
+    },
+    "4535": {
+      "name": "NEW",
+      "note": "NEW command: jump to START-NEW with A=$FF (warm start)"
+    },
+    "4555": {
+      "name": "START-NEW"
+    },
+    "4570": {
+      "name": "ram-check",
+      "note": "RAM size detection loop"
+    },
+    "4633": {
+      "name": "RAM-SET",
+      "note": "Set minimum system — SET-MIN equivalent"
+    },
+    "4636": {
+      "name": "NMI_VECT",
+      "note": "NMI default handler vector address"
+    },
+    "4770": {
+      "name": "MAIN-EXEC",
+      "note": "Main BASIC execution loop entry"
+    },
+    "4777": {
+      "name": "MAIN-1",
+      "note": "Test BREAK, print report"
+    },
+    "4780": {
+      "name": "MAIN-2",
+      "note": "Auto-list if enabled"
+    },
+    "4867": {
+      "name": "MAIN-4",
+      "note": "Execute current BASIC line"
+    },
+    "4883": {
+      "name": "MAIN-G",
+      "note": "Error reporting, screen reset"
+    },
+    "4998": {
+      "name": "MAIN-9",
+      "note": "Wait for keypress"
+    },
+    "5009": {
+      "name": "rpt-mesgs",
+      "note": "Report message text table (OK, NEXT without FOR, etc.)"
+    },
+    "5574": {
+      "name": "init-strm",
+      "note": "Initialise stream table (STRMS at $5C10)"
+    },
+    "5588": {
+      "name": "WAIT-KEY",
+      "note": "Wait for a key, return char in A"
+    },
+    "5618": {
+      "name": "PRINT-A-2"
+    },
+    "5633": {
+      "name": "CHAN-OPEN",
+      "note": "Open channel; A = channel identifier"
+    },
+    "5677": {
+      "name": "chn-cd-lu",
+      "note": "Channel code look-up table"
+    },
+    "5684": {
+      "name": "CHAN-K",
+      "note": "Keyboard/lower-screen channel ('K')"
+    },
+    "5698": {
+      "name": "CHAN-S",
+      "note": "Main screen channel ('S')"
+    },
+    "5709": {
+      "name": "CHAN-P",
+      "note": "Printer channel ('P')"
+    },
+    "5714": {
+      "name": "ONE-SPACE",
+      "note": "Create 1 free byte in workspace (calls MAKE-ROOM with BC=1)"
+    },
+    "5717": {
+      "name": "MAKE-ROOM",
+      "note": "Insert BC bytes at HL; updates all pointers above HL"
+    },
+    "5732": {
+      "name": "POINTERS",
+      "note": "Update system pointers after memory insertion/deletion"
+    },
+    "5790": {
+      "name": "RESERVE",
+      "note": "Allocate BC bytes in workspace above WORKSP; called by BC-SPACES (RST $30)"
+    },
+    "5808": {
+      "name": "SET-MIN",
+      "note": "Reset workspace to minimum: clear vars, reset STKBOT/STKEND/MEM"
+    },
+    "5829": {
+      "name": "SET-STK",
+      "note": "Reset calculator stack and MEM pointer; JP to error recovery"
+    },
+    "6629": {
+      "name": "RECLAIM-1"
+    },
+    "6632": {
+      "name": "RECLAIM-2"
+    },
+    "6935": {
+      "name": "LINE-SCAN",
+      "note": "Scan and syntax-check (or execute) one BASIC statement"
+    },
+    "6952": {
+      "name": "STMT-LOOP",
+      "note": "Statement loop: fetch and execute statements"
+    },
+    "6997": {
+      "name": "GET-PARAM",
+      "note": "Get class-code parameters for current command"
+    },
+    "7030": {
+      "name": "STMT-RET",
+      "note": "Return from statement execution"
+    },
+    "7050": {
+      "name": "LINE-RUN",
+      "note": "Execute BASIC line in RUN mode"
+    },
+    "8141": {
+      "name": "LPRINT",
+      "note": "LPRINT command (sets PR flag then falls into PRINT)"
+    },
+    "8143": {
+      "name": "PRINT",
+      "note": "PRINT command entry"
+    },
+    "8874": {
+      "name": "PIXEL-ADD"
+    },
+    "8907": {
+      "name": "POINT-SUB",
+      "note": "Test if pixel at (C,B) is set; result on calc stack"
+    },
+    "8924": {
+      "name": "PLOT",
+      "note": "PLOT command: plot pixel at screen coordinates"
+    },
+    "8992": {
+      "name": "CIRCLE",
+      "note": "CIRCLE command"
+    },
+    "9090": {
+      "name": "DRAW",
+      "note": "DRAW command"
+    },
+    "9467": {
+      "name": "SCANNING",
+      "note": "Evaluate expression; result pushed onto calculator stack"
+    },
+    "9923": {
+      "name": "S-NUMERIC",
+      "note": "Signal that expression result is numeric (sets FLAGS bit 6)"
+    },
+    "10418": {
+      "name": "LOOK-VARS",
+      "note": "Look up a variable in the VARS area"
+    },
+    "11007": {
+      "name": "LET",
+      "note": "LET command: assign expression to variable"
+    },
+    "11249": {
+      "name": "STK-FETCH",
+      "note": "Fetch string descriptor from calculator stack → BC=length, DE=address"
+    },
+    "11266": {
+      "name": "DIM",
+      "note": "DIM command: create numeric or string array"
+    },
+    "11560": {
+      "name": "STACK-A",
+      "note": "Push value in A onto calculator stack as float"
+    },
+    "11563": {
+      "name": "STACK-BC",
+      "note": "Push 16-bit value in BC onto calculator stack as integer float"
+    },
+    "11579": {
+      "name": "INT-TO-FP",
+      "note": "Convert integer in DE/HL to 5-byte float"
+    },
+    "11682": {
+      "name": "FP-TO-BC",
+      "note": "Pop top of calculator stack → BC (integer, must fit 16 bits)"
+    },
+    "11733": {
+      "name": "FP-TO-A",
+      "note": "Pop top of calculator stack → A (integer 0–255)"
+    },
+    "11747": {
+      "name": "PRINT-FP",
+      "note": "Print floating-point number on calculator stack to current channel"
+    },
+    "13147": {
+      "name": "CALCULATE",
+      "note": "Calculator entry point — same as RST $28 target"
+    },
+    "13150": {
+      "name": "GEN-ENT-1",
+      "note": "Internal calculator entry used for recursive calls"
+    },
+    "15616": {
+      "name": "char-set"
+    }
+  }
+}
