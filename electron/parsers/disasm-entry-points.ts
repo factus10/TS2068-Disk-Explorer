@@ -39,6 +39,18 @@ export interface DisasmPlan {
   external: number[];
   /** How each of the above was arrived at, for the .dis header. */
   notes: string[];
+  /**
+   * True when nothing was known about this file: no load address, and nothing
+   * anywhere pointing into it. Both are then invented — the origin defaults to
+   * zero and the trace starts at the first byte — so every address in the
+   * listing is fiction and the structure is only what a linear walk produced.
+   *
+   * The reader can still be shown it, because the origin control is how they
+   * would correct it. Writing it out as a `.dis` is another matter: that file
+   * is an archival record, and this one records a reading of the bytes that
+   * nothing supports.
+   */
+  speculative: boolean;
 }
 
 /**
@@ -159,7 +171,8 @@ function planZX81(input: PlanInput): DisasmPlan | null {
   }
 
   if (!seeds.length) return null;
-  return { origin, range, machine: ZX81, seeds, external, notes };
+  // A ZX81 file is a memory image from VERSN, so its origin is never in doubt.
+  return { origin, range, machine: ZX81, seeds, external, notes, speculative: false };
 }
 
 function planSpectrum(input: PlanInput): DisasmPlan | null {
@@ -168,6 +181,7 @@ function planSpectrum(input: PlanInput): DisasmPlan | null {
   const name = entry.filename.trim().toLowerCase();
 
   let origin = input.originOverride;
+  let originKnown = origin !== undefined;
   if (origin === undefined) {
     // The loader BASIC records the load address of the CODE it pulls in.
     for (const s of siblings) {
@@ -176,6 +190,7 @@ function planSpectrum(input: PlanInput): DisasmPlan | null {
       );
       if (hit) {
         origin = hit.addr;
+        originKnown = true;
         notes.push(`origin ${hit.addr} taken from "${s.entry.filename.trim()}" line referencing this file as CODE`);
         break;
       }
@@ -187,6 +202,7 @@ function planSpectrum(input: PlanInput): DisasmPlan | null {
     // Nothing said where it loads. A BASIC file's own params may, otherwise the
     // caller has to ask.
     origin = entry.params.startAddr || 0;
+    originKnown = origin !== 0;
     notes.push(origin ? `origin ${origin} from the file header` : 'no load address found; assuming 0 — set one to get meaningful addresses');
   }
 
@@ -206,10 +222,16 @@ function planSpectrum(input: PlanInput): DisasmPlan | null {
 
   // A CODE file with no USR pointing into it is still worth tracing from its
   // first byte, which is where a loader would normally call.
+  let speculative = false;
   if (!seeds.length) {
     seeds.push(origin);
     notes.push('no USR target inside the file; seeded from its first byte');
+    // Neither fact was available, so both were made up.
+    speculative = !originKnown;
+    if (speculative) {
+      notes.push('nothing is known about this file: the addresses below are a guess, not a reading');
+    }
   }
 
-  return { origin, range, machine: SPECTRUM, seeds, external, notes };
+  return { origin, range, machine: SPECTRUM, seeds, external, notes, speculative };
 }

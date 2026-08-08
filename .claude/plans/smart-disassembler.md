@@ -130,6 +130,22 @@
 > single USR that lands in that range appears to seed dozens of files. Judging
 > coverage without excluding documents first counts those as successes.
 >
+> Sweeping every format rather than Larken alone changed the picture of what
+> this feature is for. Oliger V2 is the bulk of it — 105 disks, 864 files
+> offered against Larken's 30, and 64% of those reach a real entry point. That
+> is the population worth caring about; Larken was never representative.
+>
+> The sweep also found the last of the confident-nonsense family. Six Oliger V1
+> files carry no load address at all — the format records none, so every entry
+> reports zero — and nothing on the disk points into them. Both facts were
+> being invented: origin defaults to zero, the trace starts at the first byte,
+> and one 25600-byte file of nothing but $00 and $E5 produced 25600
+> instructions of NOP and PUSH HL, written to disk as a `.dis` on every
+> extraction. A plan now reports itself `speculative` when neither fact is
+> known. The viewer still shows it, because the origin control is how a reader
+> would fix it; the export refuses, because a `.dis` is an archival record.
+> Setting an origin clears the flag and the file exports normally.
+>
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
 

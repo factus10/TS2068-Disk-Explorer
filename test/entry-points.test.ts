@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { harvestUsrTargets, harvestCodeAddresses } from '../electron/parsers/disasm-entry-points';
-import { canDisassemble } from '../electron/parsers/disasm';
+import { canDisassemble, disassemble, disassembleForExport } from '../electron/parsers/disasm';
 import { isTextData } from '../electron/parsers/utils';
 import { isTextData as rendererIsTextData } from '../src/api';
 import type { BasicListing } from '../electron/parsers/basic-detokenizer';
@@ -85,5 +85,52 @@ describe('telling a document from a program', () => {
   it('does not apply the text test to a ZX81 memory image', () => {
     // Its character set is not ASCII, so the ratio means nothing there.
     expect(canDisassemble('zx81-aerco', make({}), text)).toBe(true);
+  });
+});
+
+describe('a listing nothing supports', () => {
+  const make = (over: Partial<FileEntry>) => ({
+    index: 0, filename: 'F', type: 'code', size: 8, isDirectory: false, params: {}, ...over,
+  } as unknown as FileEntry);
+  // Bytes that decode cleanly but say nothing: PUSH HL / NOP, which is what
+  // the Oliger V1 files on the TIMACHINE disks are made of.
+  const data = Buffer.from([0xe5, 0x00, 0xe5, 0x00, 0xe5, 0x00, 0xe5, 0x00]);
+
+  it('is marked speculative when neither the origin nor an entry point is known', () => {
+    const r = disassemble({ format: 'oliger-v1', entry: make({}), data, siblings: [] })!;
+    expect(r.speculative).toBe(true);
+    expect(r.origin).toBe(0);
+    expect(r.text).toContain('a guess, not a reading');
+    expect(r.sidecar.speculative).toBe(true);
+  });
+
+  it('is not speculative once the file header gives a load address', () => {
+    const r = disassemble({
+      format: 'oliger-v1', entry: make({ params: { startAddr: 0x8000 } as never }), data, siblings: [],
+    })!;
+    expect(r.speculative).toBe(false);
+  });
+
+  it('is not speculative once the reader supplies an origin', () => {
+    const r = disassemble({ format: 'oliger-v1', entry: make({}), data, siblings: [], originOverride: 0xf000 })!;
+    expect(r.speculative).toBe(false);
+  });
+
+  it('is shown in the viewer but never written out', () => {
+    // The viewer still gets it, because the origin control is how a reader
+    // corrects it; the .dis is an archival record and this is not one.
+    expect(disassemble({ format: 'oliger-v1', entry: make({}), data, siblings: [] })).not.toBeNull();
+    expect(disassembleForExport({
+      format: 'oliger-v1', entry: make({}), data, loaders: [], source: 'd.img',
+    })).toBeNull();
+  });
+
+  it('is written out once the reader has said where it loads', () => {
+    const r = disassembleForExport({
+      format: 'oliger-v1', entry: make({}), data, loaders: [], source: 'd.img',
+      settings: { origin: 0xf000 },
+    });
+    expect(r).not.toBeNull();
+    expect(r!.origin).toBe(0xf000);
   });
 });
