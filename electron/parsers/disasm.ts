@@ -80,6 +80,8 @@ export interface DisassemblyResult {
   codeBytes: number;
   dataBytes: number;
   conflicts: number;
+  /** Neither the load address nor any entry point was known; see DisasmPlan. */
+  speculative: boolean;
   /** SHA-256 of the exact bytes disassembled — not of the whole file. */
   checksum: string;
   /** Everything needed to reproduce this run, for the .dis.json sidecar. */
@@ -92,6 +94,8 @@ export interface DisassemblyResult {
     range: [number, number];
     length: number;
     sha256: string;
+    /** True when the origin and the entry point were both invented. */
+    speculative: boolean;
     seeds: string[];
     /** Dispatch tables whose targets were inferred and traced. */
     tables: { kind: string; base: string; entries: number; from?: string }[];
@@ -140,6 +144,7 @@ export function disassemble(opts: {
     codeBytes: result.stats.codeBytes,
     dataBytes: result.stats.dataBytes,
     conflicts: result.conflicts.length,
+    speculative: plan.speculative,
     checksum,
     sidecar: {
       file: opts.entry.filename.trim(),
@@ -149,6 +154,7 @@ export function disassemble(opts: {
       range: plan.range,
       length: slice.length,
       sha256: checksum,
+      speculative: plan.speculative,
       seeds: result.seeds.map(hex),
       tables: result.tables.map((t) => ({
         kind: t.kind, base: hex(t.base), entries: t.entries,
@@ -191,12 +197,16 @@ export function disassembleForExport(opts: {
   const { format, entry, data, loaders, source, settings } = opts;
   if (!canDisassemble(format, entry, data)) return null;
   try {
-    return disassemble({
+    const r = disassemble({
       format, entry, data, siblings: loaders, source,
       listing: loaders.find((l) => l.entry.index === entry.index)?.listing ?? null,
       originOverride: settings?.origin,
       exrom: settings?.exrom,
     });
+    // A speculative listing is fine to look at and wrong to file. Setting the
+    // origin in the viewer clears the flag, so a reader who knows where the
+    // file loads still gets their .dis.
+    return r && r.speculative ? null : r;
   } catch {
     return null;   // a file that will not trace must not stop the extraction
   }
