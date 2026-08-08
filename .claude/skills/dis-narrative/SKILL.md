@@ -144,8 +144,9 @@ the callers turn out not to be calling this file at all, this is the section whe
 show the table and then dismantle it — that is a better use of the space than omitting
 it, because the next reader will otherwise wonder about the same addresses.
 
-Note that call-site text is truncated in the header at 120 characters, so a long BASIC
-line may be cut mid-token. Do not infer from what is missing.
+A long calling line is shown as a window around the call, with `…` wherever text was
+dropped. The call itself is always inside the window, so what you see documents what it
+claims to — but do not infer anything from what is missing beyond an ellipsis.
 
 **What the code does** — only what resolved symbols and prose runs establish. Be brief
 if the evidence is thin; a short section here is a finding in itself.

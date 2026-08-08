@@ -90,18 +90,44 @@ export interface DisasmPlan {
  * while reporting instructions. `USR FN a()` and `USR CODE "n"` are the same
  * problem, the latter yielding a character code rather than an address.
  */
+/**
+ * How much of a calling line to keep.
+ *
+ * Most are short — the median is 47 characters — so nearly all survive whole.
+ * The tail is long: one line runs to 4854 characters, and a header full of
+ * those is unreadable. But a flat cut from the start is worse than unreadable,
+ * because the call can be anywhere: a `USR` sits as far in as character 2922,
+ * and cutting at 120 left 231 of 2950 call sites recording a line that did not
+ * contain the call it was there to document.
+ *
+ * So keep the whole line when it fits, and otherwise take a window around the
+ * call itself, marked with an ellipsis wherever text was dropped. The call is
+ * always inside the window, and the reader can see that something was cut
+ * rather than having to wonder whether a line really ended mid-token.
+ */
+const LINE_KEPT_WHOLE = 160;
+const CONTEXT_BEFORE = 60;
+const CONTEXT_AFTER = 90;
+
+function excerpt(text: string, at: number): string {
+  if (text.length <= LINE_KEPT_WHOLE) return text;
+  const start = Math.max(0, at - CONTEXT_BEFORE);
+  const end = Math.min(text.length, at + CONTEXT_AFTER);
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+}
+
 export function harvestUsrReferences(listing: BasicListing, from = ''): UsrReference[] {
   const out: UsrReference[] = [];
   for (const line of listing.lines) {
     const text = line.tokens.map((t) => t.text).join('').trim();
     const seen = new Set<number>();
-    const add = (raw: string) => {
+    const add = (raw: string, at: number) => {
       const n = Number(raw);
       // A USR operand is a 16-bit address, and a whole one. Anything else is a
       // mis-read.
       if (!Number.isInteger(n) || n < 0 || n > 0xffff || seen.has(n)) return;
       seen.add(n);
-      out.push({ addr: n, from, lineNumber: line.lineNumber, text: text.slice(0, 120) });
+      out.push({ addr: n, from, lineNumber: line.lineNumber, text: excerpt(text, at) });
     };
     // Sinclair BASIC accepts an exponent, and `USR 6e4` is a real way to write
     // 60000. Matching only the digits reads that as address 6 — a seed in the
@@ -109,8 +135,8 @@ export function harvestUsrReferences(listing: BasicListing, from = ''): UsrRefer
     // assumed to be zero.
     // The trailing guard matters as much as the exponent: without it `USR 1e-2`
     // and `USR 1.5` match their first digit and yield address 1.
-    for (const m of text.matchAll(/USR\s*(\d+(?:[eE]\d+)?)(?![eE\d.])/g)) add(m[1]);
-    for (const m of text.matchAll(/USR\s*VAL\s*"(\d+(?:[eE]\d+)?)"/g)) add(m[1]);
+    for (const m of text.matchAll(/USR\s*(\d+(?:[eE]\d+)?)(?![eE\d.])/g)) add(m[1], m.index ?? 0);
+    for (const m of text.matchAll(/USR\s*VAL\s*"(\d+(?:[eE]\d+)?)"/g)) add(m[1], m.index ?? 0);
   }
   return out;
 }

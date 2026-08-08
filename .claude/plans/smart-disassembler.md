@@ -159,6 +159,13 @@
 > read it as address 6. Fourteen operands across the sample disks are written
 > with an exponent.
 >
+> Call-site text is shown as a window around the call rather than the head of
+> the line. A flat 120-character cut looked like a cosmetic limit and was not:
+> a `USR` sits as far in as character 2922, and 231 of 2950 call sites were
+> recording a line that did not contain the call it was there to document. The
+> median line is 47 characters so most are still shown whole; the rest are
+> excerpted with an ellipsis at whichever end lost text.
+>
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
 

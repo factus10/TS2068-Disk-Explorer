@@ -186,3 +186,51 @@ describe('recording which BASIC line calls an entry point', () => {
     ]);
   });
 });
+
+describe('how much of a calling line is kept', () => {
+  const short = 'PRINT ;:LET L= USR VAL "51461"';
+  const pad = (n: number) => 'REM ' + 'x'.repeat(n);
+
+  it('keeps an ordinary line whole', () => {
+    // The median calling line is 47 characters, so nearly all survive intact.
+    expect(harvestUsrReferences(listing(short), 'F')[0].text).toBe(short);
+  });
+
+  it('keeps the call itself when the line is too long to keep whole', () => {
+    // The defect this fixes: a flat cut from the start dropped the call on 231
+    // of 2950 call sites, leaving a line that did not contain what it
+    // documented. A USR sits as far in as character 2922.
+    const line = `${pad(400)}:RANDOMIZE USR 60000:${pad(400)}`;
+    const [ref] = harvestUsrReferences(listing(line), 'F');
+    expect(ref.addr).toBe(60000);
+    expect(ref.text).toContain('USR 60000');
+  });
+
+  it('marks where text was dropped, at whichever end it was dropped from', () => {
+    const [middle] = harvestUsrReferences(listing(`${pad(400)}:RANDOMIZE USR 60000:${pad(400)}`), 'F');
+    expect(middle.text.startsWith('…')).toBe(true);
+    expect(middle.text.endsWith('…')).toBe(true);
+
+    const [atStart] = harvestUsrReferences(listing(`RANDOMIZE USR 60000:${pad(400)}`), 'F');
+    expect(atStart.text.startsWith('…')).toBe(false);
+    expect(atStart.text.endsWith('…')).toBe(true);
+
+    const [atEnd] = harvestUsrReferences(listing(`${pad(400)}:RANDOMIZE USR 60000`), 'F');
+    expect(atEnd.text.startsWith('…')).toBe(true);
+    expect(atEnd.text.endsWith('…')).toBe(false);
+  });
+
+  it('stays short enough to read in a header', () => {
+    // A real line runs to 4854 characters; a header full of those is unusable.
+    const [ref] = harvestUsrReferences(listing(`${pad(3000)}:RANDOMIZE USR 60000:${pad(3000)}`), 'F');
+    expect(ref.text.length).toBeLessThanOrEqual(160);
+  });
+
+  it('gives each call on a long line its own window', () => {
+    const line = `RANDOMIZE USR 40000:${pad(300)}:RANDOMIZE USR 50000`;
+    const refs = harvestUsrReferences(listing(line), 'F');
+    expect(refs.map((r) => r.addr)).toEqual([40000, 50000]);
+    expect(refs[0].text).toContain('USR 40000');
+    expect(refs[1].text).toContain('USR 50000');
+  });
+});
