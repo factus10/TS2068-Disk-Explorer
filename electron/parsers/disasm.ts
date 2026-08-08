@@ -78,6 +78,8 @@ export interface DisassemblyResult {
     length: number;
     sha256: string;
     seeds: string[];
+    /** Dispatch tables whose targets were inferred and traced. */
+    tables: { kind: string; base: string; entries: number; from?: string }[];
     external: string[];
     symbolPacks: { id: string; name: string; provenance?: string; symbols: number }[];
     notes: string[];
@@ -98,7 +100,10 @@ export function disassemble(opts: {
   if (!plan) return null;
   const slice = opts.data.subarray(plan.range[0], plan.range[1]);
   if (!slice.length) return null;
-  const result = trace(slice, plan.origin, plan.seeds, { machine: plan.machine });
+  // Table detection costs one extra scan when nothing is found, and nothing
+  // was found in any disk program tested — it earns its keep on ROM images,
+  // where the interpreter reaches most of itself through tables.
+  const result = trace(slice, plan.origin, plan.seeds, { machine: plan.machine, detectTables: true });
   const checksum = crypto.createHash('sha256').update(slice).digest('hex');
   const packs = packsFor(opts.format);
   const text = emit(slice, result, {
@@ -127,6 +132,10 @@ export function disassemble(opts: {
       length: slice.length,
       sha256: checksum,
       seeds: result.seeds.map(hex),
+      tables: result.tables.map((t) => ({
+        kind: t.kind, base: hex(t.base), entries: t.entries,
+        ...(t.from !== undefined ? { from: hex(t.from) } : {}),
+      })),
       external: [...result.external.keys()].sort((a, b) => a - b).map(hex),
       symbolPacks: packs.map((p) => ({
         id: p.id, name: p.name, ...(p.provenance ? { provenance: p.provenance } : {}),

@@ -90,6 +90,15 @@ export function emit(
   }
   out.push(`; traced from ${result.seeds.length} entry point(s): `
     + result.seeds.map((a) => `$${hex4(a)}`).join(' '));
+  if (result.tables.length) {
+    const n = result.tables.reduce((t, x) => t + x.entries, 0);
+    out.push(`; ${result.tables.length} dispatch table(s) recovered, ${n} target(s) traced from them:`);
+    for (const t of result.tables) {
+      out.push(`;   $${hex4(t.base)}  ${t.kind}, ${t.entries} entries`
+        + (t.from !== undefined ? `, dispatched from $${hex4(t.from)}` : ''));
+    }
+    out.push('; code reached only through a table was inferred, not read off an instruction');
+  }
   for (const n of options.notes ?? []) out.push(`; ${n}`);
   if (packs.length) {
     out.push(';');
