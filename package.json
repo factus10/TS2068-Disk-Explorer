@@ -6,6 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && tsc -p tsconfig.electron.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:fixture": "tsx scripts/gen-opcode-fixture.ts && git diff --exit-code test/fixtures/z80-opcodes.json",
+    "symbols": "tsx scripts/build-symbols.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder"
@@ -23,10 +28,12 @@
     "concurrently": "^9.1.0",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
+    "tsx": "^4.23.11",
     "typescript": "^5.6.3",
     "vite": "^6.0.3",
     "vite-plugin-electron": "^0.28.8",
     "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^4.1.10",
     "wait-on": "^8.0.1"
   },
   "build": {
@@ -42,14 +49,46 @@
       "help/**/*"
     ],
     "fileAssociations": [
-      { "ext": "img", "name": "Disk Image", "role": "Viewer" },
-      { "ext": "dsk", "name": "Disk Image", "role": "Viewer" },
-      { "ext": "tap", "name": "TAP File", "role": "Viewer" },
-      { "ext": "tzx", "name": "TZX File", "role": "Viewer" },
-      { "ext": "sna", "name": "SNA Snapshot", "role": "Viewer" },
-      { "ext": "z80", "name": "Z80 Snapshot", "role": "Viewer" },
-      { "ext": "scr", "name": "Screen File", "role": "Viewer" },
-      { "ext": "mgt", "name": "MGT Disk Image", "role": "Viewer" }
+      {
+        "ext": "img",
+        "name": "Disk Image",
+        "role": "Viewer"
+      },
+      {
+        "ext": "dsk",
+        "name": "Disk Image",
+        "role": "Viewer"
+      },
+      {
+        "ext": "tap",
+        "name": "TAP File",
+        "role": "Viewer"
+      },
+      {
+        "ext": "tzx",
+        "name": "TZX File",
+        "role": "Viewer"
+      },
+      {
+        "ext": "sna",
+        "name": "SNA Snapshot",
+        "role": "Viewer"
+      },
+      {
+        "ext": "z80",
+        "name": "Z80 Snapshot",
+        "role": "Viewer"
+      },
+      {
+        "ext": "scr",
+        "name": "Screen File",
+        "role": "Viewer"
+      },
+      {
+        "ext": "mgt",
+        "name": "MGT Disk Image",
+        "role": "Viewer"
+      }
     ],
     "mac": {
       "target": [

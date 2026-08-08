@@ -1,0 +1,23 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # The suite is self-contained: the opcode fixture was cross-checked
+      # against z80dasm and z80asm when it was generated, so the runner needs
+      # no native tools. See scripts/gen-opcode-fixture.ts.
+      - run: npm test
