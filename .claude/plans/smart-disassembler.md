@@ -62,6 +62,35 @@ So harvested targets split two ways, and both are useful:
 - **inside the file** → seeds for recursive descent
 - **outside the file** → ROM/DOS call sites, resolved against a symbol pack
 
+### Symbol resolution must be paging-aware, or it will confidently lie
+
+`PRINT USR 100` appears **133 times** across the TS2068 Larken disks, and essentially
+nothing else in ROM space. Look 100 (`$0064`) up in the HOME ROM and it is nonsense —
+`2068Home.BIN` reads `FF FF FF FF FF FF` at `$0060`–`$0065`, plain filler, with the NMI
+handler starting two bytes later at `$0066` (`PUSH AF / PUSH HL / LD HL,($5CB0)`).
+
+The Larken *LKDOS Machine Language Subroutines* manual explains it: `$0062`/`$0064` are
+cartridge paging controls, not routines.
+
+> To call these subroutines you must first turn ON the cartridge with a Call to address
+> 98(dec). The cartridge is turned OFF by a memory read at address 100(dec).
+
+Larken picked addresses that are harmless filler in the stock ROM. So when `USR 100`
+runs, the bytes at that address are *not* the HOME ROM's.
+
+The design consequence: **a single flat address→name lookup is wrong.** Resolving
+`$0064` against `ts2068-home` would emit a confident, incorrect label — the exact
+failure mode this feature exists to avoid. Packs therefore need explicit precedence: for
+a file off a disk of a known system, the DOS pack overlays the machine pack across the
+address range it pages over, and resolved DOS symbols are rendered as such
+(`; LKDOS: cartridge off`) rather than as machine-ROM calls. Where the app cannot tell
+which ROM was paged in, it should say so instead of guessing.
+
+(The BASIC idiom itself — `PRINT USR 100` immediately before a `LOAD`/`SAVE`, always in
+a trailing 9980+ housekeeping block — reads as "leave the cartridge so this goes to
+tape". That is inference from the line numbering and the `SAVE … LINE 9980` autostart
+form; the paging behaviour above is documented.)
+
 ### TS2068: the BASIC records the CODE file's load address
 
 A `CODE` file on disk carries no reliable origin, so disassembling it at the right
@@ -160,29 +189,64 @@ Packs to build:
 | `ts2068-exrom` | `docs/Timex Sinclair 2068 EXROM.txt`, `exrom_revision_analysis.md` | material in hand |
 | `spectrum48` | `docs/spectrum48_rom_entry_points.md` | material in hand |
 | `ts2068-sysvars` | `docs/ts2068_system_variables.md` | material in hand |
-| `dos-larken-2068` | LKDOS entry points (`USR 100` and neighbours) | to be harvested |
+| `dos-larken` | LKDOS manual jump table — see below | source identified |
 | `dos-zebra` | `Zebra_OS-64_annotated.asm` | material in hand |
 | `dos-fdd3000` | `fdd3000_annotated.asm` | material in hand |
-| **`zx81`** | **user to supply** | **blocked — see below** |
-| **`dos-lkdos-zx81`** | **user to supply** | **blocked — see below** |
+| `zx81` | ZXSpectrumVault `rom-disassemblies` — see below | source identified |
 
 A small script under `scripts/build-symbols.ts` parses the markdown tables and the
 `label:` lines out of the annotated disassemblies into the JSON above, so regenerating
 is repeatable and the derivation is auditable.
 
-#### The two ZX81 packs (user supplying material)
+#### `zx81` — from ZXSpectrumVault/rom-disassemblies
 
-The pack format above is the whole interface. To fill `zx81.json` I need any of:
-a ZX81/TS1000 ROM label list (address → name), an annotated ZX81 ROM disassembly, or
-the Logan & O'Hara address/label index. Anything with addresses and short names works;
-prose is not needed and will not be shipped.
+`Sinclair ZX81/Sinclair-ZX81.asm`: 10,556 lines carrying **676 `Lxxxx:` address labels
+and 620 `;; NAME` routine-name comments**, in the form
 
-`dos-lkdos-zx81.json` covers the Larken interface ROM below `0x4009` — the `11000`,
-`12000`, `2591`, `13303` family observed above. If no published list exists, these can
-be *partly* recovered from the disks themselves by aggregating harvested call targets
-across many images and labelling the recurring ones by hand.
+```
+;; PRINT-A
+L0010:  AND     A               ; test for zero - space.
+```
 
-Until both land, ZX81 disassembly works and simply names no ROM routines.
+The generator pairs each `;; NAME` with the `Lxxxx:` that follows it — address and short
+name, which is exactly the pack format and nothing more.
+
+#### `dos-larken` — from the LKDOS manual
+
+The *LKDOS Machine Language Subroutines* document in the archive.org `larken` item
+publishes the entry table outright: "This is the LKdos main subroutine jump table. Each
+Call is 3 bytes apart. These addresses are unaffected by any Changes or revisions made
+later to the Dos."
+
+```
+ 98 CARTON  turn the cartridge on (CALL)      156 GTFIL   evaluate filename into prognm
+100 CARTOFF turn the cartridge off (read)     159 ROMS    check for Spectrum ROM
+120 SAVEBF  save the buffer to disk           162 NEWET   put new entry in directory
+123 LOADBF  load the buffer from disk         165 DECDM   print temp1 in decimal
+126 TRACK   restore to trk 0, seek curtrk     168 TRANOK  final routine for save
+129 NEXTRK  advance head one track or side    171 DOSOP   close the disk channel
+132 INDIR   check directory for prognm        174 DOSERR  print error, HL holds message
+135 MOVDR   move cell to dirwka               177 CLIRBF  clear buffer
+138 CMDCK   check command syntax              180 ENCDBF  encode buffer with addresses
+141 ENDOLN  move CH_ADD to end of BASIC line  183 VSERCH  look for arrays
+144 EVALU   evaluate numeric formula          186 GTOUT   exit cartridge
+147 NOFIL   "no file" error                   189 GROW    insert space in program
+150 WPROT   check for protect sticker         192 SHRINK  delete space in program
+153 ZERO    restore blocks used by cell       195 FATAL   catalogue data error
+                                              198 LSUBR   user load, first half
+                                              201 LDDATA  user load, second half
+                                              204 SSUBR   user save, first half
+                                              207 SMEM    user save, second half
+```
+
+Names above are cleaned up from the document's OCR. The 3-byte spacing confirms a `JP`
+table, which is also the first real test case for jump-table detection.
+
+**Still open:** whether the ZX81 LKDOS uses this same table. The ZX81 Larken disks call
+`11000` (`$2AF8`), `12000` (`$2EE0`), `2591` (`$0A1F`) and `13303` (`$33F7`) — a
+different, higher range, so the ZX81 interface ROM is mapped elsewhere and needs its own
+pack. `LFCM ZX-81` in the same archive.org item is the place to look; failing that, the
+recurring targets can be labelled by aggregating across many disks.
 
 ### 5. New module: `electron/parsers/disasm-emit.ts`
 
@@ -231,12 +295,24 @@ queue**. Point Claude at it, ask for narratives, write them as `<name>.narrative
 next to the `.dis`, tagged with model and date, referencing the `.dis.json` checksum.
 Nothing about the Layer 1 file format has to change if an MCP server is added later.
 
+## Sources
+
+| Pack | Source | Licence note |
+|---|---|---|
+| `zx81` | [ZXSpectrumVault/rom-disassemblies](https://github.com/ZXSpectrumVault/rom-disassemblies) — `Sinclair ZX81/Sinclair-ZX81.asm` | check the repository's stated terms before shipping derived labels |
+| `dos-larken` | [archive.org `larken`](https://archive.org/details/larken) — *LKDOS Machine Language Subroutines* | published by Larken as programmer documentation |
+| `ts2068-*`, `spectrum48`, `dos-zebra`, `dos-fdd3000` | `~/Documents/Projects/TS2068 Ref Library` | derived from published disassemblies |
+
 ## Provenance
 
 The symbol data derives from published, copyrighted disassemblies. Ship **address →
 short label** pairs (facts) with a provenance string naming the source; do not ship the
 descriptive commentary. The generator script keeps the derivation auditable, and the
 `.dis` header records which pack versions produced the output.
+
+The ZXSpectrumVault repository notes that some ROMs in it remain under copyright — worth
+reading its terms before committing generated packs, even though what we take is the
+address/label index rather than the annotated text.
 
 ## Verification
 
@@ -256,5 +332,8 @@ descriptive commentary. The generator script keeps the derivation auditable, and
   default to the `SAVE … CODE` address when one is found, else leave the user to set it.
 - Whether to auto-seed from the interrupt vector / `RST` targets for full ROM images, or
   keep seeding to harvested entry points only.
+- Which ROM was paged in when a given file ran. For a disk of known format the DOS pack
+  is a safe overlay, but a `CODE` file that switches banks mid-run cannot be resolved
+  statically — the emitter should mark those call sites unresolved rather than guess.
 - How far to take jump-table detection (`JP (HL)` after a table load is common in these
   DOS ROMs) — probably a v2 concern once real output is in front of us.

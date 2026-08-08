@@ -98,8 +98,8 @@ import { detectFormat } from './electron/parsers/detect';
 See `.claude/plans/smart-disassembler.md` for the implementation plan. A Z80
 disassembler that names ROM/DOS routines, seeded from entry points harvested out of the
 BASIC the app already detokenizes (`RAND USR` on the ZX81, `SAVE … CODE addr` on the
-TS2068). Blocked on ZX81 symbol material; the TS2068 packs can be built from
-`~/Documents/Projects/TS2068 Ref Library`.
+TS2068). Symbol pack sources are identified for every machine and DOS; see the plan's Sources
+table.
 
 ## Pending Feature: TAP Package Bundling
 
