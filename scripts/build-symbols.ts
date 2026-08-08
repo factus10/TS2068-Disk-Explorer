@@ -142,17 +142,106 @@ function buildFromMarkdown(dir: string, file: string, id: string, name: string, 
     `${id}.json`);
 }
 
+
+/**
+ * System variables. These are not call targets — code reaches them as memory
+ * operands, `LD A,($5C3D)`, or through IY, which the ROM keeps permanently at
+ * $5C3A so that `(IY+$01)` means FLAGS. In the traced HOME ROM 216 instructions
+ * name a $5Cxx address outright and another 148 go through IY, so naming them
+ * changes how much of a listing can be read at a glance.
+ */
+function buildTs2068Sysvars(dir: string) {
+  const full = path.join(dir, 'ts2068_system_variables.md');
+  if (!fs.existsSync(full)) { console.log('skipping ts2068-sysvars — source not found'); return; }
+  const data: Record<string, { name: string; note?: string }> = {};
+  for (const line of fs.readFileSync(full, 'utf8').split('\n')) {
+    // | NAME | default | $ADDR | $IY | size | description |
+    const c = line.split('|').map((x) => x.replace(/\*\*/g, '').trim());
+    if (c.length < 7) continue;
+    const name = c[1], addr = c[3].match(/^\$([0-9A-Fa-f]{4})$/);
+    if (!addr || !/^[A-Z][A-Z0-9_]*$/.test(name)) continue;
+    const note = c[6] && c[6].length < 70 ? c[6] : undefined;
+    data[String(parseInt(addr[1], 16))] = { name, ...(note ? { note } : {}) };
+  }
+  if (!Object.keys(data).length) { console.log('skipping ts2068-sysvars — no rows matched'); return; }
+  write({
+    id: 'ts2068-sysvars', name: 'TS2068 system variables', range: [0x5c00, 0x5cff],
+    provenance: 'ts2068_system_variables.md (TS2068 Ref Library)',
+    // IY is held at $5C3A throughout, so an (IY+d) operand names a variable too.
+    indexBase: 0x5c3a,
+    kind: 'data',
+    symbols: {},
+    data,
+  }, 'ts2068-sysvars.json');
+}
+
+/**
+ * ZX81 system variables. Same idea, different machine: the block runs from
+ * VERSN at $4009, and the ZX81 ROM keeps IY at $4000.
+ */
+function buildZX81Sysvars() {
+  const vars: [number, string, string][] = [
+    [0x4000, 'ERR_NR', 'error code less one'],
+    [0x4001, 'FLAGS', 'various BASIC flags'],
+    [0x4002, 'ERR_SP', 'address of the error return'],
+    [0x4004, 'RAMTOP', 'first byte above BASIC'],
+    [0x4006, 'MODE', 'K, L, F or G cursor'],
+    [0x4007, 'PPC', 'line number of the statement running'],
+    [0x4009, 'VERSN', '0 marks the ROM version'],
+    [0x400a, 'E_PPC', 'line number of the line with the cursor'],
+    [0x400c, 'D_FILE', 'start of the display file'],
+    [0x400e, 'DF_CC', 'address of the PRINT position'],
+    [0x4010, 'VARS', 'start of the variables area'],
+    [0x4012, 'DEST', 'address of the variable being assigned'],
+    [0x4014, 'E_LINE', 'start of the line being edited'],
+    [0x4016, 'CH_ADD', 'address of the next character to interpret'],
+    [0x4018, 'X_PTR', 'address of the character an error points at'],
+    [0x401a, 'STKBOT', 'start of the calculator stack'],
+    [0x401c, 'STKEND', 'end of the calculator stack'],
+    [0x401e, 'BERG', 'calculator working byte'],
+    [0x401f, 'MEM', 'address of the calculator memory area'],
+    [0x4022, 'DF_SZ', 'lines in the lower part of the screen'],
+    [0x4023, 'S_TOP', 'line number at the top of the screen'],
+    [0x4025, 'LAST_K', 'the last key pressed'],
+    [0x4027, 'DB_ST', 'debounce status'],
+    [0x4028, 'MARGIN', 'blank lines above the picture'],
+    [0x4029, 'NXTLIN', 'address of the next line to run'],
+    [0x402b, 'OLDPPC', 'line CONT jumps to'],
+    [0x402d, 'FLAGX', 'more flags'],
+    [0x402e, 'STRLEN', 'length of a string result'],
+    [0x4030, 'T_ADDR', 'address in the syntax table'],
+    [0x4032, 'SEED', 'RAND seed'],
+    [0x4034, 'FRAMES', 'frame counter'],
+    [0x4036, 'COORDS', 'x and y of the last PLOT'],
+    [0x4038, 'PR_CC', 'printer buffer position'],
+    [0x4039, 'S_POSN', 'print position on screen'],
+    [0x403b, 'CDFLAG', 'flags, bit 7 set in compute-and-display'],
+    [0x403c, 'PRBUFF', 'printer buffer'],
+    [0x405d, 'MEMBOT', 'calculator memory area'],
+  ];
+  write({
+    id: 'zx81-sysvars', name: 'ZX81 system variables', range: [0x4000, 0x407c],
+    provenance: 'ZX81 system variable block, as documented in the ROM disassembly',
+    indexBase: 0x4000,
+    kind: 'data',
+    symbols: {},
+    data: Object.fromEntries(vars.map(([a, n, note]) => [String(a), { name: n, note }])),
+  }, 'zx81-sysvars.json');
+}
+
 const zx81Asm = process.argv[2];
 if (zx81Asm && fs.existsSync(zx81Asm)) buildZX81(zx81Asm);
 else console.log('skipping zx81.json — pass the path to Sinclair-ZX81.asm to build it');
 buildAercoZX81();
 buildLkdos2068();
 buildLdosZX81();
+buildZX81Sysvars();
 
 const refDocs = process.argv[3];
 if (refDocs) {
   buildFromMarkdown(refDocs, 'ts2068_rom_entry_points.md', 'ts2068-home', 'TS2068 HOME ROM', [0x0000, 0x3fff]);
   buildFromMarkdown(refDocs, 'spectrum48_rom_entry_points.md', 'spectrum48', 'ZX Spectrum 48K ROM', [0x0000, 0x3fff]);
+  buildTs2068Sysvars(refDocs);
 } else {
   console.log('skipping ROM entry-point packs — pass the reference docs directory as the 2nd argument');
 }

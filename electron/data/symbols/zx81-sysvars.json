@@ -1,0 +1,162 @@
+{
+  "id": "zx81-sysvars",
+  "name": "ZX81 system variables",
+  "range": [
+    16384,
+    16508
+  ],
+  "provenance": "ZX81 system variable block, as documented in the ROM disassembly",
+  "indexBase": 16384,
+  "kind": "data",
+  "symbols": {},
+  "data": {
+    "16384": {
+      "name": "ERR_NR",
+      "note": "error code less one"
+    },
+    "16385": {
+      "name": "FLAGS",
+      "note": "various BASIC flags"
+    },
+    "16386": {
+      "name": "ERR_SP",
+      "note": "address of the error return"
+    },
+    "16388": {
+      "name": "RAMTOP",
+      "note": "first byte above BASIC"
+    },
+    "16390": {
+      "name": "MODE",
+      "note": "K, L, F or G cursor"
+    },
+    "16391": {
+      "name": "PPC",
+      "note": "line number of the statement running"
+    },
+    "16393": {
+      "name": "VERSN",
+      "note": "0 marks the ROM version"
+    },
+    "16394": {
+      "name": "E_PPC",
+      "note": "line number of the line with the cursor"
+    },
+    "16396": {
+      "name": "D_FILE",
+      "note": "start of the display file"
+    },
+    "16398": {
+      "name": "DF_CC",
+      "note": "address of the PRINT position"
+    },
+    "16400": {
+      "name": "VARS",
+      "note": "start of the variables area"
+    },
+    "16402": {
+      "name": "DEST",
+      "note": "address of the variable being assigned"
+    },
+    "16404": {
+      "name": "E_LINE",
+      "note": "start of the line being edited"
+    },
+    "16406": {
+      "name": "CH_ADD",
+      "note": "address of the next character to interpret"
+    },
+    "16408": {
+      "name": "X_PTR",
+      "note": "address of the character an error points at"
+    },
+    "16410": {
+      "name": "STKBOT",
+      "note": "start of the calculator stack"
+    },
+    "16412": {
+      "name": "STKEND",
+      "note": "end of the calculator stack"
+    },
+    "16414": {
+      "name": "BERG",
+      "note": "calculator working byte"
+    },
+    "16415": {
+      "name": "MEM",
+      "note": "address of the calculator memory area"
+    },
+    "16418": {
+      "name": "DF_SZ",
+      "note": "lines in the lower part of the screen"
+    },
+    "16419": {
+      "name": "S_TOP",
+      "note": "line number at the top of the screen"
+    },
+    "16421": {
+      "name": "LAST_K",
+      "note": "the last key pressed"
+    },
+    "16423": {
+      "name": "DB_ST",
+      "note": "debounce status"
+    },
+    "16424": {
+      "name": "MARGIN",
+      "note": "blank lines above the picture"
+    },
+    "16425": {
+      "name": "NXTLIN",
+      "note": "address of the next line to run"
+    },
+    "16427": {
+      "name": "OLDPPC",
+      "note": "line CONT jumps to"
+    },
+    "16429": {
+      "name": "FLAGX",
+      "note": "more flags"
+    },
+    "16430": {
+      "name": "STRLEN",
+      "note": "length of a string result"
+    },
+    "16432": {
+      "name": "T_ADDR",
+      "note": "address in the syntax table"
+    },
+    "16434": {
+      "name": "SEED",
+      "note": "RAND seed"
+    },
+    "16436": {
+      "name": "FRAMES",
+      "note": "frame counter"
+    },
+    "16438": {
+      "name": "COORDS",
+      "note": "x and y of the last PLOT"
+    },
+    "16440": {
+      "name": "PR_CC",
+      "note": "printer buffer position"
+    },
+    "16441": {
+      "name": "S_POSN",
+      "note": "print position on screen"
+    },
+    "16443": {
+      "name": "CDFLAG",
+      "note": "flags, bit 7 set in compute-and-display"
+    },
+    "16444": {
+      "name": "PRBUFF",
+      "note": "printer buffer"
+    },
+    "16477": {
+      "name": "MEMBOT",
+      "note": "calculator memory area"
+    }
+  }
+}

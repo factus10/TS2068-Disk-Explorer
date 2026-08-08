@@ -27,6 +27,18 @@ export interface SymbolPack {
    * false precision.
    */
   symbols: Record<number, { name: string; note?: string; approx?: boolean }>;
+  /**
+   * Addresses reached as data rather than as a branch target — system
+   * variables and the like. Kept apart from `symbols` because a name is only
+   * meaningful in one role: $5C3B is FLAGS to read, never a routine to call.
+   */
+  data?: Record<number, { name: string; note?: string }>;
+  /**
+   * What an index register holds, when the machine keeps one pinned. Both the
+   * Spectrum and the ZX81 do, which is why `(IY+$01)` is how most system
+   * variable access is actually written.
+   */
+  indexBase?: number;
 }
 
 export interface EmitOptions {
@@ -61,6 +73,35 @@ export function resolve(
     if (s) hit = { name: s.name, note: s.note, pack: p.id, approx: s.approx };
   }
   return hit;
+}
+
+/**
+ * Name the memory an instruction touches: an absolute `($5C3B)` operand, or an
+ * `(IY+d)` one resolved through the pinned index base.
+ */
+export function resolveData(text: string, packs: SymbolPack[]): string | null {
+  const names: string[] = [];
+  const look = (addr: number) => {
+    for (let i = packs.length - 1; i >= 0; i--) {
+      const p = packs[i];
+      if (!p.data) continue;
+      if (p.range && (addr < p.range[0] || addr > p.range[1])) continue;
+      const d = p.data[addr];
+      if (d) return d;
+    }
+    return null;
+  };
+  for (const m of text.matchAll(/\(\$([0-9A-F]{4})\)/g)) {
+    const d = look(parseInt(m[1], 16));
+    if (d) names.push(d.name);
+  }
+  for (const m of text.matchAll(/\(I([XY])([+-])(\d+)\)/g)) {
+    const base = packs.map((p) => p.indexBase).filter((b): b is number => b !== undefined).pop();
+    if (base === undefined) break;
+    const d = look(base + (m[2] === '-' ? -Number(m[3]) : Number(m[3])));
+    if (d) names.push(d.name);
+  }
+  return names.length ? [...new Set(names)].join(', ') : null;
 }
 
 /** How a resolved symbol reads in the output. */
@@ -170,6 +211,8 @@ function renderInstruction(
     if (sym) comment = ` ; ${label(sym)}`;
     else if (result.labels.has(insn.target)) comment = '';
   }
+  const mem = resolveData(insn.text, packs);
+  if (mem) comment += comment ? ` [${mem}]` : ` ; ${mem}`;
   if (insn.undocumented) comment += comment ? ' [undocumented]' : ' ; undocumented';
   if (insn.invalid) comment += ' [invalid opcode]';
   const body = `\t${insn.text}`.padEnd(28);

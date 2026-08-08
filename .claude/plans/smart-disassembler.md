@@ -1,6 +1,6 @@
 # Smart Disassembler — Z80 disassembly with ROM/DOS symbol recognition
 
-> **Layer 1 delivered; Layer 2 and jump-table detection outstanding.**
+> **Layer 1 delivered; Layer 2 outstanding.**
 >
 > Built and merged: the decoder, the tracer with its RST inline-data handling,
 > entry-point harvesting, the emitter, the Disasm tab, and the `.dis` plus
@@ -8,11 +8,19 @@
 > of the BASIC, PINBALL reaches 65% of its code from one seed, and BBDOS resolves
 > as `PR-STR-4 ×7, PRINT-AT ×5, CLS ×2, FAST`.
 >
-> Six of the eleven packs below shipped, under shorter names than the plan used:
-> `dos-larken` → `lkdos-2068`, `dos-ldos-zx81` → `ldos-zx81`, and
-> `dos-aerco-zx81` + `dos-bbdos-zx81` merged into one `aerco-zx81`, since both
-> describe the same board. Not built: `ts2068-exrom`, `ts2068-sysvars`,
-> `dos-zebra`, `dos-fdd3000`. `scripts/build-symbols.ts` regenerates them all.
+> Eight packs shipped, under shorter names than the plan used: `dos-larken` →
+> `lkdos-2068`, `dos-ldos-zx81` → `ldos-zx81`, and `dos-aerco-zx81` +
+> `dos-bbdos-zx81` merged into one `aerco-zx81`, since both describe the same
+> board. `ts2068-sysvars` and a `zx81-sysvars` the plan did not list are built
+> too. `scripts/build-symbols.ts` regenerates them all.
+>
+> Not built, and one of them cannot be: `ts2068-exrom` is still available (172
+> addressed labels in the source). `dos-zebra` and `dos-fdd3000` **cannot be
+> extracted soundly** — both annotated listings label their routines
+> symbolically and carry no addresses at all, so producing address→name rows
+> would mean assembling the sources and trusting the result. A pack built that
+> way would put confident names on addresses nothing verified, which is the one
+> failure this design exists to prevent.
 >
 > Three things implementation taught that this plan did not anticipate:
 >
@@ -34,6 +42,21 @@
 > documents, and the offset table the TS2068 and Spectrum ROMs dispatch through.
 > It is anchored on a named instruction sequence rather than a hopeful scan, so
 > a dispatch it cannot explain still stops the run.
+>
+> The sysvar packs are a second kind of symbol, kept apart from the first: a
+> name is only meaningful in one role, and $5C3B is FLAGS to read, never a
+> routine to call. They resolve absolute `($5Cxx)` operands and the `(IY+d)`
+> form the Spectrum actually uses — 125 lines gained a name across the 397 disk
+> programs traced, and 358 in the HOME ROM.
+>
+> Building them exposed a decoder defect worth recording, since it had been
+> shipping wrong answers quietly: `LD (IY+0),L` was tagged `[undocumented]`. A
+> blanket "prefixed instruction" rule flagged every indexed form, and the DD CB
+> page and the ED interrupt-mode slot were wrong in the same way. The rule is
+> now per-encoding — only the register halves, the copy-to-register DD CB
+> forms, `SLL`, and the duplicate `IM`/`RETN`/`NEG` slots. The traced HOME ROM
+> went from 72 flags to 1, and that one is a `DD` prefix the next opcode
+> ignores, which is the signal working as intended.
 >
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
@@ -226,12 +249,12 @@ Packs to build:
 | Pack | Source | Status |
 |---|---|---|
 | `ts2068-home` | `docs/ts2068_rom_entry_points.md` (markdown tables), `disassemblies/ts2068 home rom.txt` (~411 labels), `2068_DEFS.ASM` | material in hand |
-| `ts2068-exrom` | `docs/Timex Sinclair 2068 EXROM.txt`, `exrom_revision_analysis.md` | material in hand |
+| `ts2068-exrom` | `docs/Timex Sinclair 2068 EXROM.txt`, `exrom_revision_analysis.md` | not built — 172 addressed labels available |
 | `spectrum48` | `docs/spectrum48_rom_entry_points.md` | material in hand |
-| `ts2068-sysvars` | `docs/ts2068_system_variables.md` | material in hand |
+| `ts2068-sysvars` | `docs/ts2068_system_variables.md` | **built** — 100 vars, `IY` base $5C3A |
 | `dos-larken` | LKDOS manual jump table — see below | source identified |
-| `dos-zebra` | `Zebra_OS-64_annotated.asm` | material in hand |
-| `dos-fdd3000` | `fdd3000_annotated.asm` | material in hand |
+| `dos-zebra` | `Zebra_OS-64_annotated.asm` | **cannot build** — symbolic labels, no addresses |
+| `dos-fdd3000` | `fdd3000_annotated.asm` | **cannot build** — symbolic labels, no addresses |
 | `zx81` | ZXSpectrumVault `rom-disassemblies` — see below | source identified |
 | `dos-bbdos-zx81` | BBDOS's own on-disk help files — see below | readable today |
 | `dos-aerco-zx81` | AERCO *Model FD-ZX Instructions* USR listing | source identified |
