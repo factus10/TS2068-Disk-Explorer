@@ -106,6 +106,13 @@ export interface TraceResult {
   /** Seeds actually used, and any that fell outside the buffer. */
   seeds: number[];
   seedsOutside: number[];
+  /**
+   * Branch targets that landed inside an already-decoded instruction. Each one
+   * means two paths disagree about where an instruction starts, so at least one
+   * of them is walking data. They are reported rather than decoded, because
+   * emitting both readings would contradict itself.
+   */
+  conflicts: { target: number; from: number }[];
   stats: {
     codeBytes: number;
     inlineBytes: number;
@@ -140,6 +147,7 @@ export function trace(
   const external = new Map<number, number[]>();
   const inline: InlineRun[] = [];
   const covered = new Uint8Array(end);   // every byte accounted for as code or inline
+  const conflicts: { target: number; from: number }[] = [];
   const used: number[] = [];
   const outside: number[] = [];
 
@@ -159,9 +167,14 @@ export function trace(
 
   while (queue.length) {
     let off = queue.pop()!;
+    if (off >= 0 && off < end && covered[off] && !code.has(off)) {
+      conflicts.push({ target: origin + off, from: -1 });
+      continue;                           // lands mid-instruction; do not decode
+    }
     // Walk straight-line code until something ends the run.
     for (;;) {
       if (off < 0 || off >= end || code.has(off)) break;
+      if (covered[off]) { conflicts.push({ target: origin + off, from: origin + off }); break; }
 
       const insn = decodeOne(data, off, origin);
       code.set(off, insn);
@@ -219,6 +232,7 @@ export function trace(
     data: findDataRuns(data, covered, machine, minTextRun),
     seeds: used,
     seedsOutside: outside,
+    conflicts,
     stats: summarise(code, inline, covered, end),
   };
 }
@@ -269,14 +283,20 @@ function splitSpan(
 function summarise(
   code: Map<number, Instruction>, inline: InlineRun[], covered: Uint8Array, end: number,
 ) {
-  let codeBytes = 0, undocumented = 0, invalid = 0;
+  let undocumented = 0, invalid = 0;
   for (const insn of code.values()) {
-    codeBytes += insn.length;
     if (insn.undocumented) undocumented++;
     if (insn.invalid) invalid++;
   }
   const inlineBytes = inline.reduce((n, r) => n + r.length, 0);
-  let dataBytes = 0;
-  for (let i = 0; i < end; i++) if (!covered[i]) dataBytes++;
-  return { codeBytes, inlineBytes, dataBytes, instructions: code.size, undocumented, invalid };
+  let coveredBytes = 0;
+  for (let i = 0; i < end; i++) if (covered[i]) coveredBytes++;
+  return {
+    codeBytes: coveredBytes - inlineBytes,
+    inlineBytes,
+    dataBytes: end - coveredBytes,
+    instructions: code.size,
+    undocumented,
+    invalid,
+  };
 }
