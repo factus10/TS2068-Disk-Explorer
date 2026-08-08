@@ -7,7 +7,7 @@ import { detect as detectOliger } from './oliger';
 import { detect as detectSNA } from './sna-reader';
 import { detect as detectSCR } from './scr-reader';
 import { detect as detectMGT } from './mgt-reader';
-import { detect as detectZX81Larken } from './zx81-larken';
+import { detect as detectZX81Aerco } from './zx81-aerco';
 
 /**
  * Auto-detect disk image format from file contents.
@@ -43,8 +43,8 @@ export function detectFormat(buffer: Buffer, filePath?: string): DiskFormat | nu
   // 2. QL5A/QL5B magic → Sinclair QL
   if (detectQL(buffer)) return 'ql';
 
-  // 3. ZX81 Larken: BBDOS directory sector, or ZX81 memory images at the slot starts
-  if (detectZX81Larken(buffer)) return 'zx81-larken';
+  // 3. ZX81 Aerco: BBDOS directory sector, or ZX81 memory images at the slot starts
+  if (detectZX81Aerco(buffer)) return 'zx81-aerco';
 
   // 4. Aerco: JR at byte 0 (0x18) + JP 0x3539 or RP/M
   const aercoResult = detectAerco(buffer);

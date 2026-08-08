@@ -1,22 +1,52 @@
 /**
- * ZX81 disks written through a Larken (LKDOS) interface.
+ * ZX81 disks written through an Aerco disk interface.
+ *
+ * The programs on these disks say so themselves: BBDOS's line 4 reads
+ * `REM BBDOS 4.0 AERCO/DS/40/4K COPYRIGHT 1986 BILL BELL`, its help text calls
+ * it "a fully automatic, BASIC transparent operating system for AERCO disk
+ * users on ZX81/TS1000", and gives the memory map as `3000-37FFH AERCO BOARD`.
+ * (Disk images of these are sometimes filed as "Larken" — they are not. A
+ * Larken ZX81 interface answers at 14336/$3800 and 16374/$3FF6, per Larken's
+ * own LFCM manual, which is a different range entirely.)
  *
  * Geometry: 40 cylinders x 2 sides x 10 sectors x 512 bytes = 409600 bytes.
  * The image stores cylinders interleaved by side — cyl0/side0, cyl0/side1,
  * cyl1/side0, ... — so a whole track is 5120 bytes and side N occupies every
  * other track (even tracks = side 0, odd tracks = side 1).
  *
+ * Aerco drives came in several geometries and the page count follows from them,
+ * per the FD-ZX manual's USR listing: DD/SS/35T stops at page 8, DD/SS/40T at
+ * page 10, DD/DS/35T at page 16, DD/DS/40T at page 20. This parser handles the
+ * last of those — the 409600-byte, twenty-page case, which is what every image
+ * seen so far is. `detect` requires that exact size, so a 35-track or 80-track
+ * Aerco image is not recognised rather than being misread.
+ *
  * Each side is carved into ten fixed 4-cylinder slots, twenty in all. There is
  * no allocation map and no per-file sector list: the slot number alone gives
  * the location, and a file simply runs on from its slot start until it ends.
+ * These slots are Aerco's memory "pages" — BBDOS describes itself as retaining
+ * "the AERCO methods of 16K and 64K pages", which is why SADOS+ numbers them
+ * page 1 to page 20, and why its 64K build offers only six.
  *
  *   slot 0-9   side 0, starting at cylinders 0, 4, 8, ... 36
  *   slot 10-19 side 1, same cylinders
  *
  * Files are plain ZX81 memory images starting at VERSN (0x4009) — byte for byte
  * the `.p` tape format. Their length comes from the E_LINE system variable in
- * the image itself, and a file larger than its 20480-byte slot spills into the
- * following slots, which are then left marked free.
+ * the image itself.
+ *
+ * A page comes in two sizes, and the BBDOS manual gives the default layout:
+ * pages 2, 3, 10 and 20 are 16K pages, while 4-5-6, 7-8-9, 11-12-13, 14-15-16
+ * and 17-18-19 are five 64K pages of three slots each (a single-sided disk gets
+ * 2, 3, 10 as 16K and two 64K pages). Page 1 holds the DOS code and the
+ * directory. "A 16K page actually can hold 20K of data" — hence the 20480-byte
+ * slot. The DOS "deconfigures 64K pages to 16K pages when needed, reconfigures
+ * if the 3 16K pages become free", so the layout is not fixed for all time.
+ *
+ * That is why a large file appears to run past its own slot: PRO/FILE 40K
+ * occupies pages 11-12-13, which is one 64K page rather than three trespassed
+ * ones. `slotCapacity` below arrives at the same answer by looking for the next
+ * page in use, which holds for both sizes.
  *
  * Two DOSes are known to use this layout, and they name files differently:
  *
@@ -26,15 +56,33 @@
  *   0x000  32 bytes  "DIRECTORY  DISK NO. nnn" padded with spaces/nulls
  *   0x020  20 x 24   one entry per slot, in slot order
  *
- * Each entry is 9 bytes of fixed per-slot template data (byte-identical across
- * every BBDOS disk examined, so it carries no per-file information) followed by
- * a 15-character name in the ZX81 character set. An all-null name means the
- * slot is free.
+ * An entry is 9 bytes of page configuration followed by a 15-character name in
+ * the ZX81 character set; an all-null name means the page is free. The manual
+ * describes the configuration as "directory flags for 16/64, free/in use,
+ * prog/vars use". Two of those flags are pinned down — on both disks examined,
+ * across all twenty pages, byte 1 carries 0x40 and byte 7 reads '6' on exactly
+ * the head of a 64K page, and byte 7 reads '1' otherwise. Bytes 3-4 spell the
+ * page number as two digits offset by 0x30 (running past '9' for pages 10-20).
+ * The remaining bits are not decoded; none of this is needed to read a disk, so
+ * the parser does not depend on it.
  *
  * SADOS+ writes no directory at all. It is a BASIC menu program that holds the
  * user's names for each slot in a `Q$` array among its own variables, and loads
  * a slot by number ("page 1" through "page 20"). Such disks are read by looking
  * for a ZX81 system-variable block at each slot start.
+ *
+ * On a factory SADOS boot disc the occupied pages are not arbitrary. The FD-ZX
+ * manual: "the boot disc has the 16K DOS on page 1 and the 64K DOS on page 2.
+ * In fact, the 16K DOS is loaded on the inner-most and outer-most page of each
+ * side of the disc." Pages 1-10 are side 0 and 11-20 side 1, so those corners
+ * are pages 1, 10, 11 and 20 — which is exactly where the copies sit on the
+ * SADOS image, page 2 holding the 64K build.
+ *
+ * The BASIC calls the drive's EPROM directly, and the FD-ZX manual lists the
+ * whole scheme: `USR (12290 + page)` reads a page into BASIC system RAM,
+ * `USR (12720 + page)` writes one back, and `RAND USR 12865` (DD) or `12868`
+ * (SD) re-initialises after a tape load. Add 2048 per 2K if the EPROM is
+ * strapped to an alternate address.
  */
 
 import { readUint16LE } from './utils';
@@ -173,8 +221,8 @@ export function readCatalog(buffer: Buffer): CatalogResult {
     : (slot: number) => hasSysVars(buffer, slotOffset(slot));
 
   const header: DiskHeader = {
-    format: 'zx81-larken',
-    formatName: hasDirectory ? 'ZX81 Larken (BBDOS)' : 'ZX81 Larken (no directory)',
+    format: 'zx81-aerco',
+    formatName: hasDirectory ? 'ZX81 Aerco (BBDOS)' : 'ZX81 Aerco (no directory)',
     diskName: hasDirectory ? decodeZX81Text(dir.subarray(0, DIR_HEADER_SIZE)).trim() : '',
     sides: 2,
     tracks: 40,

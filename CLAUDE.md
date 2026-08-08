@@ -25,7 +25,7 @@ electron/              # Main process (Node.js / Electron)
     zebra.ts           # Zebra CPC DSK (DIRSCP hierarchical + CP/M flat)
     ql.ts              # Sinclair QL QDOS (QL5A/QL5B)
     zx81.ts            # ZX81 character set + BASIC detokenizer
-    zx81-larken.ts     # ZX81 Larken disks (BBDOS 4.0 and directory-less)
+    zx81-aerco.ts      # ZX81 Aerco disks (BBDOS 4.0 and directory-less)
 src/                   # Renderer (React)
   main.tsx             # Entry point
   App.tsx              # Main layout, state management, IPC calls
@@ -52,7 +52,7 @@ src/                   # Renderer (React)
 | Zebra DIRSCP | .dsk | CPC DSK + DIRSCP marker | Raw with sector de-interleave |
 | Zebra CP/M | .dsk | CPC DSK without DIRSCP | Catalog only |
 | Sinclair QL | .img | QL5A/QL5B magic | Raw binary |
-| ZX81 Larken | .img | "DIRECTORY" sector at 0x7800 (+ backup copy), else ZX81 sysvars at 2+ slot starts | Raw `.p` (ZX81 memory image) |
+| ZX81 Aerco | .img | "DIRECTORY" sector at 0x7800 (+ backup copy), else ZX81 sysvars at 2+ slot starts | Raw `.p` (ZX81 memory image) |
 
 ## Commands
 
@@ -88,8 +88,8 @@ import { detectFormat } from './electron/parsers/detect';
 ## Architecture Notes
 
 - **IPC boundary:** All file I/O and parsing runs in the main process. The renderer only receives serialized data (no Buffer objects cross IPC — use number arrays).
-- **Format detection order:** Zebra (magic bytes) → QL (magic) → ZX81 Larken (directory sector or slot sysvars) → Aerco (boot sector) → Larken (directory markers) → Oliger V2 (header) → Oliger V1 (BASIC boot) → fallback by size.
-- **ZX81 disks:** 40 cyl × 2 sides × 10 × 512, stored side-interleaved per cylinder, so a track is 5120 bytes and each side occupies alternate tracks. BBDOS splits each side into ten fixed 4-cylinder slots (20 total) with no allocation map — the slot number alone gives the location. Files are raw ZX81 memory images from 0x4009 (the `.p` format); their length comes from the E_LINE system variable, and an oversized file spills into the following slots, which are left marked free. BBDOS 4.0 stores names in a directory sector at 0x7800 (plus a backup copy in the next sector); SADOS+ writes no directory at all — it is a BASIC menu program holding its names in a `Q$` array among its own variables — so those disks are read by probing each slot start for a ZX81 sysvar block and are listed by page number.
+- **Format detection order:** Zebra (magic bytes) → QL (magic) → ZX81 Aerco (directory sector or slot sysvars) → Aerco (boot sector) → Larken (directory markers) → Oliger V2 (header) → Oliger V1 (BASIC boot) → fallback by size.
+- **ZX81 disks (Aerco):** these are Aerco-interface disks — BBDOS names itself `AERCO/DS/40` and maps the `3000-37FFH AERCO BOARD`; the "Larken" in some filenames is a mislabel. 40 cyl × 2 sides × 10 × 512, stored side-interleaved per cylinder, so a track is 5120 bytes and each side occupies alternate tracks. BBDOS splits each side into ten fixed 4-cylinder slots (20 total) — Aerco "pages", numbered 1-20. A 16K page holds 20K; a 64K page is three consecutive slots (default heads at pages 4, 7, 11, 14, 17), which is why a large file like PRO/FILE 40K appears to span slots. Page 1 holds the DOS and the directory. Page count follows the drive geometry (DD/SS/35T=8, DD/SS/40T=10, DD/DS/35T=16, DD/DS/40T=20); the parser handles the 20-page 409600-byte case only. The drive EPROM sits at 0x3000-0x37FF and BASIC drives it with `USR (12290+page)` to load and `USR (12720+page)` to save. A Larken ZX81 interface is a different machine entirely — its LDOS EPROM starts at 0x3800 and is entered with `RAND USR 14336`. Files are raw ZX81 memory images from 0x4009 (the `.p` format); their length comes from the E_LINE system variable, and an oversized file spills into the following slots, which are left marked free. BBDOS 4.0 stores names in a directory sector at 0x7800 (plus a backup copy in the next sector); SADOS+ writes no directory at all — it is a BASIC menu program holding its names in a `Q$` array among its own variables — so those disks are read by probing each slot start for a ZX81 sysvar block and are listed by page number.
 - **TAP format:** Sequential header+data block pairs. Multi-file TAPs are just concatenated blocks. The `buildDumpTap` function already creates dual-file TAPs (BASIC loader + CODE block).
 - **ZX Spectrum BASIC tokens:** LOAD=0xEF, CODE=0xAF, SCREEN$=0xAA, CLEAR=0xF9, RANDOMIZE=0xF5, USR=0xC0, quote=0x22. Numbers have inline 5-byte floats after `0x0E`.
 
