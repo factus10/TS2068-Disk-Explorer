@@ -265,7 +265,12 @@ function splitSpan(
   while (pos < end) {
     let k = pos;
     while (k < end && machine.printable(data[k]) !== null) k++;
-    if (k - pos >= minTextRun) {
+    // A run of spaces is not text. On the ZX81 especially, $00 is a space, so
+    // any stretch of zeroed memory would otherwise come out as a long DEFM of
+    // nothing — which is exactly what the system-variable block looks like.
+    let substance = 0;
+    for (let t = pos; t < k; t++) if (machine.printable(data[t]) !== ' ') substance++;
+    if (k - pos >= minTextRun && substance >= 2) {
       if (pos > rawFrom) runs.push({ start: rawFrom, end: pos, kind: 'bytes' });
       let text = '';
       for (let t = pos; t < k; t++) text += machine.printable(data[t]);
