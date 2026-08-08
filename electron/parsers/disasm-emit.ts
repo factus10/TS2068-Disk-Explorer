@@ -21,8 +21,12 @@ export interface SymbolPack {
   /** Where this pack's addresses are valid; later packs win inside their range. */
   range?: [number, number];
   provenance?: string;
-  /** Address → short label. */
-  symbols: Record<number, { name: string; note?: string }>;
+  /**
+   * Address → short label. `approx` marks an address the source itself gave
+   * only approximately; it is rendered with a `?` so a reader is never handed
+   * false precision.
+   */
+  symbols: Record<number, { name: string; note?: string; approx?: boolean }>;
 }
 
 export interface EmitOptions {
@@ -49,14 +53,19 @@ const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
 /** Resolve an address against the packs, last match winning. */
 export function resolve(
   addr: number, packs: SymbolPack[],
-): { name: string; note?: string; pack: string } | null {
-  let hit: { name: string; note?: string; pack: string } | null = null;
+): { name: string; note?: string; pack: string; approx?: boolean } | null {
+  let hit: { name: string; note?: string; pack: string; approx?: boolean } | null = null;
   for (const p of packs) {
     if (p.range && (addr < p.range[0] || addr > p.range[1])) continue;
     const s = p.symbols[addr];
-    if (s) hit = { name: s.name, note: s.note, pack: p.id };
+    if (s) hit = { name: s.name, note: s.note, pack: p.id, approx: s.approx };
   }
   return hit;
+}
+
+/** How a resolved symbol reads in the output. */
+function label(sym: { name: string; note?: string; approx?: boolean }): string {
+  return `${sym.name}${sym.approx ? '?' : ''}${sym.note ? ` — ${sym.note}` : ''}`;
 }
 
 export function emit(
@@ -85,6 +94,9 @@ export function emit(
   if (packs.length) {
     out.push(';');
     for (const p of packs) out.push(`; symbols: ${p.name}${p.provenance ? ` — ${p.provenance}` : ''}`);
+    if (packs.some((p) => Object.values(p.symbols).some((s) => s.approx))) {
+      out.push('; a name ending in ? is an address the source gave only approximately');
+    }
   }
   out.push(';');
 
@@ -95,7 +107,7 @@ export function emit(
     const rows = [...result.external.entries()].sort((a, b) => b[1].length - a[1].length);
     for (const [addr, sites] of rows) {
       const sym = resolve(addr, packs);
-      out.push(`;   $${hex4(addr)}  ${String(sites.length).padStart(3)}×  ${sym ? sym.name + (sym.note ? ` — ${sym.note}` : '') : '(unknown)'}`);
+      out.push(`;   $${hex4(addr)}  ${String(sites.length).padStart(3)}×  ${sym ? label(sym) : '(unknown)'}`);
     }
     out.push(';');
   }
@@ -141,19 +153,19 @@ export function emit(
 function renderInstruction(
   insn: Instruction, result: TraceResult, packs: SymbolPack[],
 ): string {
-  const label = result.labels.get(insn.addr);
+  const lineLabel = result.labels.get(insn.addr);
   const raw = insn.bytes.map(hex2).join(' ').padEnd(11);
   let comment = '';
   if (insn.target !== undefined) {
     const sym = resolve(insn.target, packs);
-    if (sym) comment = ` ; ${sym.name}${sym.note ? ` — ${sym.note}` : ''}`;
+    if (sym) comment = ` ; ${label(sym)}`;
     else if (result.labels.has(insn.target)) comment = '';
   }
   if (insn.undocumented) comment += comment ? ' [undocumented]' : ' ; undocumented';
   if (insn.invalid) comment += ' [invalid opcode]';
   const body = `\t${insn.text}`.padEnd(28);
   const line = `$${hex4(insn.addr)}  ${raw}${body}${comment}`;
-  return label ? `\n${label}:\n${line}` : line;
+  return lineLabel ? `\n${lineLabel}:\n${line}` : line;
 }
 
 function renderData(data: Buffer | Uint8Array, run: DataRun, origin: number): string[] {

@@ -112,7 +112,7 @@ function buildLdosZX81() {
 function buildFromMarkdown(dir: string, file: string, id: string, name: string, range: [number, number]) {
   const full = path.join(dir, file);
   if (!fs.existsSync(full)) { console.log(`skipping ${id} — ${file} not found`); return; }
-  const symbols: Record<string, { name: string; note?: string }> = {};
+  const symbols: Record<string, { name: string; note?: string; approx?: boolean }> = {};
   // "All addresses are HOME ROM addresses unless marked [EXROM]" — the EXROM is
   // a different ROM at the same addresses, so its rows must not be mixed in.
   let inExrom = false;
@@ -121,13 +121,21 @@ function buildFromMarkdown(dir: string, file: string, id: string, name: string, 
     if (heading) { inExrom = /EXROM/i.test(heading[1]); continue; }
     if (inExrom) continue;
     // | $0010   | PRINT-A-1/RST10 | Write character in A ... |
-    const m = line.match(/^\|\s*~?\$([0-9A-Fa-f]{4})\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|/);
+    const m = line.match(/^\|\s*(~?)\$([0-9A-Fa-f]{4})\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|/);
     if (!m) continue;
     if (/\[EXROM\]/i.test(line)) continue;
-    const addr = parseInt(m[1], 16);
+    const addr = parseInt(m[2], 16);
     if (addr < range[0] || addr > range[1]) continue;
-    const note = m[3].replace(/\*\*/g, '').trim();
-    symbols[String(addr)] = { name: m[2].trim(), ...(note && note.length < 80 ? { note } : {}) };
+    const note = m[4].replace(/\*\*/g, '').trim();
+    // The tables mark an address approximate with a leading ~. Carry that
+    // through rather than shipping it as exact: $1B7A MAIN-4 lands inside
+    // another instruction in both the stock and the modified ROM, so treating
+    // these as precise would attach a confident label to the wrong address.
+    symbols[String(addr)] = {
+      name: m[3].trim(),
+      ...(note && note.length < 80 ? { note } : {}),
+      ...(m[1] ? { approx: true } : {}),
+    };
   }
   if (!Object.keys(symbols).length) { console.log(`skipping ${id} — no rows matched`); return; }
   write({ id, name, range, provenance: `${file} (TS2068 Ref Library) — documented entry points`, symbols },
