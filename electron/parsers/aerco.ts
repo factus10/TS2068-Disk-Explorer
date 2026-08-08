@@ -21,6 +21,9 @@ const FILE_TYPE_NAMES: Record<number, string> = {
 
 const FILE_HEADER_SIZE = 17;
 
+/** Types whose first track opens with a 17-byte copy of the directory entry. */
+const HEADERED_TYPES = [TYPE_BASIC, TYPE_CODE, TYPE_DATA];
+
 // RP/M constants
 const RPM_SYSTEM_TRACKS = 4;
 const RPM_BLS = 2048;
@@ -35,6 +38,16 @@ function typeCodeToFileType(code: number): FileType {
     case 0x08: return 'data';
     default: return 'unknown';
   }
+}
+
+/**
+ * Bytes of file content the block list reserves: whole tracks, less the
+ * 17-byte header the first track carries for BASIC/CODE/DATA.
+ */
+function allocatedSize(etype: number, blocks: number[]): number {
+  if (!blocks.length) return 0;
+  const total = blocks.length * TRACK_SIZE;
+  return HEADERED_TYPES.includes(etype) ? total - FILE_HEADER_SIZE : total;
 }
 
 function blockToOffset(blockNum: number, numTracks: number): number {
@@ -115,12 +128,19 @@ function readDos64Catalog(data: Buffer): CatalogResult {
 
     const ft = typeCodeToFileType(etype);
 
+    // MODULE (0x04) entries leave the length word zero — DOS-64 records no
+    // length for overlays, and their trailing slack holds stale data with no
+    // terminator, so nothing shorter is recoverable. Report the space the
+    // block list reserves, which is what readFileData returns, and say so.
+    const allocated = allocatedSize(etype, blocks);
+    const hasLength = flen > 0;
+
     entries.push({
       index: idx++,
       filename: name,
       type: ft,
       typeName: FILE_TYPE_NAMES[etype] ?? `Type 0x${etype.toString(16)}`,
-      size: flen,
+      size: hasLength ? Math.min(flen, allocated) : allocated,
       params: {
         param1,
         param2,
@@ -132,7 +152,7 @@ function readDos64Catalog(data: Buffer): CatalogResult {
       blocks,
       isMemoryDump: false,
       isDirectory: false,
-      metadata: {},
+      metadata: hasLength ? {} : { length: 'not recorded — size is allocated blocks' },
     });
 
     offset += DIR_ENTRY_SIZE;
@@ -157,14 +177,16 @@ function readDos64FileData(data: Buffer, entry: FileEntry): Buffer | null {
 
     const trackData = data.subarray(offset, offset + TRACK_SIZE);
 
-    if (i === 0 && [TYPE_BASIC, TYPE_CODE, TYPE_DATA].includes(etype)) {
+    if (i === 0 && HEADERED_TYPES.includes(etype)) {
       for (let j = FILE_HEADER_SIZE; j < TRACK_SIZE; j++) content.push(trackData[j]);
     } else {
       for (let j = 0; j < TRACK_SIZE; j++) content.push(trackData[j]);
     }
   }
 
-  if ([TYPE_BASIC, TYPE_CODE, TYPE_DATA].includes(etype) && flen > 0) {
+  // entry.size is the declared length, or the allocated span when the
+  // directory records none (MODULE); either way it never exceeds the blocks.
+  if (flen > 0 && flen < content.length) {
     return Buffer.from(content.slice(0, flen));
   }
 
