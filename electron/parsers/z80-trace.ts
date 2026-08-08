@@ -25,6 +25,8 @@
 
 import { decodeOne } from './z80-disasm';
 import type { Instruction } from './z80-disasm';
+import { findTables } from './z80-tables';
+import type { InferredTable } from './z80-tables';
 
 export interface RstConvention {
   /** A fixed number of inline bytes following the RST. */
@@ -107,6 +109,12 @@ export interface TraceResult {
   seeds: number[];
   seedsOutside: number[];
   /**
+   * Dispatch tables whose targets were worked out and traced. Reported so a
+   * reader can see which code was reached by inference rather than by
+   * following an instruction, and discount it if the table looks wrong.
+   */
+  tables: InferredTable[];
+  /**
    * Branch targets that landed inside an already-decoded instruction. Each one
    * means two paths disagree about where an instruction starts, so at least one
    * of them is walking data. They are reported rather than decoded, because
@@ -127,12 +135,47 @@ export interface TraceOptions {
   machine?: Machine;
   /** Minimum run of printable bytes before a data span is called text. */
   minTextRun?: number;
+  /**
+   * Recover the targets of table dispatches and trace them too. Off by default:
+   * a caller that wants only what the instructions plainly say should get that.
+   */
+  detectTables?: boolean;
 }
 
 /**
  * Trace from `seeds` (absolute addresses) over a buffer loaded at `origin`.
+ *
+ * With `detectTables`, a pass that finds new dispatch tables is followed by
+ * another seeded from their targets, until a pass adds nothing. Tables often
+ * only become visible once the code that sets them up has itself been reached,
+ * so one pass is not enough.
  */
 export function trace(
+  data: Buffer | Uint8Array,
+  origin: number,
+  seeds: number[],
+  options: TraceOptions = {},
+): TraceResult {
+  if (!options.detectTables) return traceOnce(data, origin, seeds, options);
+
+  const found = new Map<number, InferredTable>();
+  let result = traceOnce(data, origin, seeds, options);
+  // A table can reveal code that sets up another, so keep going until a pass
+  // finds nothing new. The bound is a backstop, not an expected limit.
+  for (let pass = 0; pass < 8; pass++) {
+    const ordered = [...result.code.entries()].sort((a, b) => a[0] - b[0]).map(([, i]) => i);
+    const tables = findTables(data, origin, ordered);
+    const fresh = tables.filter((t) => !found.has(t.base));
+    if (!fresh.length) break;
+    for (const t of fresh) found.set(t.base, t);
+    const extra = [...new Set(fresh.flatMap((t) => t.targets))];
+    result = traceOnce(data, origin, [...seeds, ...[...found.values()].flatMap((t) => t.targets)], options);
+    if (!extra.length) break;
+  }
+  return { ...result, tables: [...found.values()].sort((a, b) => a.base - b.base) };
+}
+
+function traceOnce(
   data: Buffer | Uint8Array,
   origin: number,
   seeds: number[],
@@ -232,6 +275,7 @@ export function trace(
     data: findDataRuns(data, covered, machine, minTextRun),
     seeds: used,
     seedsOutside: outside,
+    tables: [],
     conflicts,
     stats: summarise(code, inline, covered, end),
   };

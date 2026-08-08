@@ -29,10 +29,14 @@
 > The origin override is built, which closes one of the open questions below and is
 > what makes an Aerco MODULE — no recorded load address — worth disassembling at all.
 >
-> Still open: jump-table detection, which caps whole-ROM coverage at about 37%
-> because the interpreter dispatches through `JP (HL)`; disk programs, which are
-> what the feature is for, do far better. Layer 2 remains deliberately unbuilt —
-> see the section near the end for why it is a folder rather than a queue.
+> Jump-table detection is built too, for two patterns taken from real code: a
+> run of `JP nnnn` three bytes to an entry, which is what Larken's LKDOS manual
+> documents, and the offset table the TS2068 and Spectrum ROMs dispatch through.
+> It is anchored on a named instruction sequence rather than a hopeful scan, so
+> a dispatch it cannot explain still stops the run.
+>
+> Still open: Layer 2, deliberately — see the section near the end for why it is
+> a folder rather than a queue.
 
 ## Context
 
@@ -414,5 +418,9 @@ address/label index rather than the annotated text.
 - Which ROM was paged in when a given file ran. For a disk of known format the DOS pack
   is a safe overlay, but a `CODE` file that switches banks mid-run cannot be resolved
   statically — the emitter should mark those call sites unresolved rather than guess.
-- How far to take jump-table detection (`JP (HL)` after a table load is common in these
-  DOS ROMs) — probably a v2 concern once real output is in front of us.
+- ~~How far to take jump-table detection~~ — **done**, for the two patterns that
+  actually appear. Across 611 disassemblable files a table was recovered in 9, and where
+  it fires the gain is large: `VF-TIMEX/MTECH` goes from 20 instructions to 1136, and one
+  file's conflict count *falls* from 197 to 28, the inferred targets having corrected
+  paths that were walking data. Whether to chase a third pattern is a question for the
+  next disk that needs one.
