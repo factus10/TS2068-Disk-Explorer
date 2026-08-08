@@ -26,8 +26,20 @@
  *
  * Files are plain ZX81 memory images starting at VERSN (0x4009) — byte for byte
  * the `.p` tape format. Their length comes from the E_LINE system variable in
- * the image itself, and a file larger than its 20480-byte slot spills into the
- * following slots, which are then left marked free.
+ * the image itself.
+ *
+ * A page comes in two sizes, and the BBDOS manual gives the default layout:
+ * pages 2, 3, 10 and 20 are 16K pages, while 4-5-6, 7-8-9, 11-12-13, 14-15-16
+ * and 17-18-19 are five 64K pages of three slots each (a single-sided disk gets
+ * 2, 3, 10 as 16K and two 64K pages). Page 1 holds the DOS code and the
+ * directory. "A 16K page actually can hold 20K of data" — hence the 20480-byte
+ * slot. The DOS "deconfigures 64K pages to 16K pages when needed, reconfigures
+ * if the 3 16K pages become free", so the layout is not fixed for all time.
+ *
+ * That is why a large file appears to run past its own slot: PRO/FILE 40K
+ * occupies pages 11-12-13, which is one 64K page rather than three trespassed
+ * ones. `slotCapacity` below arrives at the same answer by looking for the next
+ * page in use, which holds for both sizes.
  *
  * Two DOSes are known to use this layout, and they name files differently:
  *
@@ -37,10 +49,15 @@
  *   0x000  32 bytes  "DIRECTORY  DISK NO. nnn" padded with spaces/nulls
  *   0x020  20 x 24   one entry per slot, in slot order
  *
- * Each entry is 9 bytes of fixed per-slot template data (byte-identical across
- * every BBDOS disk examined, so it carries no per-file information) followed by
- * a 15-character name in the ZX81 character set. An all-null name means the
- * slot is free.
+ * An entry is 9 bytes of page configuration followed by a 15-character name in
+ * the ZX81 character set; an all-null name means the page is free. The manual
+ * describes the configuration as "directory flags for 16/64, free/in use,
+ * prog/vars use". Two of those flags are pinned down — on both disks examined,
+ * across all twenty pages, byte 1 carries 0x40 and byte 7 reads '6' on exactly
+ * the head of a 64K page, and byte 7 reads '1' otherwise. Bytes 3-4 spell the
+ * page number as two digits offset by 0x30 (running past '9' for pages 10-20).
+ * The remaining bits are not decoded; none of this is needed to read a disk, so
+ * the parser does not depend on it.
  *
  * SADOS+ writes no directory at all. It is a BASIC menu program that holds the
  * user's names for each slot in a `Q$` array among its own variables, and loads
