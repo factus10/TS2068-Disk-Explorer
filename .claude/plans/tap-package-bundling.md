@@ -1,5 +1,21 @@
 # TAP Package Bundling — Auto-detect LOAD dependencies
 
+> **Delivered.** Every step below is implemented, and the app went further than
+> the plan: manual packages alongside the auto-detected ones, an Auto PKG toggle,
+> custom base names, and integration with the line editor. Kept for the record of
+> how the format works and why it was built this way.
+>
+> Verified on the example disks: `larken.img` auto-detects `cale27.B1 → cale27.C1`
+> and `time.B1 → time.C1`, both building valid multi-file TAPs, shown in the file
+> table as `▶cale27.B1 PKG 1`.
+>
+> One known gap, narrow enough to have been left alone: `matchesLoadType` in
+> `basic-analyzer.ts` accepts only `num-array`/`str-array` for a `LOAD "x" DATA`,
+> so `tut-2` on `aerco-smart-text-demo.img` does not bind to the `ml` file it
+> loads, which is typed `module`. Aerco MODULE is its own thing and it is arguable
+> whether it should bind; those entries also currently report size 0, which is a
+> separate bug.
+
 ## Context
 
 On disk systems, each file is standalone. On tape (TAP format), a BASIC program and the files it LOADs must be sequential in the same TAP file. Currently, each file extracts to its own `.tap`. Users need a way to bundle a BASIC program with its CODE/DATA dependencies into a single multi-file TAP that works in emulators.
