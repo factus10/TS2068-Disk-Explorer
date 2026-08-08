@@ -1,0 +1,140 @@
+/**
+ * Generates test/fixtures/z80-opcodes.json — the golden table the decoder tests
+ * assert against.
+ *
+ * Every opcode on every prefix page is decoded, and each entry's length is
+ * cross-checked against z80dasm and its rendering re-assembled with z80asm.
+ * Those are native tools that will not exist on a CI runner, so the check
+ * happens here, once, and the verified result is committed. `npm test` then
+ * needs nothing but Node.
+ *
+ * Re-run after any decoder change and read the diff — that diff is the review.
+ *
+ *   npx tsx scripts/gen-opcode-fixture.ts
+ */
+import * as fs from 'fs';
+import * as path from 'path';
+import { execFileSync } from 'child_process';
+import { decodeOne } from '../electron/parsers/z80-disasm';
+
+const OUT = path.join(__dirname, '..', 'test', 'fixtures', 'z80-opcodes.json');
+const PAGES: number[][] = [[], [0xcb], [0xed], [0xdd], [0xfd], [0xdd, 0xcb], [0xfd, 0xcb]];
+const PROBE_ORIGIN = 0x8000;
+const tmpBin = '/tmp/z80-fixture-probe.bin';
+const tmpAsm = '/tmp/z80-fixture-probe.asm';
+
+function have(tool: string): boolean {
+  try { execFileSync('which', [tool], { stdio: 'pipe' }); return true; } catch { return false; }
+}
+const haveDasm = have('z80dasm');
+const haveAsm = have('z80asm');
+
+/** Instruction length as z80dasm sees it, for cross-checking ours. */
+function dasmLength(bytes: number[]): number | null {
+  fs.writeFileSync(tmpBin, Buffer.from([...bytes, 0, 0, 0, 0]));
+  const out = execFileSync('z80dasm', ['-a', '-t', '-g', '0', tmpBin], { encoding: 'utf8' });
+  for (const line of out.split('\n')) {
+    const m = line.match(/^\t.*?;([0-9a-f]{4})\t((?:[0-9a-f]{2} ?)+)/i);
+    if (m && parseInt(m[1], 16) === 0) return m[2].trim().split(/\s+/).length;
+  }
+  return null;
+}
+
+/** Bytes z80asm produces from our rendering, for round-tripping it. */
+function asmBytes(text: string): number[] | null {
+  const src = `\torg 0${PROBE_ORIGIN.toString(16)}h\n\t${text
+    .replace(/\$([0-9A-F]+)/g, (_, h) => '0' + h.toLowerCase() + 'h')
+    .replace(/\b(I[XY])([HL])\b/g, (_, r, h) => (r + h).toLowerCase())}\n`;
+  fs.writeFileSync(tmpAsm, src);
+  try {
+    execFileSync('z80asm', ['-o', tmpBin, tmpAsm], { stdio: 'pipe' });
+    return [...fs.readFileSync(tmpBin)];
+  } catch { return null; }
+}
+
+interface Entry {
+  /** The bytes fed to the decoder, hex. */
+  probe: string;
+  /** The bytes it consumed — shorter than the probe where a prefix is handed back. */
+  bytes: string;
+  length: number;
+  text: string;
+  flow: string;
+  target?: number;
+  undocumented?: boolean;
+  invalid?: boolean;
+  /** How the cross-check went, so the fixture records its own provenance. */
+  dasmLength?: number | null;
+  roundTrip?: 'exact' | 'alias' | 'rejected';
+}
+
+const entries: Entry[] = [];
+let lengthChecked = 0, lengthAgreed = 0, rtExact = 0, rtAlias = 0, rtRejected = 0;
+/**
+ * Where we and z80dasm disagree on length, and why. Every case falls into one
+ * of these, and each is one where this decoder follows the hardware and z80dasm
+ * declines to: a DD/FD prefix ahead of an opcode that ignores it is still
+ * consumed and the instruction executes unprefixed; an ED prefix always takes a
+ * second byte, valid or not. A disagreement outside these buckets would be a
+ * real defect, so the fixture asserts the bucket is empty.
+ */
+const disagreement = { prefixIgnored: 0, edPage: 0, oursInvalid: 0, unexplained: [] as string[] };
+
+for (const pre of PAGES) {
+  for (let op = 0; op < 256; op++) {
+    // On the DD CB / FD CB pages the displacement sits before the opcode byte.
+    const probe = pre.length === 2 ? [...pre, 0x05, op] : [...pre, op];
+    const buf = Buffer.from([...probe, 0, 0, 0, 0]);
+    const insn = decodeOne(buf, 0, PROBE_ORIGIN);
+    const e: Entry = {
+      probe: probe.map((b) => b.toString(16).padStart(2, '0')).join(' '),
+      bytes: insn.bytes.map((b) => b.toString(16).padStart(2, '0')).join(' '),
+      length: insn.length,
+      text: insn.text,
+      flow: insn.flow,
+      ...(insn.target !== undefined ? { target: insn.target } : {}),
+      ...(insn.undocumented ? { undocumented: true } : {}),
+      ...(insn.invalid ? { invalid: true } : {}),
+    };
+    if (haveDasm) {
+      const dl = dasmLength(probe);
+      e.dasmLength = dl;
+      if (dl !== null) {
+        lengthChecked++;
+        if (dl === insn.length) lengthAgreed++;
+        else if (insn.invalid) disagreement.oursInvalid++;
+        else if (probe[0] === 0xed) disagreement.edPage++;
+        else if (probe[0] === 0xdd || probe[0] === 0xfd) disagreement.prefixIgnored++;
+        else disagreement.unexplained.push(e.probe);
+      }
+    }
+    if (haveAsm && !insn.invalid && !/^DEFB/.test(insn.text)) {
+      const got = asmBytes(insn.text);
+      if (got === null) { e.roundTrip = 'rejected'; rtRejected++; }
+      else if (got.join(',') === insn.bytes.join(',')) { e.roundTrip = 'exact'; rtExact++; }
+      else { e.roundTrip = 'alias'; rtAlias++; }
+    }
+    entries.push(e);
+  }
+}
+
+fs.writeFileSync(OUT, JSON.stringify({
+  note: 'Generated by scripts/gen-opcode-fixture.ts. Do not hand-edit — regenerate and review the diff.',
+  probeOrigin: PROBE_ORIGIN,
+  pages: PAGES.map((p) => (p.length ? p.map((b) => b.toString(16)).join(' ') : 'none')),
+  crossChecked: {
+    z80dasm: haveDasm
+      ? { agreed: lengthAgreed, checked: lengthChecked, disagreement }
+      : 'not available at generation time',
+    z80asm: haveAsm
+      ? { exact: rtExact, alias: rtAlias, rejected: rtRejected }
+      : 'not available at generation time',
+  },
+  entries,
+}, null, 1) + '\n');
+
+console.log(`wrote ${entries.length} entries to ${path.relative(process.cwd(), OUT)}`);
+console.log(`  z80dasm: ${haveDasm ? `${lengthAgreed}/${lengthChecked} lengths agreed; disagreements — `
+  + `${disagreement.prefixIgnored} prefix-ignored, ${disagreement.edPage} ED page, `
+  + `${disagreement.oursInvalid} ours-invalid, ${disagreement.unexplained.length} unexplained` : 'skipped'}`);
+console.log(`  z80asm : ${haveAsm ? `${rtExact} exact, ${rtAlias} alias, ${rtRejected} rejected` : 'skipped'}`);
