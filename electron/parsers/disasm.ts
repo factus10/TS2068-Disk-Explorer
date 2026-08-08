@@ -65,7 +65,24 @@ export interface DisassemblyResult {
   codeBytes: number;
   dataBytes: number;
   conflicts: number;
+  /** SHA-256 of the exact bytes disassembled — not of the whole file. */
   checksum: string;
+  /** Everything needed to reproduce this run, for the .dis.json sidecar. */
+  sidecar: {
+    file: string;
+    source?: string;
+    machine: string;
+    origin: number;
+    /** Byte range of the file that was disassembled. */
+    range: [number, number];
+    length: number;
+    sha256: string;
+    seeds: string[];
+    external: string[];
+    symbolPacks: { id: string; name: string; provenance?: string; symbols: number }[];
+    notes: string[];
+    stats: { instructions: number; codeBytes: number; inlineBytes: number; dataBytes: number; conflicts: number };
+  };
 }
 
 export function disassemble(opts: {
@@ -83,14 +100,16 @@ export function disassemble(opts: {
   if (!slice.length) return null;
   const result = trace(slice, plan.origin, plan.seeds, { machine: plan.machine });
   const checksum = crypto.createHash('sha256').update(slice).digest('hex');
+  const packs = packsFor(opts.format);
   const text = emit(slice, result, {
     title: opts.entry.filename.trim(),
     source: opts.source,
     origin: plan.origin,
-    packs: packsFor(opts.format),
+    packs,
     notes: plan.notes,
     checksum,
   });
+  const hex = (n: number) => '$' + n.toString(16).toUpperCase().padStart(4, '0');
   return {
     text,
     origin: plan.origin,
@@ -99,6 +118,29 @@ export function disassemble(opts: {
     dataBytes: result.stats.dataBytes,
     conflicts: result.conflicts.length,
     checksum,
+    sidecar: {
+      file: opts.entry.filename.trim(),
+      ...(opts.source ? { source: opts.source } : {}),
+      machine: plan.machine.id,
+      origin: plan.origin,
+      range: plan.range,
+      length: slice.length,
+      sha256: checksum,
+      seeds: result.seeds.map(hex),
+      external: [...result.external.keys()].sort((a, b) => a - b).map(hex),
+      symbolPacks: packs.map((p) => ({
+        id: p.id, name: p.name, ...(p.provenance ? { provenance: p.provenance } : {}),
+        symbols: Object.keys(p.symbols).length,
+      })),
+      notes: plan.notes,
+      stats: {
+        instructions: result.stats.instructions,
+        codeBytes: result.stats.codeBytes,
+        inlineBytes: result.stats.inlineBytes,
+        dataBytes: result.stats.dataBytes,
+        conflicts: result.conflicts.length,
+      },
+    },
   };
 }
 
