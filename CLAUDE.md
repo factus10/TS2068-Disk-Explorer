@@ -101,9 +101,12 @@ BASIC the app already detokenizes (`RAND USR` on the ZX81, `SAVE … CODE addr` 
 TS2068). Symbol pack sources are identified for every machine and DOS; see the plan's Sources
 table.
 
-## Pending Feature: TAP Package Bundling
+## Delivered: TAP Package Bundling
 
-See `.claude/plans/tap-package-bundling.md` for the implementation plan. BASIC programs that LOAD other files (CODE, SCREEN$, DATA) need to be bundled into a single TAP for emulator compatibility. The plan adds a BASIC content analyzer, package detection, and multi-file TAP export.
+`.claude/plans/tap-package-bundling.md` is done — `basic-analyzer.ts` scans BASIC for
+LOAD references and `buildTapPackages` matches them to catalog entries, so a program and
+the CODE/SCREEN$/DATA it loads export as one multi-file TAP. The plan is kept for the
+record of how the format works.
 
 ## GitHub
 
