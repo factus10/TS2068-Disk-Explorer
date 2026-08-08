@@ -21,6 +21,7 @@ import {
   readCatalog as readZX81Aerco, readFileData as readZX81AercoFile, readBasicListing as readZX81Listing,
 } from './parsers/zx81-aerco';
 import { parseZX81Variables } from './parsers/zx81';
+import { disassemble, canDisassemble } from './parsers/disasm';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
 import { detokenize } from './parsers/basic-detokenizer';
@@ -971,6 +972,41 @@ ipcMain.handle('get-basic-xref', async (_event, imagePath: string, entryIndex: n
 
   if (!listing) return null;
   return buildXRef(listing);
+});
+
+ipcMain.handle('get-disassembly', async (
+  _event, imagePath: string, entryIndex: number, originOverride?: number,
+): Promise<{ text: string; origin: number; instructions: number; conflicts: number } | null> => {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+  const entry = allEntries.find((e) => e.index === entryIndex);
+  if (!entry || !canDisassemble(format, entry)) return null;
+  const data = parser.readFileData(buffer, entry);
+  if (!data) return null;
+
+  // Every BASIC file on the disk is a candidate loader: one of them may name
+  // this file's load address, and their USR calls are the entry points.
+  const siblings: { entry: FileEntry; listing: BasicListing }[] = [];
+  for (const e of allEntries) {
+    if (e.type !== 'basic' || e.isDirectory) continue;
+    const d = parser.readFileData(buffer, e);
+    if (!d) continue;
+    try {
+      const l = detokenizeEntry(format, d, e);
+      if (l.lines.length) siblings.push({ entry: e, listing: l });
+    } catch { /* a file that will not detokenize simply offers no seeds */ }
+  }
+  const own = siblings.find((sib) => sib.entry.index === entry.index)?.listing ?? null;
+  const r = disassemble({
+    format, entry, data, listing: own, siblings, originOverride,
+    source: path.basename(imagePath),
+  });
+  if (!r) return null;
+  return { text: r.text, origin: r.origin, instructions: r.instructions, conflicts: r.conflicts };
 });
 
 ipcMain.handle('get-disk-map', async (_event, imagePath: string): Promise<{ totalBlocks: number } | null> => {

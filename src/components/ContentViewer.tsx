@@ -9,6 +9,7 @@ import { VariableViewer } from './VariableViewer';
 import { FontViewer, isFontData } from './FontViewer';
 import { IconViewer, isIconData } from './IconViewer';
 import { XRefViewer, XRefEntry } from './XRefViewer';
+import { DisasmViewer } from './DisasmViewer';
 
 const DEFAULT_WIDTH = 560;
 const MIN_WIDTH = 360;
@@ -26,7 +27,7 @@ interface Props {
   screenEntries?: FileEntry[];
 }
 
-type ViewTab = 'listing' | 'variables' | 'xref' | 'screen' | 'font' | 'icon' | 'array' | 'text' | 'hex';
+type ViewTab = 'listing' | 'variables' | 'xref' | 'disasm' | 'screen' | 'font' | 'icon' | 'array' | 'text' | 'hex';
 
 const SCREEN_SIZE = 6912;
 const TEXT_PRINTABLE_THRESHOLD = 0.9;
@@ -70,6 +71,7 @@ const TAB_LABELS: Record<ViewTab, string> = {
   listing: 'Listing',
   variables: 'Variables',
   xref: 'XRef',
+  disasm: 'Disasm',
   screen: 'Screen',
   font: 'Font',
   icon: 'Icon',
@@ -85,6 +87,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   const [arrayData, setArrayData] = useState<ArrayData | null>(null);
   const [variables, setVariables] = useState<BasicVariable[] | null>(null);
   const [xrefData, setXrefData] = useState<XRefEntry[] | null>(null);
+  const [disasm, setDisasm] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');
@@ -98,14 +101,18 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   const hasText = hexData ? isTextContent(hexData) : false;
   const hasFont = hexData ? isFontData(hexData) : false;
   const hasIcon = hexData ? isIconData(hexData) : false;
+  const canDisasm = diskFormat === 'zx81-aerco'
+    ? entry.size > 0
+    : entry.type === 'code' || entry.type === 'module';
   const tabs = useMemo(() => {
     const t = getStaticTabs(entry);
+    if (canDisasm) t.push('disasm');
     if (hasFont && entry.type === 'code') t.push('font');
     if (hasIcon && entry.type === 'code') t.push('icon');
     if (hasText) t.push('text');
     t.push('hex');
     return t;
-  }, [entry.index, entry.type, entry.size, entry.isMemoryDump, hasText, hasFont, hasIcon]);
+  }, [entry.index, entry.type, entry.size, entry.isMemoryDump, hasText, hasFont, hasIcon, canDisasm]);
 
   // Decoded text content (memoized)
   const textContent = useMemo(() => {
@@ -121,6 +128,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
     setArrayData(null);
     setVariables(null);
     setXrefData(null);
+    setDisasm(null);
     setLoading(true);
 
     api.getFileData(diskPath, entry.index).then((data) => {
@@ -189,6 +197,17 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
     }).catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [activeTab, diskPath, entry.index, xrefData, ts2068Mode]);
+
+  // Disassemble when the tab activates
+  useEffect(() => {
+    if (activeTab !== 'disasm' || disasm) return;
+    let cancelled = false;
+    setLoading(true);
+    api.getDisassembly(diskPath, entry.index).then((d) => {
+      if (!cancelled) { setDisasm(d?.text ?? null); setLoading(false); }
+    }).catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, diskPath, entry.index, disasm]);
 
   // Extract BASIC from state capture
   const isStateCapture = entry.type === 'state' || entry.isMemoryDump;
@@ -378,6 +397,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
           <div style={{ padding: 12, color: 'var(--text-muted)' }}>Loading...</div>
         )}
 
+        {activeTab === 'disasm' && <DisasmViewer text={disasm} loading={loading} />}
         {activeTab === 'hex' && hexData && <HexView data={hexData} />}
         {activeTab === 'text' && textContent && <TextView text={textContent} />}
         {activeTab === 'listing' && listing && (

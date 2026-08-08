@@ -1,0 +1,2036 @@
+{
+  "id": "zx81",
+  "name": "ZX81 / TS1000 ROM",
+  "range": [
+    0,
+    8191
+  ],
+  "provenance": "ZXSpectrumVault/rom-disassemblies, Sinclair ZX81.asm — address/label pairs only",
+  "symbols": {
+    "0": {
+      "name": "START"
+    },
+    "8": {
+      "name": "ERROR-1"
+    },
+    "16": {
+      "name": "PRINT-A"
+    },
+    "24": {
+      "name": "GET-CHAR"
+    },
+    "28": {
+      "name": "TEST-SP"
+    },
+    "32": {
+      "name": "NEXT-CHAR"
+    },
+    "40": {
+      "name": "FP-CALC"
+    },
+    "43": {
+      "name": "end-calc"
+    },
+    "48": {
+      "name": "BC-SPACES"
+    },
+    "56": {
+      "name": "INTERRUPT"
+    },
+    "65": {
+      "name": "WAIT-INT"
+    },
+    "69": {
+      "name": "SCAN-LINE"
+    },
+    "73": {
+      "name": "CH-ADD+1"
+    },
+    "76": {
+      "name": "TEMP-PTR1"
+    },
+    "77": {
+      "name": "TEMP-PTR2"
+    },
+    "86": {
+      "name": "ERROR-2"
+    },
+    "88": {
+      "name": "ERROR-3"
+    },
+    "102": {
+      "name": "NMI"
+    },
+    "109": {
+      "name": "NMI-RET"
+    },
+    "111": {
+      "name": "NMI-CONT"
+    },
+    "126": {
+      "name": "K-UNSHIFT"
+    },
+    "165": {
+      "name": "K-SHIFT"
+    },
+    "204": {
+      "name": "K-FUNCT"
+    },
+    "243": {
+      "name": "K-GRAPH"
+    },
+    "273": {
+      "name": "TOKENS"
+    },
+    "508": {
+      "name": "LOAD/SAVE"
+    },
+    "519": {
+      "name": "SLOW/FAST"
+    },
+    "534": {
+      "name": "LOOP-11"
+    },
+    "550": {
+      "name": "NO-SLOW"
+    },
+    "553": {
+      "name": "DISPLAY-1"
+    },
+    "557": {
+      "name": "DISPLAY-P"
+    },
+    "567": {
+      "name": "ANOTHER"
+    },
+    "569": {
+      "name": "OVER-NC"
+    },
+    "574": {
+      "name": "DISPLAY-2"
+    },
+    "612": {
+      "name": "NO-KEY"
+    },
+    "618": {
+      "name": "LOOP-B"
+    },
+    "641": {
+      "name": "R-IX-1"
+    },
+    "655": {
+      "name": "R-IX-2"
+    },
+    "658": {
+      "name": "DISPLAY-3"
+    },
+    "681": {
+      "name": "DISPLAY-4"
+    },
+    "693": {
+      "name": "DISPLAY-5"
+    },
+    "699": {
+      "name": "KEYBOARD"
+    },
+    "709": {
+      "name": "EACH-LINE"
+    },
+    "743": {
+      "name": "SET-FAST"
+    },
+    "756": {
+      "name": "REPORT-F"
+    },
+    "758": {
+      "name": "SAVE"
+    },
+    "767": {
+      "name": "HEADER"
+    },
+    "772": {
+      "name": "DELAY-1"
+    },
+    "779": {
+      "name": "OUT-NAME"
+    },
+    "790": {
+      "name": "OUT-PROG"
+    },
+    "798": {
+      "name": "OUT-BYTE"
+    },
+    "800": {
+      "name": "EACH-BIT"
+    },
+    "809": {
+      "name": "PULSES"
+    },
+    "813": {
+      "name": "DELAY-2"
+    },
+    "818": {
+      "name": "BREAK-2"
+    },
+    "822": {
+      "name": "DELAY-3"
+    },
+    "827": {
+      "name": "DELAY-4"
+    },
+    "832": {
+      "name": "LOAD"
+    },
+    "839": {
+      "name": "NEXT-PROG"
+    },
+    "844": {
+      "name": "IN-BYTE"
+    },
+    "846": {
+      "name": "NEXT-BIT"
+    },
+    "848": {
+      "name": "BREAK-3"
+    },
+    "865": {
+      "name": "RESTART"
+    },
+    "870": {
+      "name": "IN-NAME"
+    },
+    "881": {
+      "name": "MATCHING"
+    },
+    "891": {
+      "name": "IN-PROG"
+    },
+    "901": {
+      "name": "GET-BIT"
+    },
+    "904": {
+      "name": "TRAILER"
+    },
+    "906": {
+      "name": "COUNTER"
+    },
+    "924": {
+      "name": "BIT-DONE"
+    },
+    "930": {
+      "name": "BREAK-4"
+    },
+    "934": {
+      "name": "REPORT-D"
+    },
+    "936": {
+      "name": "NAME"
+    },
+    "963": {
+      "name": "NEW"
+    },
+    "971": {
+      "name": "RAM-CHECK"
+    },
+    "975": {
+      "name": "RAM-FILL"
+    },
+    "981": {
+      "name": "RAM-READ"
+    },
+    "994": {
+      "name": "SET-TOP"
+    },
+    "997": {
+      "name": "INITIAL"
+    },
+    "1032": {
+      "name": "LINE"
+    },
+    "1043": {
+      "name": "N/L-ONLY"
+    },
+    "1049": {
+      "name": "UPPER"
+    },
+    "1069": {
+      "name": "ADDR-TOP"
+    },
+    "1075": {
+      "name": "LIST-TOP"
+    },
+    "1108": {
+      "name": "DOWN-KEY"
+    },
+    "1111": {
+      "name": "INC-LINE"
+    },
+    "1124": {
+      "name": "KEY-INPUT"
+    },
+    "1135": {
+      "name": "EDIT-INP"
+    },
+    "1138": {
+      "name": "LOWER"
+    },
+    "1141": {
+      "name": "EACH-CHAR"
+    },
+    "1154": {
+      "name": "END-LINE"
+    },
+    "1159": {
+      "name": "EDIT-LINE"
+    },
+    "1162": {
+      "name": "EDIT-ROOM"
+    },
+    "1201": {
+      "name": "FREE-LINE"
+    },
+    "1217": {
+      "name": "DISPLAY-6"
+    },
+    "1231": {
+      "name": "SLOW-DISP"
+    },
+    "1247": {
+      "name": "K-DECODE"
+    },
+    "1266": {
+      "name": "FUNC-BASE"
+    },
+    "1271": {
+      "name": "FETCH-1"
+    },
+    "1285": {
+      "name": "TABLE-ADD"
+    },
+    "1288": {
+      "name": "FETCH-2"
+    },
+    "1301": {
+      "name": "FETCH-3"
+    },
+    "1302": {
+      "name": "TEST-CURS"
+    },
+    "1307": {
+      "name": "ENTER"
+    },
+    "1315": {
+      "name": "BACK-NEXT"
+    },
+    "1318": {
+      "name": "ADD-CHAR"
+    },
+    "1323": {
+      "name": "K/L-KEY"
+    },
+    "1325": {
+      "name": "KEY-SORT"
+    },
+    "1335": {
+      "name": "CURSOR"
+    },
+    "1344": {
+      "name": "K-MODE"
+    },
+    "1348": {
+      "name": "TEST-CHAR"
+    },
+    "1366": {
+      "name": "L-MODE"
+    },
+    "1372": {
+      "name": "CLEAR-ONE"
+    },
+    "1378": {
+      "name": "ED-KEYS"
+    },
+    "1398": {
+      "name": "LEFT-KEY"
+    },
+    "1407": {
+      "name": "RIGHT-KEY"
+    },
+    "1416": {
+      "name": "GET-CODE"
+    },
+    "1417": {
+      "name": "ENDED-1"
+    },
+    "1419": {
+      "name": "RUBOUT"
+    },
+    "1427": {
+      "name": "LEFT-EDGE"
+    },
+    "1437": {
+      "name": "ENDED-2"
+    },
+    "1439": {
+      "name": "UP-KEY"
+    },
+    "1455": {
+      "name": "FUNCTION"
+    },
+    "1463": {
+      "name": "ZERO-DE"
+    },
+    "1467": {
+      "name": "LINE-NO"
+    },
+    "1476": {
+      "name": "EDIT-KEY"
+    },
+    "1548": {
+      "name": "N/L-KEY"
+    },
+    "1574": {
+      "name": "STK-UPPER"
+    },
+    "1577": {
+      "name": "NOW-SCAN"
+    },
+    "1614": {
+      "name": "N/L-INP"
+    },
+    "1633": {
+      "name": "TEST-NULL"
+    },
+    "1636": {
+      "name": "N/L-NULL"
+    },
+    "1644": {
+      "name": "NEXT-LINE"
+    },
+    "1710": {
+      "name": "STOP-LINE"
+    },
+    "1738": {
+      "name": "CONTINUE"
+    },
+    "1745": {
+      "name": "REPORT"
+    },
+    "1760": {
+      "name": "N/L-LINE"
+    },
+    "1797": {
+      "name": "COPY-OVER"
+    },
+    "1836": {
+      "name": "LLIST"
+    },
+    "1840": {
+      "name": "LIST"
+    },
+    "1854": {
+      "name": "LIST-PROG"
+    },
+    "1856": {
+      "name": "UNTIL-END"
+    },
+    "1861": {
+      "name": "OUT-LINE"
+    },
+    "1877": {
+      "name": "TEST-END"
+    },
+    "1894": {
+      "name": "COPY-LINE"
+    },
+    "1901": {
+      "name": "MORE-LINE"
+    },
+    "1916": {
+      "name": "TEST-NUM"
+    },
+    "1946": {
+      "name": "NOT-TOKEN"
+    },
+    "1949": {
+      "name": "OUT-CURS"
+    },
+    "1962": {
+      "name": "FLAGS-2"
+    },
+    "1972": {
+      "name": "NUMBER"
+    },
+    "1981": {
+      "name": "DECODE"
+    },
+    "1991": {
+      "name": "KEY-LINE"
+    },
+    "2012": {
+      "name": "LEAD-SP"
+    },
+    "2017": {
+      "name": "OUT-DIGIT"
+    },
+    "2018": {
+      "name": "DIGIT-INC"
+    },
+    "2027": {
+      "name": "OUT-CODE"
+    },
+    "2030": {
+      "name": "OUT-CH"
+    },
+    "2033": {
+      "name": "PRINT-CH"
+    },
+    "2037": {
+      "name": "PRINT-SP"
+    },
+    "2050": {
+      "name": "LPRINT-A"
+    },
+    "2053": {
+      "name": "PRINT-EXX"
+    },
+    "2056": {
+      "name": "ENTER-CH"
+    },
+    "2066": {
+      "name": "TEST-N/L"
+    },
+    "2092": {
+      "name": "TEST-LOW"
+    },
+    "2101": {
+      "name": "REPORT-5"
+    },
+    "2106": {
+      "name": "EXPAND-1"
+    },
+    "2110": {
+      "name": "WRITE-CH"
+    },
+    "2119": {
+      "name": "WRITE-N/L"
+    },
+    "2129": {
+      "name": "LPRINT-CH"
+    },
+    "2153": {
+      "name": "COPY"
+    },
+    "2161": {
+      "name": "COPY-BUFF"
+    },
+    "2166": {
+      "name": "COPY*D"
+    },
+    "2170": {
+      "name": "COPY-LOOP"
+    },
+    "2173": {
+      "name": "COPY-TIME"
+    },
+    "2176": {
+      "name": "COPY-BRK"
+    },
+    "2184": {
+      "name": "REPORT-D2"
+    },
+    "2186": {
+      "name": "COPY-CONT"
+    },
+    "2204": {
+      "name": "COPY-NEXT"
+    },
+    "2229": {
+      "name": "COPY-BITS"
+    },
+    "2234": {
+      "name": "COPY-WAIT"
+    },
+    "2247": {
+      "name": "COPY-N/L"
+    },
+    "2270": {
+      "name": "COPY-END"
+    },
+    "2274": {
+      "name": "CLEAR-PRB"
+    },
+    "2281": {
+      "name": "PRB-BYTES"
+    },
+    "2293": {
+      "name": "PRINT-AT"
+    },
+    "2298": {
+      "name": "TEST-VAL"
+    },
+    "2309": {
+      "name": "WRONG-VAL"
+    },
+    "2315": {
+      "name": "SET-FIELD"
+    },
+    "2328": {
+      "name": "LOC-ADDR"
+    },
+    "2343": {
+      "name": "LOOK-BACK"
+    },
+    "2368": {
+      "name": "EXPAND-2"
+    },
+    "2379": {
+      "name": "TOKENS"
+    },
+    "2393": {
+      "name": "ALL-CHARS"
+    },
+    "2413": {
+      "name": "TRAIL-SP"
+    },
+    "2421": {
+      "name": "TOKEN-ADD"
+    },
+    "2431": {
+      "name": "TEST-HIGH"
+    },
+    "2437": {
+      "name": "WORDS"
+    },
+    "2450": {
+      "name": "COMP-FLAG"
+    },
+    "2451": {
+      "name": "FOUND"
+    },
+    "2459": {
+      "name": "ONE-SPACE"
+    },
+    "2462": {
+      "name": "MAKE-ROOM"
+    },
+    "2477": {
+      "name": "POINTERS"
+    },
+    "2484": {
+      "name": "NEXT-PTR"
+    },
+    "2504": {
+      "name": "PTR-DONE"
+    },
+    "2520": {
+      "name": "LINE-ADDR"
+    },
+    "2526": {
+      "name": "NEXT-TEST"
+    },
+    "2538": {
+      "name": "CP-LINES"
+    },
+    "2546": {
+      "name": "NEXT-ONE"
+    },
+    "2561": {
+      "name": "NEXT+FIVE"
+    },
+    "2568": {
+      "name": "NEXT-LETT"
+    },
+    "2575": {
+      "name": "LINES"
+    },
+    "2576": {
+      "name": "NEXT-O-4"
+    },
+    "2581": {
+      "name": "NEXT-ADD"
+    },
+    "2583": {
+      "name": "DIFFER"
+    },
+    "2591": {
+      "name": "LINE-ENDS"
+    },
+    "2602": {
+      "name": "CLS"
+    },
+    "2604": {
+      "name": "B-LINES"
+    },
+    "2626": {
+      "name": "CLEAR-LOC"
+    },
+    "2642": {
+      "name": "COLLAPSED"
+    },
+    "2653": {
+      "name": "RECLAIM-1"
+    },
+    "2656": {
+      "name": "RECLAIM-2"
+    },
+    "2675": {
+      "name": "E-LINE-NO"
+    },
+    "2705": {
+      "name": "NO-NUMBER"
+    },
+    "2712": {
+      "name": "OUT-NUM"
+    },
+    "2725": {
+      "name": "OUT-NO"
+    },
+    "2733": {
+      "name": "THOUSAND"
+    },
+    "2751": {
+      "name": "UNITS"
+    },
+    "2757": {
+      "name": "UNSTACK-Z"
+    },
+    "2763": {
+      "name": "LPRINT"
+    },
+    "2767": {
+      "name": "PRINT"
+    },
+    "2773": {
+      "name": "PRINT-1"
+    },
+    "2810": {
+      "name": "NOT-AT"
+    },
+    "2846": {
+      "name": "TAB-TEST"
+    },
+    "2865": {
+      "name": "NOT-TAB"
+    },
+    "2871": {
+      "name": "PRINT-ON"
+    },
+    "2884": {
+      "name": "SPACING"
+    },
+    "2894": {
+      "name": "SYNTAX-ON"
+    },
+    "2901": {
+      "name": "PRINT-STK"
+    },
+    "2916": {
+      "name": "PR-STR-1"
+    },
+    "2918": {
+      "name": "PR-STR-2"
+    },
+    "2919": {
+      "name": "PR-STR-3"
+    },
+    "2923": {
+      "name": "PR-STR-4"
+    },
+    "2948": {
+      "name": "PRINT-END"
+    },
+    "2955": {
+      "name": "FIELD"
+    },
+    "2980": {
+      "name": "CENTRE"
+    },
+    "2987": {
+      "name": "RIGHT"
+    },
+    "2991": {
+      "name": "PLOT/UNP"
+    },
+    "3013": {
+      "name": "COLUMNS"
+    },
+    "3018": {
+      "name": "FIND-ADDR"
+    },
+    "3033": {
+      "name": "SQ-SAVED"
+    },
+    "3034": {
+      "name": "TABLE-PTR"
+    },
+    "3049": {
+      "name": "PLOT"
+    },
+    "3051": {
+      "name": "UNPLOT"
+    },
+    "3057": {
+      "name": "PLOT-END"
+    },
+    "3061": {
+      "name": "STK-TO-BC"
+    },
+    "3074": {
+      "name": "STK-TO-A"
+    },
+    "3086": {
+      "name": "SCROLL"
+    },
+    "3113": {
+      "name": "offset-t"
+    },
+    "3144": {
+      "name": "P-LET"
+    },
+    "3147": {
+      "name": "P-GOTO"
+    },
+    "3151": {
+      "name": "P-IF"
+    },
+    "3156": {
+      "name": "P-GOSUB"
+    },
+    "3160": {
+      "name": "P-STOP"
+    },
+    "3163": {
+      "name": "P-RETURN"
+    },
+    "3166": {
+      "name": "P-FOR"
+    },
+    "3174": {
+      "name": "P-NEXT"
+    },
+    "3178": {
+      "name": "P-PRINT"
+    },
+    "3181": {
+      "name": "P-INPUT"
+    },
+    "3185": {
+      "name": "P-DIM"
+    },
+    "3188": {
+      "name": "P-REM"
+    },
+    "3191": {
+      "name": "P-NEW"
+    },
+    "3194": {
+      "name": "P-RUN"
+    },
+    "3197": {
+      "name": "P-LIST"
+    },
+    "3200": {
+      "name": "P-POKE"
+    },
+    "3206": {
+      "name": "P-RAND"
+    },
+    "3209": {
+      "name": "P-LOAD"
+    },
+    "3212": {
+      "name": "P-SAVE"
+    },
+    "3215": {
+      "name": "P-CONT"
+    },
+    "3218": {
+      "name": "P-CLEAR"
+    },
+    "3221": {
+      "name": "P-CLS"
+    },
+    "3224": {
+      "name": "P-PLOT"
+    },
+    "3230": {
+      "name": "P-UNPLOT"
+    },
+    "3236": {
+      "name": "P-SCROLL"
+    },
+    "3239": {
+      "name": "P-PAUSE"
+    },
+    "3243": {
+      "name": "P-SLOW"
+    },
+    "3246": {
+      "name": "P-FAST"
+    },
+    "3249": {
+      "name": "P-COPY"
+    },
+    "3252": {
+      "name": "P-LPRINT"
+    },
+    "3255": {
+      "name": "P-LLIST"
+    },
+    "3258": {
+      "name": "LINE-SCAN"
+    },
+    "3265": {
+      "name": "LINE-RUN"
+    },
+    "3292": {
+      "name": "STOP"
+    },
+    "3294": {
+      "name": "LINE-NULL"
+    },
+    "3316": {
+      "name": "SCAN-LOOP"
+    },
+    "3319": {
+      "name": "GET-PARAM"
+    },
+    "3344": {
+      "name": "SEPARATOR"
+    },
+    "3350": {
+      "name": "class-tbl"
+    },
+    "3357": {
+      "name": "CHECK-END"
+    },
+    "3362": {
+      "name": "CHECK-2"
+    },
+    "3366": {
+      "name": "REPORT-C2"
+    },
+    "3368": {
+      "name": "CLASS-3"
+    },
+    "3373": {
+      "name": "CLASS-0"
+    },
+    "3374": {
+      "name": "CLASS-5"
+    },
+    "3386": {
+      "name": "CLASS-END"
+    },
+    "3388": {
+      "name": "CLASS-1"
+    },
+    "3391": {
+      "name": "CLASS-4-2"
+    },
+    "3403": {
+      "name": "REPORT-2"
+    },
+    "3405": {
+      "name": "SET-STK"
+    },
+    "3427": {
+      "name": "SET-STRLN"
+    },
+    "3434": {
+      "name": "REM"
+    },
+    "3435": {
+      "name": "CLASS-2"
+    },
+    "3439": {
+      "name": "INPUT-REP"
+    },
+    "3461": {
+      "name": "CLASS-4"
+    },
+    "3474": {
+      "name": "CLASS-6"
+    },
+    "3482": {
+      "name": "REPORT-C"
+    },
+    "3484": {
+      "name": "NO-TO-STK"
+    },
+    "3494": {
+      "name": "SYNTAX-Z"
+    },
+    "3499": {
+      "name": "IF"
+    },
+    "3510": {
+      "name": "IF-END"
+    },
+    "3513": {
+      "name": "FOR"
+    },
+    "3526": {
+      "name": "F-USE-ONE"
+    },
+    "3532": {
+      "name": "F-REORDER"
+    },
+    "3562": {
+      "name": "F-LMT-STP"
+    },
+    "3598": {
+      "name": "NXTLIN-NO"
+    },
+    "3626": {
+      "name": "FOR-END"
+    },
+    "3630": {
+      "name": "NEXT"
+    },
+    "3672": {
+      "name": "REPORT-1"
+    },
+    "3674": {
+      "name": "NEXT-LOOP"
+    },
+    "3682": {
+      "name": "LMT-V-VAL"
+    },
+    "3689": {
+      "name": "IMPOSS"
+    },
+    "3692": {
+      "name": "RAND"
+    },
+    "3703": {
+      "name": "SET-SEED"
+    },
+    "3708": {
+      "name": "CONT"
+    },
+    "3713": {
+      "name": "GOTO"
+    },
+    "3718": {
+      "name": "GOTO-2"
+    },
+    "3730": {
+      "name": "POKE"
+    },
+    "3739": {
+      "name": "POKE-SAVE"
+    },
+    "3751": {
+      "name": "FIND-INT"
+    },
+    "3757": {
+      "name": "REPORT-B"
+    },
+    "3759": {
+      "name": "RUN"
+    },
+    "3765": {
+      "name": "GOSUB"
+    },
+    "3781": {
+      "name": "TEST-ROOM"
+    },
+    "3795": {
+      "name": "REPORT-4"
+    },
+    "3800": {
+      "name": "RETURN"
+    },
+    "3813": {
+      "name": "REPORT-7"
+    },
+    "3817": {
+      "name": "INPUT"
+    },
+    "3845": {
+      "name": "PROMPT"
+    },
+    "3860": {
+      "name": "ENTER-CUR"
+    },
+    "3873": {
+      "name": "REPORT-8"
+    },
+    "3875": {
+      "name": "FAST"
+    },
+    "3883": {
+      "name": "SLOW"
+    },
+    "3890": {
+      "name": "PAUSE"
+    },
+    "3910": {
+      "name": "BREAK-1"
+    },
+    "3915": {
+      "name": "DEBOUNCE"
+    },
+    "3925": {
+      "name": "SCANNING"
+    },
+    "3929": {
+      "name": "S-LOOP-1"
+    },
+    "3978": {
+      "name": "S-JPI-END"
+    },
+    "3980": {
+      "name": "S-TEST-PI"
+    },
+    "3993": {
+      "name": "S-PI-END"
+    },
+    "3997": {
+      "name": "S-TST-INK"
+    },
+    "4018": {
+      "name": "S-ALPHANUM"
+    },
+    "4054": {
+      "name": "S-QUOTE"
+    },
+    "4064": {
+      "name": "S-Q-AGAIN"
+    },
+    "4067": {
+      "name": "S-QUOTE-S"
+    },
+    "4077": {
+      "name": "S-STRING"
+    },
+    "4088": {
+      "name": "S-J-CONT-3"
+    },
+    "4091": {
+      "name": "S-Q-NL"
+    },
+    "4095": {
+      "name": "S-RPT-C"
+    },
+    "4098": {
+      "name": "S-FUNCTION"
+    },
+    "4122": {
+      "name": "S-NO-TO-$"
+    },
+    "4128": {
+      "name": "S-PUSH-PO"
+    },
+    "4133": {
+      "name": "S-LTR-DGT"
+    },
+    "4167": {
+      "name": "S-DECIMAL"
+    },
+    "4207": {
+      "name": "S-STK-DEC"
+    },
+    "4227": {
+      "name": "S-NUMERIC"
+    },
+    "4231": {
+      "name": "S-CONT-2"
+    },
+    "4232": {
+      "name": "S-CONT-3"
+    },
+    "4248": {
+      "name": "S-OPERTR"
+    },
+    "4263": {
+      "name": "SUBMLTDIV"
+    },
+    "4277": {
+      "name": "GET-PRIO"
+    },
+    "4284": {
+      "name": "S-LOOP"
+    },
+    "4309": {
+      "name": "S-SYNTEST"
+    },
+    "4315": {
+      "name": "S-RPORT-C"
+    },
+    "4318": {
+      "name": "S-RUNTEST"
+    },
+    "4330": {
+      "name": "S-LOOPEND"
+    },
+    "4333": {
+      "name": "S-TIGHTER"
+    },
+    "4354": {
+      "name": "S-NOT-AND"
+    },
+    "4362": {
+      "name": "S-NEXT"
+    },
+    "4367": {
+      "name": "tbl-pri"
+    },
+    "4380": {
+      "name": "LOOK-VARS"
+    },
+    "4409": {
+      "name": "V-CHAR"
+    },
+    "4419": {
+      "name": "V-STR-VAR"
+    },
+    "4424": {
+      "name": "V-RUN/SYN"
+    },
+    "4438": {
+      "name": "V-RUN"
+    },
+    "4441": {
+      "name": "V-EACH"
+    },
+    "4459": {
+      "name": "V-MATCHES"
+    },
+    "4460": {
+      "name": "V-SPACES"
+    },
+    "4479": {
+      "name": "V-GET-PTR"
+    },
+    "4480": {
+      "name": "V-NEXT"
+    },
+    "4488": {
+      "name": "V-80-BYTE"
+    },
+    "4490": {
+      "name": "V-SYNTAX"
+    },
+    "4500": {
+      "name": "V-FOUND-1"
+    },
+    "4501": {
+      "name": "V-FOUND-2"
+    },
+    "4505": {
+      "name": "V-PASS"
+    },
+    "4513": {
+      "name": "V-END"
+    },
+    "4519": {
+      "name": "STK-VAR"
+    },
+    "4530": {
+      "name": "SV-SIMPLE$"
+    },
+    "4543": {
+      "name": "SV-ARRAYS"
+    },
+    "4561": {
+      "name": "SV-PTR"
+    },
+    "4564": {
+      "name": "SV-COMMA"
+    },
+    "4585": {
+      "name": "SV-CLOSE"
+    },
+    "4593": {
+      "name": "SV-CH-ADD"
+    },
+    "4600": {
+      "name": "SV-COUNT"
+    },
+    "4603": {
+      "name": "SV-LOOP"
+    },
+    "4620": {
+      "name": "SV-MULT"
+    },
+    "4643": {
+      "name": "SV-RPT-C"
+    },
+    "4657": {
+      "name": "REPORT-3"
+    },
+    "4659": {
+      "name": "SV-NUMBER"
+    },
+    "4669": {
+      "name": "SV-ELEM$"
+    },
+    "4694": {
+      "name": "SV-SLICE"
+    },
+    "4697": {
+      "name": "SV-DIM"
+    },
+    "4698": {
+      "name": "SV-SLICE?"
+    },
+    "4707": {
+      "name": "SLICING"
+    },
+    "4747": {
+      "name": "SL-RPT-C"
+    },
+    "4754": {
+      "name": "SL-SECOND"
+    },
+    "4773": {
+      "name": "SL-DEFINE"
+    },
+    "4793": {
+      "name": "SL-OVER"
+    },
+    "4798": {
+      "name": "SL-STORE"
+    },
+    "4802": {
+      "name": "STK-ST-0"
+    },
+    "4803": {
+      "name": "STK-STO-$"
+    },
+    "4829": {
+      "name": "INT-EXP1"
+    },
+    "4830": {
+      "name": "INT-EXP2"
+    },
+    "4857": {
+      "name": "I-CARRY"
+    },
+    "4860": {
+      "name": "I-RESTORE"
+    },
+    "4863": {
+      "name": "DE,(DE+1)"
+    },
+    "4869": {
+      "name": "GET-HL*DE"
+    },
+    "4881": {
+      "name": "HL-LOOP"
+    },
+    "4890": {
+      "name": "HL-END"
+    },
+    "4893": {
+      "name": "HL-AGAIN"
+    },
+    "4897": {
+      "name": "LET"
+    },
+    "4909": {
+      "name": "L-EACH-CH"
+    },
+    "4910": {
+      "name": "L-NO-SP"
+    },
+    "4939": {
+      "name": "L-CHAR"
+    },
+    "4953": {
+      "name": "L-SINGLE"
+    },
+    "4961": {
+      "name": "L-NUMERIC"
+    },
+    "4974": {
+      "name": "L-EXISTS"
+    },
+    "4986": {
+      "name": "L-DELETE$"
+    },
+    "5027": {
+      "name": "L-LENGTH"
+    },
+    "5035": {
+      "name": "L-IN-W/S"
+    },
+    "5038": {
+      "name": "L-ENTER"
+    },
+    "5047": {
+      "name": "L-ADD$"
+    },
+    "5064": {
+      "name": "L-NEW$"
+    },
+    "5070": {
+      "name": "L-STRING"
+    },
+    "5095": {
+      "name": "L-FIRST"
+    },
+    "5112": {
+      "name": "STK-FETCH"
+    },
+    "5129": {
+      "name": "DIM"
+    },
+    "5132": {
+      "name": "D-RPORT-C"
+    },
+    "5148": {
+      "name": "D-RUN"
+    },
+    "5158": {
+      "name": "D-LETTER"
+    },
+    "5172": {
+      "name": "D-SIZE"
+    },
+    "5173": {
+      "name": "D-NO-LOOP"
+    },
+    "5247": {
+      "name": "DIM-SIZES"
+    },
+    "5256": {
+      "name": "RESERVE"
+    },
+    "5274": {
+      "name": "CLEAR"
+    },
+    "5283": {
+      "name": "X-TEMP"
+    },
+    "5286": {
+      "name": "SET-STK-B"
+    },
+    "5289": {
+      "name": "SET-STK-E"
+    },
+    "5293": {
+      "name": "CURSOR-IN"
+    },
+    "5308": {
+      "name": "SET-MIN"
+    },
+    "5319": {
+      "name": "REC-V80"
+    },
+    "5326": {
+      "name": "ALPHA"
+    },
+    "5330": {
+      "name": "ALPHANUM"
+    },
+    "5332": {
+      "name": "ALPHA-2"
+    },
+    "5337": {
+      "name": "DEC-TO-FP"
+    },
+    "5349": {
+      "name": "NXT-DGT-1"
+    },
+    "5365": {
+      "name": "E-FORMAT"
+    },
+    "5384": {
+      "name": "SIGN-DONE"
+    },
+    "5385": {
+      "name": "ST-E-PART"
+    },
+    "5393": {
+      "name": "E-POSTVE"
+    },
+    "5396": {
+      "name": "STK-DIGIT"
+    },
+    "5405": {
+      "name": "STACK-A"
+    },
+    "5408": {
+      "name": "STACK-BC"
+    },
+    "5430": {
+      "name": "STK-BC-2"
+    },
+    "5448": {
+      "name": "INT-TO-FP"
+    },
+    "5453": {
+      "name": "NXT-DGT-2"
+    },
+    "5466": {
+      "name": "e-to-fp"
+    },
+    "5472": {
+      "name": "E-LOOP"
+    },
+    "5498": {
+      "name": "E-LOW"
+    },
+    "5501": {
+      "name": "E-CHUNK"
+    },
+    "5507": {
+      "name": "E-DIVSN"
+    },
+    "5508": {
+      "name": "E-SWAP"
+    },
+    "5511": {
+      "name": "E-END"
+    },
+    "5514": {
+      "name": "FP-TO-BC"
+    },
+    "5525": {
+      "name": "FPBC-NZRO"
+    },
+    "5551": {
+      "name": "BIG-INT"
+    },
+    "5557": {
+      "name": "FPBC-NORM"
+    },
+    "5564": {
+      "name": "EXP-ZERO"
+    },
+    "5574": {
+      "name": "FPBC-END"
+    },
+    "5581": {
+      "name": "FP-TO-A"
+    },
+    "5593": {
+      "name": "FP-A-END"
+    },
+    "5595": {
+      "name": "PRINT-FP"
+    },
+    "5610": {
+      "name": "PF-NEGTVE"
+    },
+    "5616": {
+      "name": "PF-POSTVE"
+    },
+    "5653": {
+      "name": "PF-LOOP"
+    },
+    "5676": {
+      "name": "PF-NULL"
+    },
+    "5689": {
+      "name": "PF-RND-LP"
+    },
+    "5707": {
+      "name": "PF-ZERO-6"
+    },
+    "5723": {
+      "name": "PF-POS"
+    },
+    "5727": {
+      "name": "GET-FIRST"
+    },
+    "5755": {
+      "name": "PF-NIB-LP"
+    },
+    "5762": {
+      "name": "PF-E-FMT"
+    },
+    "5784": {
+      "name": "PF-E-POS"
+    },
+    "5786": {
+      "name": "PF-E-SIGN"
+    },
+    "5790": {
+      "name": "PF-E-TENS"
+    },
+    "5805": {
+      "name": "PF-E-LOW"
+    },
+    "5810": {
+      "name": "PF-ZEROS"
+    },
+    "5818": {
+      "name": "PF-ZRO-LP"
+    },
+    "5823": {
+      "name": "PF-ZERO-1"
+    },
+    "5826": {
+      "name": "PF-DC-OUT"
+    },
+    "5832": {
+      "name": "PF-FRAC-LP"
+    },
+    "5840": {
+      "name": "PF-NIBBLE"
+    },
+    "5848": {
+      "name": "PREP-ADD"
+    },
+    "5868": {
+      "name": "NEG-BYTE"
+    },
+    "5879": {
+      "name": "FETCH-TWO"
+    },
+    "5914": {
+      "name": "SHIFT-FP"
+    },
+    "5922": {
+      "name": "ONE-SHIFT"
+    },
+    "5942": {
+      "name": "ADDEND-0"
+    },
+    "5944": {
+      "name": "ZEROS-4/5"
+    },
+    "5953": {
+      "name": "ADD-BACK"
+    },
+    "5962": {
+      "name": "ALL-ADDED"
+    },
+    "5964": {
+      "name": "subtract"
+    },
+    "5973": {
+      "name": "addition"
+    },
+    "5993": {
+      "name": "SHIFT-LEN"
+    },
+    "6032": {
+      "name": "TEST-NEG"
+    },
+    "6067": {
+      "name": "ADD-REP-6"
+    },
+    "6071": {
+      "name": "END-COMPL"
+    },
+    "6073": {
+      "name": "GO-NC-MLT"
+    },
+    "6076": {
+      "name": "PREP-M/D"
+    },
+    "6086": {
+      "name": "multiply"
+    },
+    "6119": {
+      "name": "MLT-LOOP"
+    },
+    "6126": {
+      "name": "NO-ADD"
+    },
+    "6136": {
+      "name": "STRT-MLT"
+    },
+    "6158": {
+      "name": "MAKE-EXPT"
+    },
+    "6160": {
+      "name": "DIVN-EXPT"
+    },
+    "6169": {
+      "name": "OFLW1-CLR"
+    },
+    "6180": {
+      "name": "OFLW2-CLR"
+    },
+    "6184": {
+      "name": "TEST-NORM"
+    },
+    "6188": {
+      "name": "NEAR-ZERO"
+    },
+    "6192": {
+      "name": "ZERO-RSLT"
+    },
+    "6193": {
+      "name": "SKIP-ZERO"
+    },
+    "6207": {
+      "name": "NORMALIZE"
+    },
+    "6209": {
+      "name": "SHIFT-ONE"
+    },
+    "6233": {
+      "name": "NORML-NOW"
+    },
+    "6248": {
+      "name": "OFLOW-CLR"
+    },
+    "6272": {
+      "name": "REPORT-6"
+    },
+    "6274": {
+      "name": "division"
+    },
+    "6306": {
+      "name": "DIV-LOOP"
+    },
+    "6315": {
+      "name": "div-34th"
+    },
+    "6322": {
+      "name": "DIV-START"
+    },
+    "6338": {
+      "name": "SUBN-ONLY"
+    },
+    "6345": {
+      "name": "NO-RSTORE"
+    },
+    "6346": {
+      "name": "COUNT-ONE"
+    },
+    "6372": {
+      "name": "truncate"
+    },
+    "6383": {
+      "name": "T-GR-ZERO"
+    },
+    "6388": {
+      "name": "NIL-BYTES"
+    },
+    "6400": {
+      "name": "BYTE-ZERO"
+    },
+    "6405": {
+      "name": "BITS-ZERO"
+    },
+    "6412": {
+      "name": "LESS-MASK"
+    },
+    "6418": {
+      "name": "IX-END"
+    },
+    "6421": {
+      "name": "stk-zero                                                 00 00 00 00 00"
+    },
+    "6424": {
+      "name": "stk-one                                                  81 00 00 00 00"
+    },
+    "6426": {
+      "name": "stk-half                                                 80 00 00 00 00"
+    },
+    "6428": {
+      "name": "stk-pi/2                                                 81 49 0F DA A2"
+    },
+    "6433": {
+      "name": "stk-ten                                                  84 20 00 00 00"
+    },
+    "6435": {
+      "name": "tbl-addrs"
+    },
+    "6557": {
+      "name": "CALCULATE"
+    },
+    "6560": {
+      "name": "GEN-ENT-1"
+    },
+    "6564": {
+      "name": "GEN-ENT-2"
+    },
+    "6567": {
+      "name": "RE-ENTRY"
+    },
+    "6574": {
+      "name": "SCAN-ENT"
+    },
+    "6594": {
+      "name": "FIRST-3D"
+    },
+    "6606": {
+      "name": "DOUBLE-A"
+    },
+    "6608": {
+      "name": "ENT-TABLE"
+    },
+    "6627": {
+      "name": "delete"
+    },
+    "6628": {
+      "name": "fp-calc-2"
+    },
+    "6635": {
+      "name": "TEST-5-SP"
+    },
+    "6646": {
+      "name": "MOVE-FP"
+    },
+    "6652": {
+      "name": "stk-data"
+    },
+    "6654": {
+      "name": "STK-CONST"
+    },
+    "6676": {
+      "name": "FORM-EXP"
+    },
+    "6695": {
+      "name": "STK-ZEROS"
+    },
+    "6701": {
+      "name": "SKIP-CONS"
+    },
+    "6702": {
+      "name": "SKIP-NEXT"
+    },
+    "6716": {
+      "name": "LOC-MEM"
+    },
+    "6725": {
+      "name": "get-mem-xx"
+    },
+    "6737": {
+      "name": "stk-const-xx"
+    },
+    "6755": {
+      "name": "st-mem-xx"
+    },
+    "6770": {
+      "name": "exchange"
+    },
+    "6772": {
+      "name": "SWAP-BYTE"
+    },
+    "6783": {
+      "name": "series-xx"
+    },
+    "6793": {
+      "name": "G-LOOP"
+    },
+    "6816": {
+      "name": "negate"
+    },
+    "6826": {
+      "name": "abs"
+    },
+    "6831": {
+      "name": "sgn"
+    },
+    "6846": {
+      "name": "peek"
+    },
+    "6850": {
+      "name": "IN-PK-STK"
+    },
+    "6853": {
+      "name": "usr-no"
+    },
+    "6862": {
+      "name": "greater-0"
+    },
+    "6869": {
+      "name": "not"
+    },
+    "6875": {
+      "name": "less-0"
+    },
+    "6876": {
+      "name": "SIGN-TO-C"
+    },
+    "6880": {
+      "name": "FP-0/1"
+    },
+    "6883": {
+      "name": "FP-loop"
+    },
+    "6893": {
+      "name": "or"
+    },
+    "6899": {
+      "name": "no-&-no"
+    },
+    "6904": {
+      "name": "str-&-no"
+    },
+    "6915": {
+      "name": "no-l-eql,etc."
+    },
+    "6923": {
+      "name": "EX-OR-NOT"
+    },
+    "6934": {
+      "name": "NU-OR-STR"
+    },
+    "6945": {
+      "name": "STRINGS"
+    },
+    "6956": {
+      "name": "BYTE-COMP"
+    },
+    "6963": {
+      "name": "SECND-LOW"
+    },
+    "6970": {
+      "name": "BOTH-NULL"
+    },
+    "6973": {
+      "name": "SEC-PLUS"
+    },
+    "6989": {
+      "name": "FRST-LESS"
+    },
+    "6992": {
+      "name": "STR-TEST"
+    },
+    "6996": {
+      "name": "END-TESTS"
+    },
+    "7010": {
+      "name": "strs-add"
+    },
+    "7037": {
+      "name": "OTHER-STR"
+    },
+    "7045": {
+      "name": "STK-PNTRS"
+    },
+    "7055": {
+      "name": "chrs"
+    },
+    "7074": {
+      "name": "REPORT-Bd"
+    },
+    "7076": {
+      "name": "val"
+    },
+    "7125": {
+      "name": "str$"
+    },
+    "7174": {
+      "name": "code"
+    },
+    "7182": {
+      "name": "STK-CODE"
+    },
+    "7185": {
+      "name": "len"
+    },
+    "7191": {
+      "name": "dec-jr-nz"
+    },
+    "7203": {
+      "name": "JUMP"
+    },
+    "7204": {
+      "name": "JUMP-2"
+    },
+    "7211": {
+      "name": "JUMP-3"
+    },
+    "7215": {
+      "name": "jump-true"
+    },
+    "7223": {
+      "name": "n-mod-m"
+    },
+    "7238": {
+      "name": "int"
+    },
+    "7246": {
+      "name": "X-NEG"
+    },
+    "7257": {
+      "name": "EXIT"
+    },
+    "7259": {
+      "name": "exp"
+    },
+    "7321": {
+      "name": "REPORT-6b"
+    },
+    "7323": {
+      "name": "N-NEGTV"
+    },
+    "7330": {
+      "name": "RESULT-OK"
+    },
+    "7332": {
+      "name": "RSLT-ZERO"
+    },
+    "7337": {
+      "name": "ln"
+    },
+    "7343": {
+      "name": "REPORT-Ab"
+    },
+    "7345": {
+      "name": "VALID"
+    },
+    "7378": {
+      "name": "GRE.8"
+    },
+    "7448": {
+      "name": "get-argt"
+    },
+    "7477": {
+      "name": "ZPLUS"
+    },
+    "7484": {
+      "name": "YNEG"
+    },
+    "7486": {
+      "name": "cos"
+    },
+    "7497": {
+      "name": "sin"
+    },
+    "7499": {
+      "name": "C-ENT"
+    },
+    "7534": {
+      "name": "tan"
+    },
+    "7542": {
+      "name": "atn"
+    },
+    "7561": {
+      "name": "SMALL"
+    },
+    "7563": {
+      "name": "CASES"
+    },
+    "7620": {
+      "name": "asn"
+    },
+    "7636": {
+      "name": "acs"
+    },
+    "7643": {
+      "name": "sqr"
+    },
+    "7650": {
+      "name": "to-power"
+    },
+    "7662": {
+      "name": "XISO"
+    },
+    "7675": {
+      "name": "ONE"
+    },
+    "7677": {
+      "name": "LAST"
+    },
+    "7679": {
+      "name": "SPARE"
+    },
+    "7680": {
+      "name": "char-set - begins with space character."
+    }
+  }
+}

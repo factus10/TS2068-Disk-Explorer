@@ -1,0 +1,139 @@
+{
+  "id": "lkdos-2068",
+  "name": "Larken LKDOS (TS2068)",
+  "range": [
+    0,
+    255
+  ],
+  "provenance": "LKDOS Machine Language Subroutines (archive.org \"larken\") — published jump table",
+  "symbols": {
+    "98": {
+      "name": "CARTON",
+      "note": "turn the cartridge on"
+    },
+    "100": {
+      "name": "CARTOFF",
+      "note": "turn the cartridge off (a read does it)"
+    },
+    "120": {
+      "name": "SAVEBF",
+      "note": "save the buffer to disk"
+    },
+    "123": {
+      "name": "LOADBF",
+      "note": "load the buffer from disk"
+    },
+    "126": {
+      "name": "TRACK",
+      "note": "restore to track 0, seek curtrk"
+    },
+    "129": {
+      "name": "NEXTRK",
+      "note": "advance one track or side"
+    },
+    "132": {
+      "name": "INDIR",
+      "note": "check the directory for prognm"
+    },
+    "135": {
+      "name": "MOVDR",
+      "note": "move cell to dirwka"
+    },
+    "138": {
+      "name": "CMDCK",
+      "note": "check command syntax"
+    },
+    "141": {
+      "name": "ENDOLN",
+      "note": "move CH_ADD to end of BASIC line"
+    },
+    "144": {
+      "name": "EVALU",
+      "note": "evaluate numeric formula"
+    },
+    "147": {
+      "name": "NOFIL",
+      "note": "no-file error"
+    },
+    "150": {
+      "name": "WPROT",
+      "note": "check for a protect sticker"
+    },
+    "153": {
+      "name": "ZERO",
+      "note": "restore blocks used by cell"
+    },
+    "156": {
+      "name": "GTFIL",
+      "note": "evaluate filename into prognm"
+    },
+    "159": {
+      "name": "ROMS",
+      "note": "check for Spectrum ROM"
+    },
+    "162": {
+      "name": "NEWET",
+      "note": "put a new entry in the directory"
+    },
+    "165": {
+      "name": "DECDM",
+      "note": "print temp1 in decimal"
+    },
+    "168": {
+      "name": "TRANOK",
+      "note": "final routine for save"
+    },
+    "171": {
+      "name": "DOSOP",
+      "note": "close the disk channel"
+    },
+    "174": {
+      "name": "DOSERR",
+      "note": "print error, HL holds the message"
+    },
+    "177": {
+      "name": "CLIRBF",
+      "note": "clear buffer"
+    },
+    "180": {
+      "name": "ENCDBF",
+      "note": "encode the buffer with addresses"
+    },
+    "183": {
+      "name": "VSERCH",
+      "note": "look for arrays"
+    },
+    "186": {
+      "name": "GTOUT",
+      "note": "exit cartridge"
+    },
+    "189": {
+      "name": "GROW",
+      "note": "insert space in program"
+    },
+    "192": {
+      "name": "SHRINK",
+      "note": "delete space in program"
+    },
+    "195": {
+      "name": "FATAL",
+      "note": "catalogue data error"
+    },
+    "198": {
+      "name": "LSUBR",
+      "note": "user load, first half"
+    },
+    "201": {
+      "name": "LDDATA",
+      "note": "user load, second half"
+    },
+    "204": {
+      "name": "SSUBR",
+      "note": "user save, first half"
+    },
+    "207": {
+      "name": "SMEM",
+      "note": "user save, second half"
+    }
+  }
+}
