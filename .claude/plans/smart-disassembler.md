@@ -1,5 +1,36 @@
 # Smart Disassembler — Z80 disassembly with ROM/DOS symbol recognition
 
+> **Layer 1 delivered; Layer 2 and jump-table detection outstanding.**
+>
+> Built and merged: the decoder, the tracer with its RST inline-data handling,
+> entry-point harvesting, the emitter, the Disasm tab, and the `.dis` plus
+> `.dis.json` export. The premise held — seeding from `USR` targets harvested out
+> of the BASIC, PINBALL reaches 65% of its code from one seed, and BBDOS resolves
+> as `PR-STR-4 ×7, PRINT-AT ×5, CLS ×2, FAST`.
+>
+> Six of the eleven packs below shipped, under shorter names than the plan used:
+> `dos-larken` → `lkdos-2068`, `dos-ldos-zx81` → `ldos-zx81`, and
+> `dos-aerco-zx81` + `dos-bbdos-zx81` merged into one `aerco-zx81`, since both
+> describe the same board. Not built: `ts2068-exrom`, `ts2068-sysvars`,
+> `dos-zebra`, `dos-fdd3000`. `scripts/build-symbols.ts` regenerates them all.
+>
+> Three things implementation taught that this plan did not anticipate:
+>
+> - **Approximate addresses have to stay approximate.** 37 of the 45 TS2068 rows
+>   are marked `~`, and shipping them as exact put a confident `MAIN-4` on an
+>   address that lands mid-instruction. They now render with a trailing `?`.
+> - **The entry-point tables mix HOME and EXROM rows**, which are different ROMs
+>   at the same addresses. Merged naively, `$0038` resolved as the EXROM keyboard
+>   entry instead of `MASK-INT`.
+> - **Build packs from documentation, not from a ROM image.** Both TS2068 images
+>   in the reference library are modified — 147 and 99 bytes against the stock
+>   dumps — and a documentation-derived pack validates 44/45 against either.
+>
+> Still open: jump-table detection, which caps whole-ROM coverage at about 37%
+> because the interpreter dispatches through `JP (HL)`; disk programs, which are
+> what the feature is for, do far better. Layer 2 remains deliberately unbuilt —
+> see the section near the end for why it is a folder rather than a queue.
+
 ## Context
 
 The app shows BASIC, screens, fonts and arrays, but machine code is only visible as
