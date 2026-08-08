@@ -90,6 +90,16 @@
       "note": "Decode raw key reading to character code",
       "approx": true
     },
+    "1287": {
+      "name": "BEEP",
+      "note": "BEEP command implementation",
+      "approx": true
+    },
+    "1541": {
+      "name": "BEEPER",
+      "note": "Generate tone (PARP equivalent in HOME ROM)",
+      "approx": true
+    },
     "2638": {
       "name": "CLS-LOWER",
       "note": "Clear lower screen",

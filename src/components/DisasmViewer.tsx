@@ -14,6 +14,11 @@ interface Props {
   onSetOrigin: (origin: number | undefined) => void;
   /** Whether an override is currently in force. */
   overridden: boolean;
+  /** Resolve $0000-$1FFF against the EXROM instead of the HOME ROM. */
+  exrom: boolean;
+  onSetExrom: (on: boolean) => void;
+  /** Hidden on machines that have no EXROM. */
+  showExrom: boolean;
 }
 
 /** Accepts `$F658`, `0xF658`, `F658h` or plain decimal. */
@@ -38,7 +43,9 @@ const hex4 = (n: number) => '$' + n.toString(16).toUpperCase().padStart(4, '0');
  * starts, so a high number usually means the origin is wrong, or that the file
  * is data rather than code.
  */
-export function DisasmViewer({ result, loading, onSetOrigin, overridden }: Props) {
+export function DisasmViewer({
+  result, loading, onSetOrigin, overridden, exrom, onSetExrom, showExrom,
+}: Props) {
   const [draft, setDraft] = useState('');
   const [invalid, setInvalid] = useState(false);
 
@@ -76,6 +83,25 @@ export function DisasmViewer({ result, loading, onSetOrigin, overridden }: Props
       />
       <button onClick={apply} style={btn}>Apply</button>
       {overridden && <button onClick={() => onSetOrigin(undefined)} style={btn}>Detected</button>}
+      {showExrom && (
+        <label
+          title={'The EXROM is a second ROM at the same addresses as the HOME ROM. Nothing in a '
+            + 'file records which was paged in when it ran, so turn this on only for code you '
+            + 'know runs with the EXROM mapped — $0038 is MASK-INT in one and XRST38 in the other.'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4, marginLeft: 6,
+            color: exrom ? 'var(--text-primary)' : 'var(--text-muted)', cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={exrom}
+            onChange={(e) => onSetExrom(e.target.checked)}
+            style={{ margin: 0 }}
+          />
+          EXROM
+        </label>
+      )}
       {invalid && (
         <span style={{ color: 'var(--accent, #e94560)' }}>
           not an address — try $F658, 0xF658 or 63064

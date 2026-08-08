@@ -50,16 +50,25 @@ function loadPacks(): Map<string, SymbolPack> {
 /**
  * Packs for a disk, in increasing precedence. The DOS pack goes last so it
  * wins over the addresses it pages across.
+ *
+ * The EXROM is a second 8K ROM at the same addresses as the HOME ROM, so its
+ * pack can never be merged with the machine's — $0038 is MASK-INT in one and
+ * XRST38 in the other, and $0605 is BEEPER in one and LD-ALL in the other.
+ * Nothing in a file off a disk records which was paged in when it ran, so this
+ * stays off unless a reader asks for it, and the header says when it is on.
  */
-function packsFor(format: DiskFormat): SymbolPack[] {
+function packsFor(format: DiskFormat, exrom = false): SymbolPack[] {
   const all = loadPacks();
   const pick = (...ids: string[]) => ids.map((i) => all.get(i)).filter((p): p is SymbolPack => !!p);
   // Machine ROM first, then the DOS pack, which must win over the addresses it
   // pages across — on a Larken TS2068, $0064 is a cartridge control, not
   // whatever the HOME ROM happens to hold there.
   if (format === 'zx81-aerco') return pick('zx81', 'zx81-sysvars', 'aerco-zx81');
-  if (format === 'larken') return pick('spectrum48', 'ts2068-home', 'ts2068-sysvars', 'lkdos-2068');
-  return pick('spectrum48', 'ts2068-home', 'ts2068-sysvars');
+  // The EXROM overlay replaces the machine ROM rather than sitting under it:
+  // where it has a name, that name is the whole truth about the address.
+  const machine = exrom ? ['spectrum48', 'ts2068-home', 'ts2068-exrom'] : ['spectrum48', 'ts2068-home'];
+  if (format === 'larken') return pick(...machine, 'ts2068-sysvars', 'lkdos-2068');
+  return pick(...machine, 'ts2068-sysvars');
 }
 
 export interface DisassemblyResult {
@@ -99,6 +108,8 @@ export function disassemble(opts: {
   siblings?: { entry: FileEntry; listing: BasicListing }[];
   originOverride?: number;
   source?: string;
+  /** Resolve $0000-$1FFF against the EXROM instead of the HOME ROM. */
+  exrom?: boolean;
 }): DisassemblyResult | null {
   const plan = planDisassembly(opts);
   if (!plan) return null;
@@ -110,7 +121,7 @@ export function disassemble(opts: {
   // sample disks reach code that way and would otherwise stop at `JP (HL)`.
   const result = trace(slice, plan.origin, plan.seeds, { machine: plan.machine, detectTables: true });
   const checksum = crypto.createHash('sha256').update(slice).digest('hex');
-  const packs = packsFor(opts.format);
+  const packs = packsFor(opts.format, opts.exrom);
   const text = emit(slice, result, {
     title: opts.entry.filename.trim(),
     source: opts.source,

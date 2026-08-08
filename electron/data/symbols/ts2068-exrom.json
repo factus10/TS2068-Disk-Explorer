@@ -1,0 +1,351 @@
+{
+  "id": "ts2068-exrom",
+  "name": "TS2068 EXROM",
+  "range": [
+    0,
+    8191
+  ],
+  "provenance": "Timex Sinclair 2068 EXROM.txt (TS2068 Ref Library) — labels placed by walking the listing against TS2068_U20.BIN, confirmed at all 172 stated addresses; gaps filled from ts2068_rom_entry_points.md",
+  "symbols": {
+    "0": {
+      "name": "XRST0"
+    },
+    "8": {
+      "name": "XRST8"
+    },
+    "32": {
+      "name": "XRST20"
+    },
+    "40": {
+      "name": "XRST28"
+    },
+    "48": {
+      "name": "XRST30"
+    },
+    "56": {
+      "name": "XRST38"
+    },
+    "104": {
+      "name": "W_TAPE"
+    },
+    "107": {
+      "name": "SA-BYTES",
+      "note": "Save bytes to tape (SAVE subroutine)"
+    },
+    "229": {
+      "name": "W_BORD"
+    },
+    "252": {
+      "name": "R_TAPE"
+    },
+    "256": {
+      "name": "LD-BYTES",
+      "note": "Load bytes from tape (LOAD subroutine)",
+      "approx": true
+    },
+    "393": {
+      "name": "RD_BIT"
+    },
+    "397": {
+      "name": "R_EDGE"
+    },
+    "427": {
+      "name": "SLVM"
+    },
+    "661": {
+      "name": "SLVBADBAS"
+    },
+    "1343": {
+      "name": "SA-ALL",
+      "note": "SAVE — build header, save program/data",
+      "approx": true
+    },
+    "1478": {
+      "name": "R_TAPE1"
+    },
+    "1484": {
+      "name": "LOAD"
+    },
+    "1541": {
+      "name": "LD-ALL",
+      "note": "LOAD — load program/data",
+      "approx": true
+    },
+    "1792": {
+      "name": "VF-BYTES",
+      "note": "VERIFY bytes",
+      "approx": true
+    },
+    "2129": {
+      "name": "SAVE"
+    },
+    "2218": {
+      "name": "AKEY"
+    },
+    "2265": {
+      "name": "BADBAS"
+    },
+    "2279": {
+      "name": "EXTINIT"
+    },
+    "2410": {
+      "name": "LROS_ERR"
+    },
+    "2412": {
+      "name": "NORMSVAR"
+    },
+    "2419": {
+      "name": "INITSYSVAR"
+    },
+    "2548": {
+      "name": "BLDSCT"
+    },
+    "3504": {
+      "name": "OPDFIL"
+    },
+    "3623": {
+      "name": "CLDFIL"
+    },
+    "3726": {
+      "name": "CHG_V"
+    },
+    "3907": {
+      "name": "PASSIN"
+    },
+    "3978": {
+      "name": "GOTO_B"
+    },
+    "3993": {
+      "name": "CALL_B"
+    },
+    "4096": {
+      "name": "DISPATCHER",
+      "note": "Function dispatcher (copied to RAM; do not call directly)"
+    },
+    "4152": {
+      "name": "D_EXT"
+    },
+    "4158": {
+      "name": "D_HOME"
+    },
+    "4162": {
+      "name": "D_SAVE"
+    },
+    "4212": {
+      "name": "D_CALL"
+    },
+    "4270": {
+      "name": "INT"
+    },
+    "4333": {
+      "name": "LIT3"
+    },
+    "4340": {
+      "name": "PHLAF"
+    },
+    "4352": {
+      "name": "AROS-INIT",
+      "note": "CART-INIT — scan and build SYSCON table from cartridge"
+    },
+    "4359": {
+      "name": "NMI"
+    },
+    "4369": {
+      "name": "LNI3"
+    },
+    "4374": {
+      "name": "GET_WORD"
+    },
+    "4411": {
+      "name": "PUT_WORD"
+    },
+    "4444": {
+      "name": "WRITE_BS_REG"
+    },
+    "4525": {
+      "name": "READ_BS_REG"
+    },
+    "4613": {
+      "name": "GET_STATUS"
+    },
+    "4653": {
+      "name": "GS_HOME"
+    },
+    "4658": {
+      "name": "GS_DOCK"
+    },
+    "4666": {
+      "name": "GS_EXT"
+    },
+    "4682": {
+      "name": "GS_EXIT"
+    },
+    "4685": {
+      "name": "GET_CHUNK"
+    },
+    "4689": {
+      "name": "GC_SHIFT"
+    },
+    "4697": {
+      "name": "GC_ROLL"
+    },
+    "4702": {
+      "name": "GET_NUMBER"
+    },
+    "4715": {
+      "name": "GN_CHECK"
+    },
+    "4724": {
+      "name": "GN_RD_DOCK"
+    },
+    "4750": {
+      "name": "GN_HOME"
+    },
+    "4754": {
+      "name": "GN_DOCK"
+    },
+    "4757": {
+      "name": "GN_EXP"
+    },
+    "4758": {
+      "name": "GN_EXIT"
+    },
+    "4761": {
+      "name": "X_BANK_ENABLE"
+    },
+    "4789": {
+      "name": "BE_SKIP"
+    },
+    "4804": {
+      "name": "BE_EXT_OK"
+    },
+    "4810": {
+      "name": "BE_NTDOCK"
+    },
+    "4836": {
+      "name": "BE_SET"
+    },
+    "4844": {
+      "name": "BE_NTEXT"
+    },
+    "4870": {
+      "name": "BE_CHK_HOME"
+    },
+    "4889": {
+      "name": "BE_EXIT"
+    },
+    "4894": {
+      "name": "SAVE_STATUS"
+    },
+    "4920": {
+      "name": "SS_LOOP"
+    },
+    "4932": {
+      "name": "SS_EXIT"
+    },
+    "4938": {
+      "name": "RESTORE_STATUS"
+    },
+    "4962": {
+      "name": "RS_LOOP"
+    },
+    "4972": {
+      "name": "RS_EXIT"
+    },
+    "4978": {
+      "name": "GOTO_BANK"
+    },
+    "5004": {
+      "name": "JPIX"
+    },
+    "5072": {
+      "name": "CALL_BANK"
+    },
+    "5120": {
+      "name": "INIT-RAM",
+      "note": "Initialize RAM and system variables",
+      "approx": true
+    },
+    "5144": {
+      "name": "CB_NC1"
+    },
+    "5215": {
+      "name": "CB_NC2"
+    },
+    "5260": {
+      "name": "MOVE_BYTES"
+    },
+    "5293": {
+      "name": "MB_RV1"
+    },
+    "5298": {
+      "name": "MB_UP1"
+    },
+    "5337": {
+      "name": "MB_RV2"
+    },
+    "5342": {
+      "name": "MB_UP2"
+    },
+    "5352": {
+      "name": "CREATE_BITMAP"
+    },
+    "5370": {
+      "name": "CB_SUB"
+    },
+    "5372": {
+      "name": "CB_CONT"
+    },
+    "5392": {
+      "name": "CB_NB1"
+    },
+    "5398": {
+      "name": "CB_NB2"
+    },
+    "5408": {
+      "name": "CB_EXIT"
+    },
+    "5410": {
+      "name": "XFER_BYTES"
+    },
+    "5485": {
+      "name": "XB_DIFF_BANKS"
+    },
+    "5496": {
+      "name": "XB_DO_MOVE"
+    },
+    "5532": {
+      "name": "XB_REVERSE"
+    },
+    "5536": {
+      "name": "XB_OVERLAP"
+    },
+    "5571": {
+      "name": "XB_SPACE"
+    },
+    "5590": {
+      "name": "XB_MOVE_LOOP"
+    },
+    "5600": {
+      "name": "XB_LAST_MOVE"
+    },
+    "5614": {
+      "name": "XB_EXIT"
+    },
+    "5653": {
+      "name": "GOTO_EXT"
+    },
+    "5668": {
+      "name": "BLK1"
+    },
+    "6144": {
+      "name": "BLK2"
+    },
+    "7168": {
+      "name": "BLK3"
+    },
+    "7424": {
+      "name": "FIXTBL"
+    }
+  }
+}

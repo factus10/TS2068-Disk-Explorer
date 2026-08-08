@@ -27,8 +27,8 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('get-basic-variables', imagePath, entryIndex),
   getBasicXref: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
     ipcRenderer.invoke('get-basic-xref', imagePath, entryIndex, ts2068Mode ?? 'auto'),
-  getDisassembly: (imagePath: string, entryIndex: number, originOverride?: number) =>
-    ipcRenderer.invoke('get-disassembly', imagePath, entryIndex, originOverride),
+  getDisassembly: (imagePath: string, entryIndex: number, originOverride?: number, exrom?: boolean) =>
+    ipcRenderer.invoke('get-disassembly', imagePath, entryIndex, originOverride, exrom),
   getDiskMap: (imagePath: string) =>
     ipcRenderer.invoke('get-disk-map', imagePath),
   extractBasicFromState: (imagePath: string, entryIndex: number, destDir: string) =>
