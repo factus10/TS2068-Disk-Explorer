@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits, BasicVariable, XRefResult, DisasmSettings, isScreenEntry } from '../api';
+import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits, BasicVariable, XRefResult, DisasmSettings, isScreenEntry, isTextData } from '../api';
 import { HexView } from './HexView';
 import { BasicListing } from './BasicListing';
 import { ScreenViewer } from './ScreenViewer';
@@ -33,7 +33,6 @@ interface Props {
 
 type ViewTab = 'listing' | 'variables' | 'xref' | 'disasm' | 'screen' | 'font' | 'icon' | 'array' | 'text' | 'hex';
 
-const TEXT_PRINTABLE_THRESHOLD = 0.9;
 
 function getStaticTabs(entry: FileEntry): ViewTab[] {
   const tabs: ViewTab[] = [];
@@ -44,16 +43,6 @@ function getStaticTabs(entry: FileEntry): ViewTab[] {
   return tabs;
 }
 
-function isTextContent(data: number[]): boolean {
-  if (data.length === 0) return false;
-  let printable = 0;
-  const len = Math.min(data.length, 2048); // sample first 2KB
-  for (let i = 0; i < len; i++) {
-    const b = data[i];
-    if ((b >= 0x20 && b <= 0x7e) || b === 0x0d || b === 0x0a || b === 0x09) printable++;
-  }
-  return printable / len >= TEXT_PRINTABLE_THRESHOLD;
-}
 
 function decodeText(data: number[]): string {
   let text = '';
@@ -109,15 +98,20 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   const hasTokenDialects = diskFormat !== 'zx81-aerco';
 
   // Compute available tabs (text/font/icon tabs depend on data)
-  const hasText = hexData ? isTextContent(hexData) : false;
+  const hasText = hexData ? isTextData(hexData) : false;
   const hasFont = hexData ? isFontData(hexData) : false;
   const hasIcon = hexData ? isIconData(hexData) : false;
   // A SCREEN$ is stored as CODE and would otherwise be offered a Disasm tab,
   // where tracing its pixels yields a confident listing of instructions that
   // never ran. Kept in step with canDisassemble in the main process.
+  // A SCREEN$ and a text document are both stored as CODE and would otherwise
+  // be offered a Disasm tab, where tracing them yields a confident listing of
+  // instructions that never ran. Kept in step with canDisassemble in the main
+  // process, which applies the same two tests once it has the bytes.
   const canDisasm = diskFormat === 'zx81-aerco'
     ? entry.size > 0
-    : (entry.type === 'code' || entry.type === 'module') && !isScreenEntry(entry);
+    : (entry.type === 'code' || entry.type === 'module')
+      && !isScreenEntry(entry) && !hasText;
   const tabs = useMemo(() => {
     const t = getStaticTabs(entry);
     if (canDisasm) t.push('disasm');
@@ -157,7 +151,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
         setActiveTab('font');
       } else if (data && isIconData(data) && entry.type === 'code') {
         setActiveTab('icon');
-      } else if (data && isTextContent(data)) {
+      } else if (data && isTextData(data)) {
         setActiveTab('text');
       } else {
         setActiveTab('hex');
