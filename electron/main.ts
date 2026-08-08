@@ -21,7 +21,7 @@ import {
   readCatalog as readZX81Aerco, readFileData as readZX81AercoFile, readBasicListing as readZX81Listing,
 } from './parsers/zx81-aerco';
 import { parseZX81Variables } from './parsers/zx81';
-import { disassemble, canDisassemble } from './parsers/disasm';
+import { disassemble, canDisassemble, disassembleForExport } from './parsers/disasm';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
 import { detokenize } from './parsers/basic-detokenizer';
@@ -36,7 +36,7 @@ import { rebuildBasicProgram } from './parsers/basic-editor';
 import { buildTtfFont, isFontFile } from './parsers/font-export';
 import { encodePng } from './parsers/png-export';
 import { makeSafeFilename, uniquePath } from './parsers/utils';
-import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage, DiskHeader } from './parsers/types';
+import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage, DiskHeader, DisasmSettings, DisasmSettingsMap } from './parsers/types';
 import type { BasicListing, Ts2068Mode } from './parsers/basic-detokenizer';
 import type { ScreenData } from './parsers/screen-decoder';
 import type { ArrayData } from './parsers/array-decoder';
@@ -251,22 +251,6 @@ function collectLoaders(
   return loaders;
 }
 
-/** The .dis text and its sidecar for one file, or null if it cannot be traced. */
-function disassembleForExport(
-  format: DiskFormat, entry: FileEntry, data: Buffer,
-  loaders: { entry: FileEntry; listing: BasicListing }[], source: string,
-) {
-  if (!canDisassemble(format, entry)) return null;
-  try {
-    return disassemble({
-      format, entry, data, siblings: loaders, source,
-      listing: loaders.find((l) => l.entry.index === entry.index)?.listing ?? null,
-    });
-  } catch {
-    return null;   // a file that will not trace must not stop the extraction
-  }
-}
-
 function parseDiskImage(filePath: string): DiskImage {
   const buffer = fs.readFileSync(filePath);
   const format = detectFormat(buffer, filePath);
@@ -385,6 +369,7 @@ ipcMain.handle('extract-file', async (
 ipcMain.handle('extract-all', async (
   _event, imagePath: string, destDir: string,
   allEdits?: Record<number, Record<number, string>>,
+  allDisasm?: DisasmSettingsMap,
 ): Promise<ExtractionResult[]> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -450,7 +435,10 @@ ipcMain.handle('extract-all', async (
     if (!fileData) continue;
     const safeName = makeSafeFilename(entry.filename.trim());
     if (!safeName) continue;
-    const dis = disassembleForExport(format, entry, fileData, loaders, path.basename(imagePath));
+    const dis = disassembleForExport({
+      format, entry, data: fileData, loaders, source: path.basename(imagePath),
+      settings: allDisasm?.[entry.index],
+    });
     if (!dis) continue;
     const disPath = uniquePath(path.join(destDir, safeName + '.dis'));
     fs.writeFileSync(disPath, dis.text);
@@ -656,6 +644,7 @@ function fileTypeToArchiveSuffix(entry: FileEntry): string {
 function buildArchiveFiles(
   imagePath: string, metadata: ArchiveMetadata,
   allEdits?: Record<number, Record<number, string>>,
+  allDisasm?: DisasmSettingsMap,
 ): { name: string; data: Buffer; entry: FileEntry }[] {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -722,7 +711,10 @@ function buildArchiveFiles(
     if (entry.isDirectory) continue;
     const fileData = fileDataMap.get(entry.index);
     if (!fileData) continue;
-    const dis = disassembleForExport(format, entry, fileData, loaders, path.basename(imagePath));
+    const dis = disassembleForExport({
+      format, entry, data: fileData, loaders, source: path.basename(imagePath),
+      settings: allDisasm?.[entry.index],
+    });
     if (!dis) continue;
     const archiveName = buildArchiveName(entry.filename, metadata, fileTypeToArchiveSuffix(entry));
     files.push({ name: archiveName + '.dis', data: Buffer.from(dis.text, 'utf8'), entry });
@@ -740,6 +732,7 @@ ipcMain.handle('export-archive', async (
   _event, imagePath: string, destOrZipPath: string,
   metadata: ArchiveMetadata & { format?: string },
   allEdits?: Record<number, Record<number, string>>,
+  allDisasm?: DisasmSettingsMap,
 ): Promise<ExtractionResult[]> => {
   const isZip = metadata.format === 'zip' || destOrZipPath.endsWith('.zip');
 
@@ -759,7 +752,7 @@ ipcMain.handle('export-archive', async (
   }
 
   // Folder mode: export individual files with archive.org naming
-  const archiveFiles = buildArchiveFiles(imagePath, metadata, allEdits);
+  const archiveFiles = buildArchiveFiles(imagePath, metadata, allEdits, allDisasm);
   if (archiveFiles.length === 0) return [];
 
   fs.mkdirSync(destOrZipPath, { recursive: true });

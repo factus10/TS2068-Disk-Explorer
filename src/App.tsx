@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { api, DiskImage, FileEntry, ExtractionResult, TapPackage, ManualPackage, EditState } from './api';
+import { api, DiskImage, FileEntry, ExtractionResult, TapPackage, ManualPackage, EditState, DisasmSettingsMap } from './api';
 import { Toolbar } from './components/Toolbar';
 import { DiskInfo } from './components/DiskInfo';
 import { FileTable, FileTableHandle } from './components/FileTable';
@@ -29,6 +29,9 @@ function App() {
   const [manualPackages, setManualPackages] = useState<ManualPackage[]>([]);
   const [nextManualId, setNextManualId] = useState(1);
   const [editState, setEditState] = useState<EditState>({});
+  // Disassembly choices per file, so an extraction writes the .dis the reader
+  // was actually looking at rather than one built from the detected origin.
+  const [disasmState, setDisasmState] = useState<DisasmSettingsMap>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
     (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'dark' | 'light') || 'dark',
@@ -356,13 +359,13 @@ function App() {
     setExtracting(true);
     setStatus('Extracting all files...');
     try {
-      const results = await api.extractAll(disk.path, destDir, editState);
+      const results = await api.extractAll(disk.path, destDir, editState, disasmState);
       setStatus(`Extracted ${results.length} file(s)`);
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk, editState]);
+  }, [disk, editState, disasmState]);
 
   const handleExportArchive = useCallback(async (metadata: ArchiveMetadata) => {
     if (!disk) return;
@@ -377,7 +380,7 @@ function App() {
       setExtracting(true);
       setStatus('Exporting archive ZIP...');
       try {
-        const results = await api.exportArchive(disk.path, zipPath, metadata, editState);
+        const results = await api.exportArchive(disk.path, zipPath, metadata, editState, disasmState);
         setStatus(`Exported ${results.length} file(s) to ZIP`);
       } catch (err: any) {
         setStatus(`Error: ${err.message}`);
@@ -389,14 +392,14 @@ function App() {
       setExtracting(true);
       setStatus('Exporting for archive.org...');
       try {
-        const results = await api.exportArchive(disk.path, destDir, metadata, editState);
+        const results = await api.exportArchive(disk.path, destDir, metadata, editState, disasmState);
         setStatus(`Exported ${results.length} file(s) for archive.org`);
       } catch (err: any) {
         setStatus(`Error: ${err.message}`);
       }
       setExtracting(false);
     }
-  }, [disk, editState]);
+  }, [disk, editState, disasmState]);
 
   const handleExportAllFonts = useCallback(async () => {
     if (!disk) return;
@@ -628,6 +631,9 @@ function App() {
             onRevertLine={(ln) => handleRevertLine(viewerEntry.index, ln)}
             onRevertAll={() => handleRevertAll(viewerEntry.index)}
             screenEntries={screenEntries}
+            disasmSettings={disasmState[viewerEntry.index]}
+            onChangeDisasm={(settings) =>
+              setDisasmState((prev) => ({ ...prev, [viewerEntry.index]: settings }))}
           />
         )}
       </div>

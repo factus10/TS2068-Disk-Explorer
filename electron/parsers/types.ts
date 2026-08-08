@@ -85,3 +85,21 @@ export interface CatalogResult {
   header: DiskHeader;
   entries: FileEntry[];
 }
+
+/**
+ * Disassembly choices a reader made in the viewer for one file.
+ *
+ * These have to travel with an extraction. A `.dis` written with the detected
+ * origin, when the reader had corrected it by hand, is not merely different —
+ * its sidecar records that origin as provenance, so the artifact says the
+ * bytes were read a way they were not.
+ */
+export interface DisasmSettings {
+  /** Load address the reader set, overriding the detected one. */
+  origin?: number;
+  /** Resolve $0000-$1FFF against the TS2068 EXROM rather than the HOME ROM. */
+  exrom?: boolean;
+}
+
+/** Per-file disassembly settings, keyed by entry index. */
+export type DisasmSettingsMap = Record<number, DisasmSettings>;

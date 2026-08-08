@@ -9,10 +9,12 @@ contextBridge.exposeInMainWorld('diskTools', {
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   extractFile: (imagePath: string, entryIndex: number, destDir: string, editedLines?: Record<number, string>, customBaseName?: string) =>
     ipcRenderer.invoke('extract-file', imagePath, entryIndex, destDir, editedLines, customBaseName),
-  extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>) =>
-    ipcRenderer.invoke('extract-all', imagePath, destDir, allEdits),
-  exportArchive: (imagePath: string, destDir: string, metadata: any, allEdits?: Record<number, Record<number, string>>) =>
-    ipcRenderer.invoke('export-archive', imagePath, destDir, metadata, allEdits),
+  extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>,
+    allDisasm?: Record<number, { origin?: number; exrom?: boolean }>) =>
+    ipcRenderer.invoke('extract-all', imagePath, destDir, allEdits, allDisasm),
+  exportArchive: (imagePath: string, destDir: string, metadata: any, allEdits?: Record<number, Record<number, string>>,
+    allDisasm?: Record<number, { origin?: number; exrom?: boolean }>) =>
+    ipcRenderer.invoke('export-archive', imagePath, destDir, metadata, allEdits, allDisasm),
   saveZipDialog: (defaultName: string) =>
     ipcRenderer.invoke('save-zip-dialog', defaultName),
   getFileData: (imagePath: string, entryIndex: number) =>

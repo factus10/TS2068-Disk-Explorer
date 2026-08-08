@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits, BasicVariable, XRefResult } from '../api';
+import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits, BasicVariable, XRefResult, DisasmSettings } from '../api';
 import { HexView } from './HexView';
 import { BasicListing } from './BasicListing';
 import { ScreenViewer } from './ScreenViewer';
@@ -26,6 +26,9 @@ interface Props {
   onRevertLine?: (lineNumber: number) => void;
   onRevertAll?: () => void;
   screenEntries?: FileEntry[];
+  /** Disassembly choices for this file, kept by App so extraction can use them. */
+  disasmSettings?: DisasmSettings;
+  onChangeDisasm: (settings: DisasmSettings) => void;
 }
 
 type ViewTab = 'listing' | 'variables' | 'xref' | 'disasm' | 'screen' | 'font' | 'icon' | 'array' | 'text' | 'hex';
@@ -81,7 +84,7 @@ const TAB_LABELS: Record<ViewTab, string> = {
   hex: 'Hex',
 };
 
-export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits, onEditLine, onRevertLine, onRevertAll, screenEntries }: Props) {
+export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits, onEditLine, onRevertLine, onRevertAll, screenEntries, disasmSettings, onChangeDisasm }: Props) {
   // Raw file data — loaded eagerly for text detection
   const [hexData, setHexData] = useState<number[] | null>(null);
   const [listing, setListing] = useState<BasicListingData | null>(null);
@@ -90,8 +93,13 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   const [xrefData, setXrefData] = useState<XRefEntry[] | null>(null);
   const [disasm, setDisasm] = useState<Disassembly | null>(null);
   // undefined means "use whatever the planner infers".
-  const [originOverride, setOriginOverride] = useState<number | undefined>(undefined);
-  const [exrom, setExrom] = useState(false);
+  // Held by App, not here: an extraction has to be able to reproduce what the
+  // reader was looking at, and this component unmounts when the file is closed.
+  const originOverride = disasmSettings?.origin;
+  const exrom = disasmSettings?.exrom ?? false;
+  const setOriginOverride = (origin: number | undefined) =>
+    onChangeDisasm({ ...disasmSettings, origin });
+  const setExrom = (on: boolean) => onChangeDisasm({ ...disasmSettings, exrom: on });
   const [loading, setLoading] = useState(false);
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');

@@ -11,7 +11,7 @@ import { trace } from './z80-trace';
 import { emit } from './disasm-emit';
 import type { SymbolPack } from './disasm-emit';
 import type { BasicListing } from './basic-detokenizer';
-import type { DiskFormat, FileEntry } from './types';
+import type { DiskFormat, FileEntry, DisasmSettings } from './types';
 
 /** Packs are loaded once; they are static data. */
 let cache: Map<string, SymbolPack> | null = null;
@@ -167,6 +167,37 @@ export function disassemble(opts: {
       },
     },
   };
+}
+
+/**
+ * The `.dis` for one file during an extraction, or null if it cannot be traced.
+ *
+ * Lives here rather than in the Electron main process so that the settings
+ * actually reaching the disassembler can be tested. They did not, once: the
+ * viewer grew an origin override and an EXROM toggle and the export kept
+ * calling with neither, so an extraction wrote a listing built from the
+ * detected origin while recording it as provenance.
+ */
+export function disassembleForExport(opts: {
+  format: DiskFormat;
+  entry: FileEntry;
+  data: Buffer;
+  loaders: { entry: FileEntry; listing: BasicListing }[];
+  source: string;
+  settings?: DisasmSettings;
+}): DisassemblyResult | null {
+  const { format, entry, data, loaders, source, settings } = opts;
+  if (!canDisassemble(format, entry)) return null;
+  try {
+    return disassemble({
+      format, entry, data, siblings: loaders, source,
+      listing: loaders.find((l) => l.entry.index === entry.index)?.listing ?? null,
+      originOverride: settings?.origin,
+      exrom: settings?.exrom,
+    });
+  } catch {
+    return null;   // a file that will not trace must not stop the extraction
+  }
 }
 
 /** True when this file is worth offering a disassembly for. */

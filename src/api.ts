@@ -56,6 +56,19 @@ export interface TapPackage {
 
 export type Ts2068Mode = 'auto' | 'ts2068' | 'spectrum';
 
+/**
+ * Disassembly choices a reader made for one file. They travel with an
+ * extraction so a `.dis` records how the bytes were actually read — its
+ * sidecar names the origin as provenance, so exporting a different one would
+ * make the artifact describe a reading nobody performed.
+ */
+export interface DisasmSettings {
+  origin?: number;
+  exrom?: boolean;
+}
+
+export type DisasmSettingsMap = Record<number, DisasmSettings>;
+
 export interface BasicToken {
   type: 'statement' | 'function' | 'operator' | 'text' | 'udg' | 'graphic' | 'disk-cmd' | 'ts2068-kw';
   text: string;
@@ -139,8 +152,8 @@ interface DiskToolsAPI {
   openPath: (filePath: string) => Promise<DiskImage>;
   selectDirectory: () => Promise<string | null>;
   extractFile: (imagePath: string, entryIndex: number, destDir: string, editedLines?: Record<number, string>, customBaseName?: string) => Promise<ExtractionResult | null>;
-  extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult[]>;
-  exportArchive: (imagePath: string, destOrZipPath: string, metadata: { year: string; publisher: string; system: string; country: string; format: string }, allEdits?: Record<number, Record<number, string>>) => Promise<ExtractionResult[]>;
+  extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>, allDisasm?: DisasmSettingsMap) => Promise<ExtractionResult[]>;
+  exportArchive: (imagePath: string, destOrZipPath: string, metadata: { year: string; publisher: string; system: string; country: string; format: string }, allEdits?: Record<number, Record<number, string>>, allDisasm?: DisasmSettingsMap) => Promise<ExtractionResult[]>;
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) => Promise<ExtractionResult | null>;
