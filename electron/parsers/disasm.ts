@@ -12,6 +12,7 @@ import { emit } from './disasm-emit';
 import type { SymbolPack } from './disasm-emit';
 import type { BasicListing } from './basic-detokenizer';
 import { isScreenEntry } from './screen-decoder';
+import { isTextData } from './utils';
 import type { DiskFormat, FileEntry, DisasmSettings } from './types';
 
 /** Packs are loaded once; they are static data. */
@@ -188,7 +189,7 @@ export function disassembleForExport(opts: {
   settings?: DisasmSettings;
 }): DisassemblyResult | null {
   const { format, entry, data, loaders, source, settings } = opts;
-  if (!canDisassemble(format, entry)) return null;
+  if (!canDisassemble(format, entry, data)) return null;
   try {
     return disassemble({
       format, entry, data, siblings: loaders, source,
@@ -201,9 +202,19 @@ export function disassembleForExport(opts: {
   }
 }
 
-/** True when this file is worth offering a disassembly for. */
-export function canDisassemble(format: DiskFormat, entry: FileEntry): boolean {
+/**
+ * True when this file is worth offering a disassembly for.
+ *
+ * `data` is optional only because the catalog view has not read the file yet.
+ * Pass it wherever it is to hand: without the bytes, a text document saved as
+ * CODE cannot be told from a program.
+ */
+export function canDisassemble(
+  format: DiskFormat, entry: FileEntry, data?: ArrayLike<number>,
+): boolean {
   if (entry.isDirectory || entry.size <= 0) return false;
+  // A ZX81 file is a whole memory image and its text is not ASCII, so neither
+  // test below applies.
   if (format === 'zx81-aerco') return true;
   // A SCREEN$ is stored as CODE, so it reaches here looking like a program.
   // Tracing pixels does not fail — it produces a confident listing of
@@ -211,5 +222,6 @@ export function canDisassemble(format: DiskFormat, entry: FileEntry): boolean {
   // design exists to avoid. 44 of the 350 CODE files on the sample disks are
   // screens, and an extraction was writing a .dis for every one of them.
   if (isScreenEntry(entry)) return false;
+  if (data && isTextData(data)) return false;
   return entry.type === 'code' || entry.type === 'module';
 }

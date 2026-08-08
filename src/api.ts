@@ -70,6 +70,27 @@ export function isScreenEntry(entry: { type: string; size: number }): boolean {
   return entry.type === 'code' && entry.size === SCREEN_SIZE;
 }
 
+/** A file is called text when this fraction of its bytes are printable. */
+export const TEXT_PRINTABLE_THRESHOLD = 0.9;
+
+/**
+ * Whether a file reads as text rather than as something to execute. Nearly
+ * everything on the newsletter disks is saved as CODE, including the articles.
+ *
+ * The main process decides this too, in parsers/utils.ts — the renderer does
+ * not import across that boundary, so the two definitions have to agree.
+ */
+export function isTextData(data: ArrayLike<number>): boolean {
+  if (!data.length) return false;
+  const len = Math.min(data.length, 2048);
+  let printable = 0;
+  for (let i = 0; i < len; i++) {
+    const b = data[i];
+    if ((b >= 0x20 && b <= 0x7e) || b === 0x0d || b === 0x0a || b === 0x09) printable++;
+  }
+  return printable / len >= TEXT_PRINTABLE_THRESHOLD;
+}
+
 /**
  * Disassembly choices a reader made for one file. They travel with an
  * extraction so a `.dis` records how the bytes were actually read — its

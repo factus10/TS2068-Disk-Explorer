@@ -1048,9 +1048,10 @@ ipcMain.handle('get-disassembly', async (
   const { entries } = parser.readCatalog(buffer);
   const allEntries = flattenEntries(entries);
   const entry = allEntries.find((e) => e.index === entryIndex);
-  if (!entry || !canDisassemble(format, entry)) return null;
+  if (!entry) return null;
   const data = parser.readFileData(buffer, entry);
-  if (!data) return null;
+  // Read first, then decide: the bytes are what tell a program from a document.
+  if (!data || !canDisassemble(format, entry, data)) return null;
 
   // Every BASIC file on the disk is a candidate loader: one of them may name
   // this file's load address, and their USR calls are the entry points.

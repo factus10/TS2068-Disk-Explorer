@@ -41,16 +41,33 @@ export interface DisasmPlan {
   notes: string[];
 }
 
-/** Pull `USR nnnnn` operands out of a detokenized listing. */
+/**
+ * Pull `USR` operands out of a detokenized listing.
+ *
+ * Two spellings, because Spectrum BASIC stores a number as five bytes of
+ * floating point after its digits and `VAL "54016"` does not, so writing the
+ * address as a string is a standard way to save eight bytes a line. It is not
+ * a rarity either: across the sample disks 194 USR operands are written as
+ * numbers and 44 as `VAL "…"`, and ignoring the second form cost five of the
+ * thirty real code files their entry point.
+ *
+ * Everything else is left alone deliberately. `USR h` is the most common form
+ * of all, and resolving it means tracking assignments through a BASIC program
+ * — a guess dressed as a fact, and a wrong seed makes the tracer walk data
+ * while reporting instructions. `USR FN a()` and `USR CODE "n"` are the same
+ * problem, the latter yielding a character code rather than an address.
+ */
 export function harvestUsrTargets(listing: BasicListing): number[] {
   const found = new Set<number>();
+  const add = (raw: string) => {
+    const n = Number(raw);
+    // A USR operand is a 16-bit address. Anything else is a mis-read.
+    if (Number.isFinite(n) && n >= 0 && n <= 0xffff) found.add(n);
+  };
   for (const line of listing.lines) {
     const text = line.tokens.map((t) => t.text).join('');
-    for (const m of text.matchAll(/USR\s*(\d+)/g)) {
-      const n = Number(m[1]);
-      // A USR operand is a 16-bit address. Anything else is a mis-read.
-      if (Number.isFinite(n) && n >= 0 && n <= 0xffff) found.add(n);
-    }
+    for (const m of text.matchAll(/USR\s*(\d+)/g)) add(m[1]);
+    for (const m of text.matchAll(/USR\s*VAL\s*"(\d+)"/g)) add(m[1]);
   }
   return [...found].sort((a, b) => a - b);
 }
@@ -65,7 +82,9 @@ export function harvestCodeAddresses(
   const out: { filename: string; addr: number; length?: number }[] = [];
   for (const line of listing.lines) {
     const text = line.tokens.map((t) => t.text).join('');
-    for (const m of text.matchAll(/(?:LOAD|SAVE)\s*"([^"]*)"\s*CODE\s*(\d+)(?:\s*,\s*(\d+))?/g)) {
+    // `CODE VAL "32768"` for the same reason USR is written that way.
+    const re = /(?:LOAD|SAVE)\s*"([^"]*)"\s*CODE\s*(?:VAL\s*")?(\d+)"?(?:\s*,\s*(?:VAL\s*")?(\d+)"?)?/g;
+    for (const m of text.matchAll(re)) {
       const addr = Number(m[2]);
       if (addr >= 0 && addr <= 0xffff) {
         out.push({ filename: m[1], addr, ...(m[3] ? { length: Number(m[3]) } : {}) });

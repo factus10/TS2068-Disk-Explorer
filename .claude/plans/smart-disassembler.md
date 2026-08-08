@@ -106,6 +106,30 @@
 > type together. Not by load address: 13 of the 44 record $5F00 rather than
 > $4000, and they are the same ones the catalog already flags as damaged.
 >
+> "Entry points only reach 24 of 338 files" turned out to be the wrong
+> reading of a real problem. The denominator was almost entirely text: 264 of
+> the 294 files reaching the disassembler are word-processor articles saved as
+> CODE, one opening "THE CHARTER AND BY-LAWS OF THE SINCLAIR COMPUTER USERS'
+> SOCIETY". The separation is not marginal — 260 are over 98% printable, 26
+> under 50%, almost nothing between — so they are excluded on the same footing
+> as screens, using the predicate the viewer already applied to offer its Text
+> tab.
+>
+> That leaves 30 real code files, of which 19 had an entry point. The genuine
+> gap was in the harvester: a Spectrum number costs five bytes of inline
+> floating point and `VAL "54016"` costs none, so the address is usually
+> written as a string. Reading that spelling too takes it to 25 of 30.
+>
+> The other forms stay unresolved on purpose. `USR h` is the most common of
+> all — 386 occurrences against 194 numeric — but resolving it means tracking
+> assignments through a BASIC program, and a wrong seed makes the tracer walk
+> data while reporting instructions.
+>
+> A caution for anyone re-measuring this: on 9 of the 15 sample disks every
+> code file reports one identical load address ($B74F, or $8200 on ZXir), so a
+> single USR that lands in that range appears to seed dozens of files. Judging
+> coverage without excluding documents first counts those as successes.
+>
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
 

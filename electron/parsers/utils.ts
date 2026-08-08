@@ -55,3 +55,34 @@ export function writeUint16BE(value: number): Buffer {
   buf[1] = value & 0xff;
   return buf;
 }
+
+/** A file is called text when this fraction of its bytes are printable. */
+export const TEXT_PRINTABLE_THRESHOLD = 0.9;
+
+/**
+ * Whether a file reads as text rather than as something to execute.
+ *
+ * This matters more than it sounds. On the newsletter disks almost everything
+ * is saved as CODE — 264 of the 294 files that reached the disassembler across
+ * the sample images are word-processor articles, one of which opens "THE
+ * CHARTER AND BY-LAWS OF THE SINCLAIR COMPUTER USERS' SOCIETY". Disassembling
+ * prose does not fail; it yields a confident listing of instructions that were
+ * never executed.
+ *
+ * The separation is not marginal. Of those 294, 260 are over 98% printable and
+ * 26 are under 50%, with almost nothing in between, so the threshold is not
+ * doing delicate work.
+ *
+ * The renderer decides the same thing in ContentViewer, across the IPC
+ * boundary it does not import across; the two have to agree.
+ */
+export function isTextData(data: ArrayLike<number>): boolean {
+  if (!data.length) return false;
+  const len = Math.min(data.length, 2048);
+  let printable = 0;
+  for (let i = 0; i < len; i++) {
+    const b = data[i];
+    if ((b >= 0x20 && b <= 0x7e) || b === 0x0d || b === 0x0a || b === 0x09) printable++;
+  }
+  return printable / len >= TEXT_PRINTABLE_THRESHOLD;
+}
