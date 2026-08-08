@@ -11,6 +11,7 @@ import { trace } from './z80-trace';
 import { emit } from './disasm-emit';
 import type { SymbolPack } from './disasm-emit';
 import type { BasicListing } from './basic-detokenizer';
+import { isScreenEntry } from './screen-decoder';
 import type { DiskFormat, FileEntry, DisasmSettings } from './types';
 
 /** Packs are loaded once; they are static data. */
@@ -204,5 +205,11 @@ export function disassembleForExport(opts: {
 export function canDisassemble(format: DiskFormat, entry: FileEntry): boolean {
   if (entry.isDirectory || entry.size <= 0) return false;
   if (format === 'zx81-aerco') return true;
+  // A SCREEN$ is stored as CODE, so it reaches here looking like a program.
+  // Tracing pixels does not fail — it produces a confident listing of
+  // instructions that were never executed, which is the one output this
+  // design exists to avoid. 44 of the 350 CODE files on the sample disks are
+  // screens, and an extraction was writing a .dis for every one of them.
+  if (isScreenEntry(entry)) return false;
   return entry.type === 'code' || entry.type === 'module';
 }

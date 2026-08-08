@@ -99,6 +99,13 @@
 > `export-archive`, and the helper moved out of the Electron shell into
 > `disasm.ts` so that what reaches the disassembler can be tested at all.
 >
+> A SCREEN$ is saved as CODE, so it arrived at the disassembler looking like a
+> program, and 44 of the 350 CODE files on the sample disks are screens. An
+> extraction wrote a `.dis` for every one — pixels decoded into a confident
+> listing of instructions that never ran. They are excluded now, by size and
+> type together. Not by load address: 13 of the 44 record $5F00 rather than
+> $4000, and they are the same ones the catalog already flags as damaged.
+>
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
 

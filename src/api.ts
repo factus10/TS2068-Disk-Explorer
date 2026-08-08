@@ -56,6 +56,20 @@ export interface TapPackage {
 
 export type Ts2068Mode = 'auto' | 'ts2068' | 'spectrum';
 
+/** A SCREEN$ is 6912 bytes: 6144 of pixels then 768 of attributes. */
+export const SCREEN_SIZE = 6912;
+
+/**
+ * Whether an entry is a SCREEN$ rather than something to run. A screen is
+ * stored as CODE, so nothing but its size tells it apart.
+ *
+ * The main process decides this too, in screen-decoder.ts — the renderer does
+ * not import across that boundary, so the two definitions have to agree.
+ */
+export function isScreenEntry(entry: { type: string; size: number }): boolean {
+  return entry.type === 'code' && entry.size === SCREEN_SIZE;
+}
+
 /**
  * Disassembly choices a reader made for one file. They travel with an
  * extraction so a `.dis` records how the bytes were actually read — its

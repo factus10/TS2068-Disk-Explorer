@@ -6,6 +6,21 @@
 
 export const SCREEN_SIZE = 6912;
 
+/**
+ * Whether a catalog entry is a SCREEN$ rather than something to run.
+ *
+ * Size and type alone, deliberately. The obvious refinement — insisting the
+ * file loads at $4000 — looks more precise and is wrong: of the 44 such files
+ * across the sample disks, 13 record $5F00 in their header, and they are the
+ * same ones the catalog already flags as damaged. They are still screens.
+ *
+ * The renderer decides the same thing in ContentViewer, across the IPC
+ * boundary it does not import across; the two have to agree.
+ */
+export function isScreenEntry(entry: { type: string; size: number }): boolean {
+  return entry.type === 'code' && entry.size === SCREEN_SIZE;
+}
+
 // ZX Spectrum color palettes (RGB)
 const PALETTE_NORMAL = [
   [0, 0, 0],       // black
