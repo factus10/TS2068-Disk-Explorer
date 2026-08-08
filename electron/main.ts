@@ -1046,7 +1046,7 @@ ipcMain.handle('get-basic-xref', async (_event, imagePath: string, entryIndex: n
 });
 
 ipcMain.handle('get-disassembly', async (
-  _event, imagePath: string, entryIndex: number, originOverride?: number,
+  _event, imagePath: string, entryIndex: number, originOverride?: number, exrom?: boolean,
 ): Promise<{ text: string; origin: number; instructions: number; conflicts: number } | null> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -1069,7 +1069,7 @@ ipcMain.handle('get-disassembly', async (
   }
   const loaders = collectLoaders(format, allEntries, listings);
   const r = disassemble({
-    format, entry, data, siblings: loaders, originOverride,
+    format, entry, data, siblings: loaders, originOverride, exrom,
     listing: loaders.find((l) => l.entry.index === entry.index)?.listing ?? null,
     source: path.basename(imagePath),
   });

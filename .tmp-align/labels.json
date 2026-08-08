@@ -1,0 +1,406 @@
+[
+ {
+  "name": "XRST0",
+  "addr": 0
+ },
+ {
+  "name": "XRST8",
+  "addr": 8
+ },
+ {
+  "name": "XRST20",
+  "addr": 32
+ },
+ {
+  "name": "XRST28",
+  "addr": 40
+ },
+ {
+  "name": "XRST30",
+  "addr": 48
+ },
+ {
+  "name": "XRST38",
+  "addr": 56
+ },
+ {
+  "name": "W_TAPE",
+  "addr": 104
+ },
+ {
+  "name": "W_BORD",
+  "addr": 229
+ },
+ {
+  "name": "R_TAPE",
+  "addr": 252
+ },
+ {
+  "name": "RD_BIT",
+  "addr": 393
+ },
+ {
+  "name": "R_EDGE",
+  "addr": 397
+ },
+ {
+  "name": "SLVM",
+  "addr": 427
+ },
+ {
+  "name": "SLVBADBAS",
+  "addr": 661
+ },
+ {
+  "name": "R_TAPE1",
+  "addr": 1478
+ },
+ {
+  "name": "LOAD",
+  "addr": 1484
+ },
+ {
+  "name": "SAVE",
+  "addr": 2129
+ },
+ {
+  "name": "AKEY",
+  "addr": 2218
+ },
+ {
+  "name": "BADBAS",
+  "addr": 2265
+ },
+ {
+  "name": "EXTINIT",
+  "addr": 2279
+ },
+ {
+  "name": "LROS_ERR",
+  "addr": 2410
+ },
+ {
+  "name": "NORMSVAR",
+  "addr": 2412
+ },
+ {
+  "name": "INITSYSVAR",
+  "addr": 2419
+ },
+ {
+  "name": "BLDSCT",
+  "addr": 2548
+ },
+ {
+  "name": "OPDFIL",
+  "addr": 3504
+ },
+ {
+  "name": "CLDFIL",
+  "addr": 3623
+ },
+ {
+  "name": "CHG_V",
+  "addr": 3726
+ },
+ {
+  "name": "PASSIN",
+  "addr": 3907
+ },
+ {
+  "name": "GOTO_B",
+  "addr": 3978
+ },
+ {
+  "name": "CALL_B",
+  "addr": 3993
+ },
+ {
+  "name": "D_EXT",
+  "addr": 4152
+ },
+ {
+  "name": "D_HOME",
+  "addr": 4158
+ },
+ {
+  "name": "D_SAVE",
+  "addr": 4162
+ },
+ {
+  "name": "D_CALL",
+  "addr": 4212
+ },
+ {
+  "name": "INT",
+  "addr": 4270
+ },
+ {
+  "name": "LIT3",
+  "addr": 4333
+ },
+ {
+  "name": "PHLAF",
+  "addr": 4340
+ },
+ {
+  "name": "NMI",
+  "addr": 4359
+ },
+ {
+  "name": "LNI3",
+  "addr": 4369
+ },
+ {
+  "name": "GET_WORD",
+  "addr": 4374
+ },
+ {
+  "name": "PUT_WORD",
+  "addr": 4411
+ },
+ {
+  "name": "WRITE_BS_REG",
+  "addr": 4444
+ },
+ {
+  "name": "READ_BS_REG",
+  "addr": 4525
+ },
+ {
+  "name": "GET_STATUS",
+  "addr": 4613
+ },
+ {
+  "name": "GS_HOME",
+  "addr": 4653
+ },
+ {
+  "name": "GS_DOCK",
+  "addr": 4658
+ },
+ {
+  "name": "GS_EXT",
+  "addr": 4666
+ },
+ {
+  "name": "GS_EXIT",
+  "addr": 4682
+ },
+ {
+  "name": "GET_CHUNK",
+  "addr": 4685
+ },
+ {
+  "name": "GC_SHIFT",
+  "addr": 4689
+ },
+ {
+  "name": "GC_ROLL",
+  "addr": 4697
+ },
+ {
+  "name": "GET_NUMBER",
+  "addr": 4702
+ },
+ {
+  "name": "GN_CHECK",
+  "addr": 4715
+ },
+ {
+  "name": "GN_RD_DOCK",
+  "addr": 4724
+ },
+ {
+  "name": "GN_HOME",
+  "addr": 4750
+ },
+ {
+  "name": "GN_DOCK",
+  "addr": 4754
+ },
+ {
+  "name": "GN_EXP",
+  "addr": 4757
+ },
+ {
+  "name": "GN_EXIT",
+  "addr": 4758
+ },
+ {
+  "name": "X_BANK_ENABLE",
+  "addr": 4761
+ },
+ {
+  "name": "BE_SKIP",
+  "addr": 4789
+ },
+ {
+  "name": "BE_EXT_OK",
+  "addr": 4804
+ },
+ {
+  "name": "BE_NTDOCK",
+  "addr": 4810
+ },
+ {
+  "name": "BE_SET",
+  "addr": 4836
+ },
+ {
+  "name": "BE_NTEXT",
+  "addr": 4844
+ },
+ {
+  "name": "BE_CHK_HOME",
+  "addr": 4870
+ },
+ {
+  "name": "BE_EXIT",
+  "addr": 4889
+ },
+ {
+  "name": "SAVE_STATUS",
+  "addr": 4894
+ },
+ {
+  "name": "SS_LOOP",
+  "addr": 4920
+ },
+ {
+  "name": "SS_EXIT",
+  "addr": 4932
+ },
+ {
+  "name": "RESTORE_STATUS",
+  "addr": 4938
+ },
+ {
+  "name": "RS_LOOP",
+  "addr": 4962
+ },
+ {
+  "name": "RS_EXIT",
+  "addr": 4972
+ },
+ {
+  "name": "GOTO_BANK",
+  "addr": 4978
+ },
+ {
+  "name": "JPIX",
+  "addr": 5004
+ },
+ {
+  "name": "CALL_BANK",
+  "addr": 5072
+ },
+ {
+  "name": "CB_NC1",
+  "addr": 5144
+ },
+ {
+  "name": "CB_NC2",
+  "addr": 5215
+ },
+ {
+  "name": "MOVE_BYTES",
+  "addr": 5260
+ },
+ {
+  "name": "MB_RV1",
+  "addr": 5293
+ },
+ {
+  "name": "MB_UP1",
+  "addr": 5298
+ },
+ {
+  "name": "MB_RV2",
+  "addr": 5337
+ },
+ {
+  "name": "MB_UP2",
+  "addr": 5342
+ },
+ {
+  "name": "CREATE_BITMAP",
+  "addr": 5352
+ },
+ {
+  "name": "CB_SUB",
+  "addr": 5370
+ },
+ {
+  "name": "CB_CONT",
+  "addr": 5372
+ },
+ {
+  "name": "CB_NB1",
+  "addr": 5392
+ },
+ {
+  "name": "CB_NB2",
+  "addr": 5398
+ },
+ {
+  "name": "CB_EXIT",
+  "addr": 5408
+ },
+ {
+  "name": "XFER_BYTES",
+  "addr": 5410
+ },
+ {
+  "name": "XB_DIFF_BANKS",
+  "addr": 5485
+ },
+ {
+  "name": "XB_DO_MOVE",
+  "addr": 5496
+ },
+ {
+  "name": "XB_REVERSE",
+  "addr": 5532
+ },
+ {
+  "name": "XB_OVERLAP",
+  "addr": 5536
+ },
+ {
+  "name": "XB_SPACE",
+  "addr": 5571
+ },
+ {
+  "name": "XB_MOVE_LOOP",
+  "addr": 5590
+ },
+ {
+  "name": "XB_LAST_MOVE",
+  "addr": 5600
+ },
+ {
+  "name": "XB_EXIT",
+  "addr": 5614
+ },
+ {
+  "name": "GOTO_EXT",
+  "addr": 5653
+ },
+ {
+  "name": "BLK1",
+  "addr": 5668
+ },
+ {
+  "name": "BLK2",
+  "addr": 6144
+ },
+ {
+  "name": "BLK3",
+  "addr": 7168
+ },
+ {
+  "name": "FIXTBL",
+  "addr": 7424
+ }
+]

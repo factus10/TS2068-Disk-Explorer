@@ -91,6 +91,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   const [disasm, setDisasm] = useState<Disassembly | null>(null);
   // undefined means "use whatever the planner infers".
   const [originOverride, setOriginOverride] = useState<number | undefined>(undefined);
+  const [exrom, setExrom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');
@@ -208,11 +209,11 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
     let cancelled = false;
     setDisasm(null);
     setLoading(true);
-    api.getDisassembly(diskPath, entry.index, originOverride).then((d) => {
+    api.getDisassembly(diskPath, entry.index, originOverride, exrom).then((d) => {
       if (!cancelled) { setDisasm(d); setLoading(false); }
     }).catch(() => { if (!cancelled) { setDisasm(null); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [activeTab, diskPath, entry.index, originOverride]);
+  }, [activeTab, diskPath, entry.index, originOverride, exrom]);
 
   // Extract BASIC from state capture
   const isStateCapture = entry.type === 'state' || entry.isMemoryDump;
@@ -408,6 +409,9 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
             loading={loading}
             overridden={originOverride !== undefined}
             onSetOrigin={setOriginOverride}
+            exrom={exrom}
+            onSetExrom={setExrom}
+            showExrom={diskFormat !== 'zx81-aerco'}
           />
         )}
         {activeTab === 'hex' && hexData && <HexView data={hexData} />}

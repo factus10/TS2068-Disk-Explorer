@@ -5,10 +5,11 @@
  * commentary around them. Each pack records where it came from so the
  * derivation stays auditable, and regenerating is repeatable.
  *
- *   npx tsx scripts/build-symbols.ts <path-to-Sinclair-ZX81.asm>
+ *   npx tsx scripts/build-symbols.ts <Sinclair-ZX81.asm> <ref-docs-dir> <original-EXROM.bin>
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { decodeOne } from '../electron/parsers/z80-disasm';
 
 const OUT = path.join(__dirname, '..', 'electron', 'data', 'symbols');
 fs.mkdirSync(OUT, { recursive: true });
@@ -109,6 +110,20 @@ function buildLdosZX81() {
  * annotated disassembly beside it describes — so packs are built from the
  * documentation rather than scraped from a particular binary.
  */
+/**
+ * Whether a heading introduces EXROM addresses.
+ *
+ * Mentioning the EXROM is not enough. "Tape Routines (HOME ROM remnants; most
+ * are in EXROM)" lists HOME ROM addresses and says so, and a naive match on
+ * EXROM dropped its two rows from the HOME pack and handed them to the EXROM
+ * pack -- where BEEPER then took $0605, an address the EXROM tables give to
+ * LD-ALL. Both are right: $0605 is BEEPER in one ROM and LD-ALL in the other,
+ * which is the whole reason these are separate packs.
+ */
+function headingIsExrom(heading: string): boolean {
+  return /EXROM/i.test(heading) && !/HOME ROM/i.test(heading);
+}
+
 function buildFromMarkdown(dir: string, file: string, id: string, name: string, range: [number, number]) {
   const full = path.join(dir, file);
   if (!fs.existsSync(full)) { console.log(`skipping ${id} — ${file} not found`); return; }
@@ -118,7 +133,7 @@ function buildFromMarkdown(dir: string, file: string, id: string, name: string, 
   let inExrom = false;
   for (const line of fs.readFileSync(full, 'utf8').split('\n')) {
     const heading = line.match(/^#{1,4}\s+(.*)$/);
-    if (heading) { inExrom = /EXROM/i.test(heading[1]); continue; }
+    if (heading) { inExrom = headingIsExrom(heading[1]); continue; }
     if (inExrom) continue;
     // | $0010   | PRINT-A-1/RST10 | Write character in A ... |
     const m = line.match(/^\|\s*(~?)\$([0-9A-Fa-f]{4})\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|/);
@@ -229,6 +244,181 @@ function buildZX81Sysvars() {
   }, 'zx81-sysvars.json');
 }
 
+/**
+ * TS2068 EXROM. The source listing names 101 routines but prints no addresses
+ * against them, so the addresses are recovered rather than read off: walk the
+ * listing instruction by instruction against a real ROM dump, and each label's
+ * address falls out of where the walk has got to.
+ *
+ * That is only sound if the walk can be checked, and here it can be twice
+ * over. The listing labels a further 172 locations with a bare hex address
+ * where its author did not invent a name -- `002C:` rather than `XRST28:` --
+ * and those are ground truth the walk must reproduce. It reproduces all 172,
+ * matches 3073 of 3074 instructions, and ends at exactly $2000, the length of
+ * the ROM. So no address here is trusted; every one is derived from the bytes
+ * and confirmed against the document's own arithmetic.
+ *
+ * Which dump matters. Against `2068Exrom.BIN` the walk agrees on the 109
+ * anchors below $0A52 and disagrees on all 63 above it -- that image is the
+ * community revision, whose changes `exrom_revision_analysis.md` records as
+ * starting at $0A52. TS2068_U20.BIN is the original, and is the one to use.
+ */
+const EXROM_REGS = new Set(['A', 'B', 'C', 'D', 'E', 'H', 'L', 'I', 'R', 'AF', "AF'", 'BC', 'DE',
+  'HL', 'SP', 'IX', 'IY', 'IXH', 'IXL', 'IYH', 'IYL', 'NZ', 'Z', 'NC', 'PO', 'PE', 'P', 'M',
+  '(HL)', '(BC)', '(DE)', '(C)', '(SP)']);
+
+/**
+ * Reduce an instruction to its shape, so the listing's symbolic operands can
+ * be compared with the dump's numeric ones: registers survive, addresses and
+ * expressions become a wildcard. `LD HL,(CHADD)` and `LD HL,($5C5D)` both
+ * become `LD HL,(*)`.
+ */
+function exromShape(text: string): string {
+  const t = text.trim().toUpperCase().replace(/\s+/g, ' ');
+  const sp = t.indexOf(' ');
+  if (sp < 0) return t;
+  const mnem = t.slice(0, sp);
+  const ops = t.slice(sp + 1).split(',').map((o) => {
+    const x = o.trim();
+    if (EXROM_REGS.has(x)) return x;
+    if (/^\(I[XY][+-].*\)$/.test(x)) return x.replace(/[+-].*\)/, '+*)');
+    // A jump or call to a parenthesised expression is still an absolute
+    // target; only (HL)/(IX)/(IY) are genuinely indirect.
+    if (/^\(.*\)$/.test(x)) return /^(CALL|JP|JR|DJNZ)$/.test(mnem) ? '*' : '(*)';
+    return '*';
+  });
+  return `${mnem} ${ops.join(',')}`;
+}
+
+/** Drop an end-of-line comment, without mistaking the tick in AF' for a quote. */
+function exromStrip(line: string): string {
+  let out = '', quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === "'" && /^'[^']*'/.test(line.slice(i))) quoted = !quoted;
+    if (ch === ';' && !quoted) break;
+    out += ch;
+  }
+  return out;
+}
+
+/** Bytes a DEFB/DEFW operand list occupies; a quoted run counts its characters. */
+function exromItems(list: string): number {
+  let n = 0, depth = 0, cur = '';
+  const push = () => {
+    const v = cur.trim();
+    if (v) n += /^'.*'$/.test(v) ? v.length - 2 : 1;
+    cur = '';
+  };
+  for (const ch of list) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { push(); continue; }
+    cur += ch;
+  }
+  push();
+  return n;
+}
+
+function buildTs2068Exrom(dir: string, romPath: string | undefined) {
+  const full = path.join(dir, 'Timex Sinclair 2068 EXROM.txt');
+  if (!fs.existsSync(full)) { console.log('skipping ts2068-exrom — listing not found'); return; }
+  if (!romPath || !fs.existsSync(romPath)) {
+    console.log('skipping ts2068-exrom — pass the original EXROM dump as the 4th argument');
+    return;
+  }
+  const rom = fs.readFileSync(romPath);
+  // The revision changed the NMI branch at $110E from JR NZ to JR Z. The
+  // listing describes the original, so refuse the revised image rather than
+  // silently emitting addresses that drift past $0A52.
+  if (rom.length !== 0x2000 || rom[0x110e] !== 0x20) {
+    console.log('skipping ts2068-exrom — that dump is not the original EXROM'
+      + ` (expected 8192 bytes with $20 at $110E, got ${rom.length} bytes with `
+      + `$${rom[0x110e]?.toString(16).toUpperCase()})`);
+    return;
+  }
+
+  const labels: { name: string; addr: number }[] = [];
+  const anchors: { stated: number; pc: number }[] = [];
+  let pc = 0, matched = 0, mismatched = 0;
+
+  for (const line of fs.readFileSync(full, 'latin1').split('\n')) {
+    const raw = exromStrip(line);
+    if (!raw.trim()) continue;
+    let rest = raw;
+    const anchor = raw.match(/^([0-9A-Fa-f]{4}):/);
+    if (anchor) { anchors.push({ stated: parseInt(anchor[1], 16), pc }); rest = raw.slice(anchor[0].length); }
+    const label = anchor ? null : raw.match(/^([A-Za-z_][A-Za-z0-9_]*):/);
+    if (label) { labels.push({ name: label[1], addr: pc }); rest = raw.slice(label[0].length); }
+    const body = rest.trim();
+    if (!body) continue;
+    const kw = body.split(/\s+/)[0].toUpperCase();
+    if (kw === 'DEFC' || kw === 'DEFINE' || kw === 'INCLUDE') continue;
+    if (kw === 'ORG') {
+      pc = Number(body.split(/\s+/)[1].replace('$', '0x'));
+      if (label) labels[labels.length - 1].addr = pc;
+      continue;
+    }
+    if (kw === 'DEFB') { pc += exromItems(body.slice(4)); continue; }
+    if (kw === 'DEFW') { pc += 2 * exromItems(body.slice(4)); continue; }
+    if (pc >= rom.length) break;
+    const insn = decodeOne(rom, pc, 0);
+    if (exromShape(body) === exromShape(insn.text)) matched++;
+    else mismatched++;
+    pc += insn.length;
+  }
+
+  const off = anchors.filter((a) => a.stated !== a.pc);
+  console.log(`  ts2068-exrom: ${matched} instructions matched, ${mismatched} not; `
+    + `${anchors.length} address anchors, ${off.length} disagreeing; ends at $${pc.toString(16).toUpperCase()}`);
+  // The anchors are the check. If any disagrees the walk has desynchronised
+  // and every address after it is wrong, so emit nothing at all.
+  if (off.length) { console.log('skipping ts2068-exrom — the walk did not reproduce the stated addresses'); return; }
+  if (pc !== rom.length) { console.log(`skipping ts2068-exrom — walk ended at $${pc.toString(16)}, not the end of the ROM`); return; }
+
+  const symbols: Record<string, { name: string; note?: string; approx?: boolean }> = {};
+  for (const l of labels) symbols[String(l.addr)] = { name: l.name };
+
+  // The entry-point markdown documents a handful of EXROM routines the listing
+  // leaves unnamed -- $1000 and $1100 carry no label in the source. Where both
+  // name an address they agree ($0DB0 OPDFIL / OPEN-DFILE, $0E27 CLDFIL /
+  // CLOSE-DFILE), so the derived name keeps the slot and these only fill gaps.
+  let added = 0, agreed = 0;
+  const md = path.join(dir, 'ts2068_rom_entry_points.md');
+  if (fs.existsSync(md)) {
+    let inExrom = false;
+    for (const line of fs.readFileSync(md, 'utf8').split('\n')) {
+      const heading = line.match(/^#{1,4}\s+(.*)$/);
+      if (heading) { inExrom = headingIsExrom(heading[1]); continue; }
+      if (!inExrom) continue;
+      const m = line.match(/^\|\s*(~?)\$([0-9A-Fa-f]{4})\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|/);
+      if (!m) continue;
+      const addr = parseInt(m[2], 16);
+      if (addr > 0x1fff) continue;
+      if (symbols[String(addr)]) { agreed++; continue; }
+      const note = m[4].replace(/\*\*/g, '').trim();
+      symbols[String(addr)] = {
+        name: m[3].trim(),
+        ...(note && note.length < 80 ? { note } : {}),
+        ...(m[1] ? { approx: true } : {}),
+      };
+      added++;
+    }
+  }
+  console.log(`  ts2068-exrom: ${labels.length} derived from the listing, ${added} added from the `
+    + `entry-point tables, ${agreed} addresses named by both`);
+
+  write({
+    id: 'ts2068-exrom',
+    name: 'TS2068 EXROM',
+    range: [0x0000, 0x1fff],
+    provenance: 'Timex Sinclair 2068 EXROM.txt (TS2068 Ref Library) — labels placed by '
+      + `walking the listing against ${path.basename(romPath)}, confirmed at all ${anchors.length} `
+      + 'stated addresses; gaps filled from ts2068_rom_entry_points.md',
+    symbols,
+  }, 'ts2068-exrom.json');
+}
+
 const zx81Asm = process.argv[2];
 if (zx81Asm && fs.existsSync(zx81Asm)) buildZX81(zx81Asm);
 else console.log('skipping zx81.json — pass the path to Sinclair-ZX81.asm to build it');
@@ -242,6 +432,7 @@ if (refDocs) {
   buildFromMarkdown(refDocs, 'ts2068_rom_entry_points.md', 'ts2068-home', 'TS2068 HOME ROM', [0x0000, 0x3fff]);
   buildFromMarkdown(refDocs, 'spectrum48_rom_entry_points.md', 'spectrum48', 'ZX Spectrum 48K ROM', [0x0000, 0x3fff]);
   buildTs2068Sysvars(refDocs);
+  buildTs2068Exrom(refDocs, process.argv[4]);
 } else {
   console.log('skipping ROM entry-point packs — pass the reference docs directory as the 2nd argument');
 }

@@ -147,7 +147,7 @@ interface DiskToolsAPI {
   getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<BasicListing | null>;
   getBasicVariables: (imagePath: string, entryIndex: number) => Promise<BasicVariable[] | null>;
   getBasicXref: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<XRefResult | null>;
-  getDisassembly: (imagePath: string, entryIndex: number, originOverride?: number)
+  getDisassembly: (imagePath: string, entryIndex: number, originOverride?: number, exrom?: boolean)
     => Promise<{ text: string; origin: number; instructions: number; conflicts: number } | null>;
   getDiskMap: (imagePath: string) => Promise<{ totalBlocks: number } | null>;
   extractBasicFromState: (imagePath: string, entryIndex: number, destDir: string) => Promise<ExtractionResult | null>;

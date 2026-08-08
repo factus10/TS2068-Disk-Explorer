@@ -14,8 +14,40 @@
 > board. `ts2068-sysvars` and a `zx81-sysvars` the plan did not list are built
 > too. `scripts/build-symbols.ts` regenerates them all.
 >
-> Not built, and one of them cannot be: `ts2068-exrom` is still available (172
-> addressed labels in the source). `dos-zebra` and `dos-fdd3000` **cannot be
+> `ts2068-exrom` is built too, by a different route than the others and worth
+> recording. Its listing names 101 routines but prints no address against any
+> of them, so the addresses are recovered: walk the listing instruction by
+> instruction against a real ROM dump and each label's address falls out of
+> where the walk has reached. That is only worth anything if it can be checked,
+> and it can — the listing also labels 172 locations with a bare hex address
+> where its author invented no name (`002C:` rather than `XRST28:`), and the
+> walk reproduces all 172, matches 3073 of 3074 instructions, and ends at
+> exactly $2000. So no address in that pack is trusted; each is derived from
+> the bytes and confirmed against the document's own arithmetic.
+>
+> Which dump matters, and finding out which was which came free: against
+> `2068Exrom.BIN` the walk agreed on the 109 anchors below $0A52 and disagreed
+> on all 63 above it. That is the community revision, whose changes
+> `exrom_revision_analysis.md` records as starting at $0A52. `TS2068_U20.BIN`
+> is the original and aligns completely. The builder refuses any dump whose
+> $110E is not the original's `JR NZ`, rather than emitting addresses that
+> drift.
+>
+> The EXROM cannot be merged into the machine pack and cannot be on by default.
+> It is a second 8K ROM at the *same addresses*: $0038 is MASK-INT in the HOME
+> ROM and XRST38 in the EXROM, $0605 is BEEPER in one and LD-ALL in the other.
+> Nothing in a file off a disk records which was paged in when it ran, so it is
+> a checkbox next to the origin override, off unless asked for, and the `.dis`
+> header lists it when on. 88 of the 397 traced disk files resolve at least one
+> address differently under it.
+>
+> Building it also turned up a defect in the shipped `ts2068-home` pack. The
+> heading "Tape Routines (HOME ROM remnants; most are in EXROM)" was matched as
+> an EXROM section, which dropped its two rows from the HOME pack and handed
+> BEEPER an EXROM address that belongs to LD-ALL. A heading now has to mention
+> the EXROM *without* mentioning the HOME ROM.
+>
+> `dos-zebra` and `dos-fdd3000` **cannot be
 > extracted soundly** — both annotated listings label their routines
 > symbolically and carry no addresses at all, so producing address→name rows
 > would mean assembling the sources and trusting the result. A pack built that
@@ -249,7 +281,7 @@ Packs to build:
 | Pack | Source | Status |
 |---|---|---|
 | `ts2068-home` | `docs/ts2068_rom_entry_points.md` (markdown tables), `disassemblies/ts2068 home rom.txt` (~411 labels), `2068_DEFS.ASM` | material in hand |
-| `ts2068-exrom` | `docs/Timex Sinclair 2068 EXROM.txt`, `exrom_revision_analysis.md` | not built — 172 addressed labels available |
+| `ts2068-exrom` | `docs/Timex Sinclair 2068 EXROM.txt` walked against `TS2068_U20.BIN` | **built** — 109 symbols, opt-in overlay |
 | `spectrum48` | `docs/spectrum48_rom_entry_points.md` | material in hand |
 | `ts2068-sysvars` | `docs/ts2068_system_variables.md` | **built** — 100 vars, `IY` base $5C3A |
 | `dos-larken` | LKDOS manual jump table — see below | source identified |
