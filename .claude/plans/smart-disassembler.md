@@ -196,6 +196,8 @@ Packs to build:
 | `dos-fdd3000` | `fdd3000_annotated.asm` | material in hand |
 | `zx81` | ZXSpectrumVault `rom-disassemblies` — see below | source identified |
 | `dos-bbdos-zx81` | BBDOS's own on-disk help files — see below | readable today |
+| `dos-aerco-zx81` | AERCO *Model FD-ZX Instructions* USR listing | source identified |
+| `dos-ldos-zx81` | *Unofficial Technical Manual for the ZX-81 LDOS Disk Controller* | source identified |
 
 A small script under `scripts/build-symbols.ts` parses the markdown tables and the
 `label:` lines out of the annotated disassemblies into the JSON above, so regenerating
@@ -260,9 +262,28 @@ already read and detokenize:
 
 with the memory map given as `3000-37FFH AERCO BOARD` and `2800-29FF` for the printer
 drivers. HELP2 carries the full `Z` function table, so the pack can be filled out by
-reading it rather than by guessing. A genuine Larken ZX81 disk would instead call
-`14336` (`$3800`) or `16374` (`$3FF6`) per Larken's `LFCM ZX-81` manual — a clean
-discriminator if one turns up.
+reading it rather than by guessing.
+
+#### `dos-aerco-zx81` — the drive EPROM underneath BBDOS
+
+BBDOS sits on top of the Aerco drive EPROM, whose calls the *Model FD-ZX Instructions*
+lists in full: `USR (12290 + page)` reads a page into BASIC system RAM, `USR (12720 +
+page)` writes one back, and `RAND USR 12865` (DD) / `12868` (SD) re-initialises after a
+tape load. Add 2048 per 2K if the EPROM is strapped elsewhere — so the pack needs a
+base-address offset rather than fixed addresses.
+
+#### `dos-ldos-zx81` — the actual Larken ZX81 interface
+
+Distinct hardware, and worth a pack of its own so the two are never confused. The
+*Unofficial Technical Manual for the ZX-81 LDOS Disk Controller* gives "ROM Address
+where LDOS disk operating System starts; 14336 (3800 hex)", entered from BASIC with
+`RAND USR 14336`, plus named routines — `settrk` at `$39BA`, load-buffer at `$38D2`,
+and references to `$38FF`, `$3961` and `$397A`.
+
+The two ZX81 interfaces therefore occupy adjacent 2K windows, which is the cleanest
+possible discriminator: **Aerco `$3000-$37FF`, Larken `$3800-$3FFF`**. A file calling
+into one is not calling into the other, and the emitter can say which board a disk
+belongs to from the call targets alone.
 
 ### 5. New module: `electron/parsers/disasm-emit.ts`
 
@@ -318,6 +339,8 @@ Nothing about the Layer 1 file format has to change if an MCP server is added la
 | `zx81` | [ZXSpectrumVault/rom-disassemblies](https://github.com/ZXSpectrumVault/rom-disassemblies) — `Sinclair ZX81/Sinclair-ZX81.asm` | check the repository's stated terms before shipping derived labels |
 | `dos-larken` | [archive.org `larken`](https://archive.org/details/larken) — *LKDOS Machine Language Subroutines* | published by Larken as programmer documentation |
 | `dos-bbdos-zx81` | BBDOS HELP files on the disks themselves | the programs document their own API |
+| `dos-aerco-zx81` | [archive.org `aerco`](https://archive.org/details/aerco) — *Model FD-ZX Instructions* | vendor documentation |
+| `dos-ldos-zx81` | [archive.org `bill-harmer`](https://archive.org/details/bill-harmer) — *Unofficial Technical Manual for the ZX-81 LDOS Disk Controller* | unofficial; check terms |
 | `ts2068-*`, `spectrum48`, `dos-zebra`, `dos-fdd3000` | `~/Documents/Projects/TS2068 Ref Library` | derived from published disassemblies |
 
 ## Provenance
