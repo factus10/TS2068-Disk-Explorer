@@ -92,7 +92,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   // The Tokens toggle chooses how to read the bytes the Spectrum and the
   // TS2068 disagree about. ZX81 BASIC is a separate dialect with its own token
   // table and ignores the setting, so the choice is meaningless there.
-  const hasTokenDialects = diskFormat !== 'zx81-larken';
+  const hasTokenDialects = diskFormat !== 'zx81-aerco';
 
   // Compute available tabs (text/font/icon tabs depend on data)
   const hasText = hexData ? isTextContent(hexData) : false;

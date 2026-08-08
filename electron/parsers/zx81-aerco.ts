@@ -1,5 +1,13 @@
 /**
- * ZX81 disks written through a Larken (LKDOS) interface.
+ * ZX81 disks written through an Aerco disk interface.
+ *
+ * The programs on these disks say so themselves: BBDOS's line 4 reads
+ * `REM BBDOS 4.0 AERCO/DS/40/4K COPYRIGHT 1986 BILL BELL`, its help text calls
+ * it "a fully automatic, BASIC transparent operating system for AERCO disk
+ * users on ZX81/TS1000", and gives the memory map as `3000-37FFH AERCO BOARD`.
+ * (Disk images of these are sometimes filed as "Larken" — they are not. A
+ * Larken ZX81 interface answers at 14336/$3800 and 16374/$3FF6, per Larken's
+ * own LFCM manual, which is a different range entirely.)
  *
  * Geometry: 40 cylinders x 2 sides x 10 sectors x 512 bytes = 409600 bytes.
  * The image stores cylinders interleaved by side — cyl0/side0, cyl0/side1,
@@ -9,6 +17,9 @@
  * Each side is carved into ten fixed 4-cylinder slots, twenty in all. There is
  * no allocation map and no per-file sector list: the slot number alone gives
  * the location, and a file simply runs on from its slot start until it ends.
+ * These slots are Aerco's memory "pages" — BBDOS describes itself as retaining
+ * "the AERCO methods of 16K and 64K pages", which is why SADOS+ numbers them
+ * page 1 to page 20, and why its 64K build offers only six.
  *
  *   slot 0-9   side 0, starting at cylinders 0, 4, 8, ... 36
  *   slot 10-19 side 1, same cylinders
@@ -173,8 +184,8 @@ export function readCatalog(buffer: Buffer): CatalogResult {
     : (slot: number) => hasSysVars(buffer, slotOffset(slot));
 
   const header: DiskHeader = {
-    format: 'zx81-larken',
-    formatName: hasDirectory ? 'ZX81 Larken (BBDOS)' : 'ZX81 Larken (no directory)',
+    format: 'zx81-aerco',
+    formatName: hasDirectory ? 'ZX81 Aerco (BBDOS)' : 'ZX81 Aerco (no directory)',
     diskName: hasDirectory ? decodeZX81Text(dir.subarray(0, DIR_HEADER_SIZE)).trim() : '',
     sides: 2,
     tracks: 40,
