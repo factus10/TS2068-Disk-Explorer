@@ -146,6 +146,19 @@
 > would fix it; the export refuses, because a `.dis` is an archival record.
 > Setting an origin clears the flag and the file exports normally.
 >
+> Entry points now carry the BASIC line that calls them, into both the `.dis`
+> header and the sidecar. An address on its own says nothing about the routine
+> at it; the calling line does, and it is the only place that is written down.
+> On Print Factory's `CREATOR` it turns twenty bare addresses into the fact
+> that six separate BASIC programs share the file. Across the corpus 579 of 894
+> exported files name at least one call site and 379 are called from more than
+> one program.
+>
+> Showing the call sites immediately exposed a harvester bug they had been
+> hiding: `RANDOMIZE USR 6e4` is 60000, and matching only the leading digits
+> read it as address 6. Fourteen operands across the sample disks are written
+> with an exponent.
+>
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
 
@@ -468,7 +481,8 @@ lets a narrative written later be bound to the exact bytes it describes.
 
 ## Layer 2 — narrative, kept out of the app
 
-Not built as part of this plan, and deliberately not as a queue.
+Deliberately not a queue, and no app code. Tried once end to end on Print Factory's
+`CREATOR`; what follows is what that taught.
 
 The original design called for `pending/`/`done/` folders, stable ids, atomic writes and
 a standalone MCP server exposing `list_pending`/`get_disassembly`/`submit_narrative`.
@@ -480,6 +494,45 @@ With a human prompting a session, **the output folder of `.dis` files already is
 queue**. Point Claude at it, ask for narratives, write them as `<name>.narrative.md`
 next to the `.dis`, tagged with model and date, referencing the `.dis.json` checksum.
 Nothing about the Layer 1 file format has to change if an MCP server is added later.
+
+### What a narrative is made of
+
+Sections, in this order, because the order is what keeps it honest:
+
+1. **Header** — disk, file, load address, the SHA-256 it is bound to, model and date.
+2. **What it is** — the one or two claims the artifact supports outright.
+3. **How the callers use it** — the entry-point table, straight from the call sites.
+4. **What the code does** — only what resolved symbols and text runs establish.
+5. **What this does not establish** — see below. Not optional.
+6. **Provenance** — packs used, EXROM on or off, copyright of the subject.
+
+The strongest material is rarely the instructions. On `CREATOR` it was the call sites
+(six BASIC programs share the file, so it is a routine library, and nothing in its bytes
+says so) and the text runs, which gave the title, the authors and the publisher outright.
+
+### The traps, all found in one attempt
+
+- **A high `RST $38` count is an artifact, not a finding.** `$FF` is `RST $38`, so runs
+  of padding decode as calls to `$0038`. `CREATOR` shows 54; treat any large count as
+  the tracer walking data.
+- **Unresolved externals are where the behaviour actually is.** 20 of `CREATOR`'s 23
+  external addresses have no name in any pack, including the three most-called. A
+  narrative that describes only the resolved 3 sounds informed and covers almost
+  nothing.
+- **Printable is not text.** After the credits, `CREATOR`'s remaining "text" runs are
+  `"qqqqp"`, `"yyyyx"` — byte patterns inside the printable range.
+- **Conflicts mean some instructions are fictional.** With 25 recorded, any single line
+  in the affected regions may not be an instruction at all.
+- **Line numbers suggest roles; they do not establish them.** A call at line 8010 sitting
+  where setup usually sits is inference, and must be labelled as such.
+
+### Rule
+
+Every claim traces to the `.dis`, the sidecar, or a quoted BASIC line. Anything else is
+marked as inference or goes in *What this does not establish*. A narrative that reads
+confidently about a file whose behaviour is 20 unresolved calls deep is the same failure
+as a confident listing of bytes that never executed — the thing Layer 1 spent all its
+effort refusing to do.
 
 ## Sources
 
