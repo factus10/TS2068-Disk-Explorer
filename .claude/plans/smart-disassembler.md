@@ -526,6 +526,26 @@ says so) and the text runs, which gave the title, the authors and the publisher 
 - **Line numbers suggest roles; they do not establish them.** A call at line 8010 sitting
   where setup usually sits is inference, and must be labelled as such.
 
+### The skill
+
+`.claude/skills/dis-narrative/` carries all of this, with `scripts/digest.py` to pull the
+narrative-bearing parts out of a `.dis` in one pass. Testing it on three files rather
+than the one it was written from is what made it worth keeping — each new file broke an
+assumption:
+
+- `CREATOR` had its strings in `DEFM` runs, so the first digest only looked there.
+- `ZXWORXs.OB` traced with `dataBytes: 0`, so it emitted no `DEFM` at all and every
+  string in the program was invisible. The digest now rebuilds the byte image from the
+  listing's hex column instead.
+- `Album S` was traced *inverted* — 14237 bytes of picture bitmap decoded as code while
+  its only real routine, 61 bytes at the load address, came out as `DEFB`. Nothing
+  derived from the header pointed at the truth, so the digest now prints the bytes at
+  the load address and at every entry point, and flags the 13 of 14 that held only
+  `$00`/`$FF` filler.
+
+The pattern is worth stating: each failure was the digest trusting the trace. The parts
+that survive a bad trace are the raw bytes, and the tool has to show those first.
+
 ### Rule
 
 Every claim traces to the `.dis`, the sidecar, or a quoted BASIC line. Anything else is
