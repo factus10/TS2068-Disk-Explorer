@@ -14,6 +14,13 @@
  * cyl1/side0, ... — so a whole track is 5120 bytes and side N occupies every
  * other track (even tracks = side 0, odd tracks = side 1).
  *
+ * Aerco drives came in several geometries and the page count follows from them,
+ * per the FD-ZX manual's USR listing: DD/SS/35T stops at page 8, DD/SS/40T at
+ * page 10, DD/DS/35T at page 16, DD/DS/40T at page 20. This parser handles the
+ * last of those — the 409600-byte, twenty-page case, which is what every image
+ * seen so far is. `detect` requires that exact size, so a 35-track or 80-track
+ * Aerco image is not recognised rather than being misread.
+ *
  * Each side is carved into ten fixed 4-cylinder slots, twenty in all. There is
  * no allocation map and no per-file sector list: the slot number alone gives
  * the location, and a file simply runs on from its slot start until it ends.
@@ -63,6 +70,19 @@
  * user's names for each slot in a `Q$` array among its own variables, and loads
  * a slot by number ("page 1" through "page 20"). Such disks are read by looking
  * for a ZX81 system-variable block at each slot start.
+ *
+ * On a factory SADOS boot disc the occupied pages are not arbitrary. The FD-ZX
+ * manual: "the boot disc has the 16K DOS on page 1 and the 64K DOS on page 2.
+ * In fact, the 16K DOS is loaded on the inner-most and outer-most page of each
+ * side of the disc." Pages 1-10 are side 0 and 11-20 side 1, so those corners
+ * are pages 1, 10, 11 and 20 — which is exactly where the copies sit on the
+ * SADOS image, page 2 holding the 64K build.
+ *
+ * The BASIC calls the drive's EPROM directly, and the FD-ZX manual lists the
+ * whole scheme: `USR (12290 + page)` reads a page into BASIC system RAM,
+ * `USR (12720 + page)` writes one back, and `RAND USR 12865` (DD) or `12868`
+ * (SD) re-initialises after a tape load. Add 2048 per 2K if the EPROM is
+ * strapped to an alternate address.
  */
 
 import { readUint16LE } from './utils';
