@@ -35,7 +35,11 @@ function loadPacks(): Map<string, SymbolPack> {
         for (const [addr, v] of Object.entries(raw.symbols ?? {})) {
           symbols[Number(addr)] = v as { name: string; note?: string };
         }
-        cache.set(raw.id, { ...raw, symbols });
+        const data: NonNullable<SymbolPack['data']> = {};
+        for (const [addr, v] of Object.entries(raw.data ?? {})) {
+          data[Number(addr)] = v as { name: string; note?: string };
+        }
+        cache.set(raw.id, { ...raw, symbols, ...(Object.keys(data).length ? { data } : {}) });
       } catch { /* a malformed pack must not stop the app opening a disk */ }
     }
     if (cache.size) break;
@@ -53,9 +57,9 @@ function packsFor(format: DiskFormat): SymbolPack[] {
   // Machine ROM first, then the DOS pack, which must win over the addresses it
   // pages across — on a Larken TS2068, $0064 is a cartridge control, not
   // whatever the HOME ROM happens to hold there.
-  if (format === 'zx81-aerco') return pick('zx81', 'aerco-zx81');
-  if (format === 'larken') return pick('spectrum48', 'ts2068-home', 'lkdos-2068');
-  return pick('spectrum48', 'ts2068-home');
+  if (format === 'zx81-aerco') return pick('zx81', 'zx81-sysvars', 'aerco-zx81');
+  if (format === 'larken') return pick('spectrum48', 'ts2068-home', 'ts2068-sysvars', 'lkdos-2068');
+  return pick('spectrum48', 'ts2068-home', 'ts2068-sysvars');
 }
 
 export interface DisassemblyResult {
@@ -100,9 +104,10 @@ export function disassemble(opts: {
   if (!plan) return null;
   const slice = opts.data.subarray(plan.range[0], plan.range[1]);
   if (!slice.length) return null;
-  // Table detection costs one extra scan when nothing is found, and nothing
-  // was found in any disk program tested — it earns its keep on ROM images,
-  // where the interpreter reaches most of itself through tables.
+  // Table detection costs one extra scan when nothing is found. It earns that
+  // on ROM images, where the interpreter reaches most of itself through tables,
+  // and on a handful of disk programs — four of the 397 traced across the
+  // sample disks reach code that way and would otherwise stop at `JP (HL)`.
   const result = trace(slice, plan.origin, plan.seeds, { machine: plan.machine, detectTables: true });
   const checksum = crypto.createHash('sha256').update(slice).digest('hex');
   const packs = packsFor(opts.format);

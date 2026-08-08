@@ -155,7 +155,9 @@ function decodeBase(c: Cursor, addr: number, op: number, ix: string | null): Dec
   const hl = ix ?? 'HL';
   const rp = (i: number) => (i === 2 ? hl : RP[i]);
   const rp2 = (i: number) => (i === 2 ? hl : RP2[i]);
-  const und = ix !== null;
+  // Using IX or IY as a whole register, or as (IX+d), is documented. Only the
+  // IXH/IXL halves are not, so the flag tracks those rather than the prefix.
+  const half = (i: number) => ix !== null && (i === 4 || i === 5);
 
   switch (x) {
     case 0:
@@ -177,27 +179,27 @@ function decodeBase(c: Cursor, addr: number, op: number, ix: string | null): Dec
           }
         case 1:
           return q === 0
-            ? seq(`LD ${rp(p)},${hex16(c.word())}`, und && p === 2)
-            : seq(`ADD ${hl},${rp(p)}`, und);
+            ? seq(`LD ${rp(p)},${hex16(c.word())}`)
+            : seq(`ADD ${hl},${rp(p)}`);
         case 2:
           if (q === 0) {
             if (p === 0) return seq('LD (BC),A');
             if (p === 1) return seq('LD (DE),A');
-            if (p === 2) return seq(`LD (${hex16(c.word())}),${hl}`, und);
+            if (p === 2) return seq(`LD (${hex16(c.word())}),${hl}`);
             return seq(`LD (${hex16(c.word())}),A`);
           }
           if (p === 0) return seq('LD A,(BC)');
           if (p === 1) return seq('LD A,(DE)');
-          if (p === 2) return seq(`LD ${hl},(${hex16(c.word())})`, und);
+          if (p === 2) return seq(`LD ${hl},(${hex16(c.word())})`);
           return seq(`LD A,(${hex16(c.word())})`);
         case 3:
-          return seq(`${q === 0 ? 'INC' : 'DEC'} ${rp(p)}`, und);
-        case 4: return seq(`INC ${reg(y)}`, und && (y === 4 || y === 5));
-        case 5: return seq(`DEC ${reg(y)}`, und && (y === 4 || y === 5));
+          return seq(`${q === 0 ? 'INC' : 'DEC'} ${rp(p)}`);
+        case 4: return seq(`INC ${reg(y)}`, half(y));
+        case 5: return seq(`DEC ${reg(y)}`, half(y));
         case 6: {
           // (IX+d) takes its displacement before the immediate byte.
           const target = reg(y);
-          return seq(`LD ${target},${hex8(c.byte())}`, und && (y === 4 || y === 5));
+          return seq(`LD ${target},${hex8(c.byte())}`, half(y));
         }
         default:
           return seq(['RLCA', 'RRCA', 'RLA', 'RRA', 'DAA', 'CPL', 'SCF', 'CCF'][y]);
@@ -208,19 +210,21 @@ function decodeBase(c: Cursor, addr: number, op: number, ix: string | null): Dec
       const indexed = ix && (y === 6 || z === 6);
       const dst = indexed && y !== 6 ? R[y] : reg(y);
       const src = indexed && z !== 6 ? R[z] : reg(z, y !== 6);
-      return seq(`LD ${dst},${src}`, und);
+      // With an (IX+d) operand the other register stays H or L and the whole
+      // instruction is documented; without one, naming H or L means the half.
+      return seq(`LD ${dst},${src}`, !indexed && (half(y) || half(z)));
     }
     case 2:
-      return seq(`${ALU[y]}${reg(z)}`, und && (z === 4 || z === 5));
+      return seq(`${ALU[y]}${reg(z)}`, half(z));
     default:
       switch (z) {
         case 0: return { text: `RET ${CC[y]}`, flow: 'cond' };
         case 1:
-          if (q === 0) return seq(`POP ${rp2(p)}`, und && p === 2);
+          if (q === 0) return seq(`POP ${rp2(p)}`);
           if (p === 0) return { text: 'RET', flow: 'ret' };
           if (p === 1) return seq('EXX');
           if (p === 2) return { text: `JP (${hl})`, flow: 'jump' };
-          return seq(`LD SP,${hl}`, und);
+          return seq(`LD SP,${hl}`);
         case 2: {
           const t = c.word();
           return { text: `JP ${CC[y]},${hex16(t)}`, flow: 'cond', target: t };
@@ -230,7 +234,7 @@ function decodeBase(c: Cursor, addr: number, op: number, ix: string | null): Dec
           if (y === 1) return decodeCB(c); // handled by the caller for DD/FD
           if (y === 2) return seq(`OUT (${hex8(c.byte())}),A`);
           if (y === 3) return seq(`IN A,(${hex8(c.byte())})`);
-          if (y === 4) return seq(`EX (SP),${hl}`, und);
+          if (y === 4) return seq(`EX (SP),${hl}`);
           if (y === 5) return seq('EX DE,HL');
           return seq(y === 6 ? 'DI' : 'EI');
         case 4: {
@@ -238,7 +242,7 @@ function decodeBase(c: Cursor, addr: number, op: number, ix: string | null): Dec
           return { text: `CALL ${CC[y]},${hex16(t)}`, flow: 'call', target: t };
         }
         case 5:
-          if (q === 0) return seq(`PUSH ${rp2(p)}`, und && p === 2);
+          if (q === 0) return seq(`PUSH ${rp2(p)}`);
           if (p === 0) { const t = c.word(); return { text: `CALL ${hex16(t)}`, flow: 'call', target: t }; }
           return seq('NOP'); // DD/ED/FD reached here are handled before this point
         case 6: return seq(`${ALU[y]}${hex8(c.byte())}`);
@@ -262,11 +266,14 @@ function decodeIndexedCB(c: Cursor, ix: string): Decoded {
   const x = op >> 6, y = (op >> 3) & 7, z = op & 7;
   const operand = `(${ix}${disp(d)})`;
   // With z != 6 the result is also copied into a register. That form is
-  // undocumented but real, and appears in period code.
+  // undocumented but real, and appears in period code. With z == 6 the
+  // instruction is the documented one — except SLL, which is undocumented
+  // wherever it appears.
   const copy = z !== 6 ? `,${R[z]}` : '';
-  if (x === 0) return seq(`${ROT[y]} ${operand}${copy}`, true);
-  if (x === 1) return seq(`BIT ${y},${operand}`, z !== 6);
-  return seq(`${x === 2 ? 'RES' : 'SET'} ${y},${operand}${copy}`, true);
+  const copied = z !== 6;
+  if (x === 0) return seq(`${ROT[y]} ${operand}${copy}`, copied || y === 6);
+  if (x === 1) return seq(`BIT ${y},${operand}`, copied);
+  return seq(`${x === 2 ? 'RES' : 'SET'} ${y},${operand}${copy}`, copied);
 }
 
 function decodeIndexed(c: Cursor, addr: number, ix: string): Decoded {
@@ -305,7 +312,9 @@ function decodeED(c: Cursor): Decoded {
         // Only ED 45 (RETN) and ED 4D (RETI) are documented; the other six
         // encodings in this slot behave as RETN.
         return { text: y === 1 ? 'RETI' : 'RETN', flow: 'ret', ...(y > 1 ? { undocumented: true } : {}) };
-      case 6: return seq(`IM ${IM[y]}`, y === 0 || y === 4 || y === 5);
+      // ED 46, ED 56 and ED 5E are the documented IM 0/1/2; the other five
+      // encodings in this slot set the same modes and are not.
+      case 6: return seq(`IM ${IM[y]}`, y === 1 || y >= 4);
       default:
         return seq(['LD I,A', 'LD R,A', 'LD A,I', 'LD A,R', 'RRD', 'RLD', 'NOP', 'NOP'][y], y >= 6);
     }

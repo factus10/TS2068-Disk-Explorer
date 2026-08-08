@@ -1,0 +1,414 @@
+{
+  "id": "ts2068-sysvars",
+  "name": "TS2068 system variables",
+  "range": [
+    23552,
+    23807
+  ],
+  "provenance": "ts2068_system_variables.md (TS2068 Ref Library)",
+  "indexBase": 23610,
+  "kind": "data",
+  "symbols": {},
+  "data": {
+    "23552": {
+      "name": "KS_A1",
+      "note": "Keyboard upper block: key value ($FF = no key)"
+    },
+    "23553": {
+      "name": "KS_C1",
+      "note": "Upper block: debounce count"
+    },
+    "23554": {
+      "name": "KS_D1",
+      "note": "Upper block: repeat countdown"
+    },
+    "23555": {
+      "name": "KS_B1",
+      "note": "Upper block: ASCII code of key"
+    },
+    "23556": {
+      "name": "KS_A2",
+      "note": "Lower block: key value ($FF = no key)"
+    },
+    "23557": {
+      "name": "KS_C2",
+      "note": "Lower block: debounce count"
+    },
+    "23558": {
+      "name": "KS_D2",
+      "note": "Lower block: repeat countdown"
+    },
+    "23559": {
+      "name": "KS_B2",
+      "note": "Lower block: ASCII code of key"
+    },
+    "23560": {
+      "name": "LASTK",
+      "note": "Newly pressed key code"
+    },
+    "23561": {
+      "name": "REPDEL",
+      "note": "Hold time before key repeats (60ths/sec)"
+    },
+    "23562": {
+      "name": "REPPER",
+      "note": "Repeat interval (60ths/sec between repeats)"
+    },
+    "23563": {
+      "name": "DEFADD",
+      "note": "Address of first argument of user-defined FN"
+    },
+    "23565": {
+      "name": "KDATA",
+      "note": "Last color change info for edited line"
+    },
+    "23566": {
+      "name": "TVDATA",
+      "note": "Color/AT/TAB controls queued for display"
+    },
+    "23568": {
+      "name": "CH_M3",
+      "note": "Stream –3: keyboard + lower screen"
+    },
+    "23570": {
+      "name": "CH_M2",
+      "note": "Stream –2: main screen"
+    },
+    "23572": {
+      "name": "CH_M1",
+      "note": "Stream –1: RAM write"
+    },
+    "23574": {
+      "name": "CH_0",
+      "note": "Stream 0: lower screen output"
+    },
+    "23576": {
+      "name": "CH_1",
+      "note": "Stream 1: INPUT"
+    },
+    "23578": {
+      "name": "CH_2",
+      "note": "Stream 2: PRINT / LIST"
+    },
+    "23580": {
+      "name": "CH_3",
+      "note": "Stream 3: LPRINT / LLIST"
+    },
+    "23606": {
+      "name": "CHARS",
+      "note": "Char set base − 256. Change to use custom chars"
+    },
+    "23608": {
+      "name": "RASP",
+      "note": "Length of editor buffer-full buzz"
+    },
+    "23609": {
+      "name": "PIP",
+      "note": "Length of keyboard click"
+    },
+    "23610": {
+      "name": "ERR_NR",
+      "note": "Error code − 1. $FF = no error. IY→here"
+    },
+    "23611": {
+      "name": "FLAGS",
+      "note": "BASIC control flags — see bit table below"
+    },
+    "23612": {
+      "name": "TVFLAG",
+      "note": "TV/screen flags — see bit table below"
+    },
+    "23613": {
+      "name": "ERRSP",
+      "note": "Machine-stack pointer used for error recovery"
+    },
+    "23615": {
+      "name": "LISTSP",
+      "note": "Return address for automatic listing"
+    },
+    "23617": {
+      "name": "MODE",
+      "note": "Cursor: 0=K or L, 1=F, 2=G"
+    },
+    "23618": {
+      "name": "NEWPPC",
+      "note": "Line to jump to (GOTO/GOSUB/RUN)"
+    },
+    "23620": {
+      "name": "NSPPC",
+      "note": "Statement# for jump; bit 7 clear forces jump"
+    },
+    "23621": {
+      "name": "PPC",
+      "note": "Line number being interpreted"
+    },
+    "23623": {
+      "name": "SUBPPC",
+      "note": "Statement# within current line"
+    },
+    "23624": {
+      "name": "BORDCR",
+      "note": "Border color × 8; also lower-screen attributes"
+    },
+    "23625": {
+      "name": "EPPC",
+      "note": "Line# of current line in listing (program cursor)"
+    },
+    "23627": {
+      "name": "VARS",
+      "note": "Address of variables area"
+    },
+    "23629": {
+      "name": "DEST",
+      "note": "Address of variable being assigned"
+    },
+    "23631": {
+      "name": "CHANS",
+      "note": "Address of channel table"
+    },
+    "23633": {
+      "name": "CURCHL",
+      "note": "Pointer to current channel data"
+    },
+    "23635": {
+      "name": "PROG",
+      "note": "Address of BASIC program start"
+    },
+    "23637": {
+      "name": "NXTLIN",
+      "note": "Address of next BASIC line"
+    },
+    "23639": {
+      "name": "DATADD",
+      "note": "Address of last DATA item terminator"
+    },
+    "23641": {
+      "name": "ELINE",
+      "note": "Address of edit line (input buffer)"
+    },
+    "23643": {
+      "name": "KCUR",
+      "note": "Address of cursor in edit buffer"
+    },
+    "23645": {
+      "name": "CH_ADD",
+      "note": "Address of next char to interpret"
+    },
+    "23647": {
+      "name": "X_PTR",
+      "note": "Address after '?' syntax marker; 0 = no error"
+    },
+    "23649": {
+      "name": "WORKSP",
+      "note": "Address of temporary workspace"
+    },
+    "23651": {
+      "name": "STKBOT",
+      "note": "Bottom of calculator stack"
+    },
+    "23653": {
+      "name": "STKEND",
+      "note": "Next free space on calculator stack (= STKNXT)"
+    },
+    "23655": {
+      "name": "BREG",
+      "note": "Calculator's B register"
+    },
+    "23656": {
+      "name": "MEM",
+      "note": "Address of calculator memory area (usu. MEMBOT)"
+    },
+    "23658": {
+      "name": "FLAGS2",
+      "note": "More flags — see bit table below"
+    },
+    "23659": {
+      "name": "DFSZ",
+      "note": "Lines in lower screen (including blank line)"
+    },
+    "23660": {
+      "name": "STOP",
+      "note": "Top program line in automatic listings"
+    },
+    "23662": {
+      "name": "OLDPPC",
+      "note": "Line to CONTINUE from"
+    },
+    "23664": {
+      "name": "OSPCC",
+      "note": "Statement# for OLDPPC"
+    },
+    "23665": {
+      "name": "FLAGX",
+      "note": "Assignment flags — see bit table below"
+    },
+    "23666": {
+      "name": "STRLEN",
+      "note": "Length of string destination"
+    },
+    "23668": {
+      "name": "TADDR",
+      "note": "Address of next item in syntax table"
+    },
+    "23670": {
+      "name": "SEED",
+      "note": "RND seed (RANDOMIZE sets this)"
+    },
+    "23672": {
+      "name": "FRAMES",
+      "note": "Frame counter low 2 bytes (increments at 60 Hz)"
+    },
+    "23674": {
+      "name": "FRAMES2",
+      "note": "Frame counter high byte"
+    },
+    "23675": {
+      "name": "UDG",
+      "note": "Address of first UDG (21 chars × 8 bytes)"
+    },
+    "23677": {
+      "name": "XCOORD",
+      "note": "X of last PLOTted point"
+    },
+    "23678": {
+      "name": "YCOORD",
+      "note": "Y of last PLOTted point"
+    },
+    "23679": {
+      "name": "PPOSN",
+      "note": "Printer column (33-column numbering)"
+    },
+    "23680": {
+      "name": "PRCC",
+      "note": "Address of next char in printer buffer"
+    },
+    "23682": {
+      "name": "ECHOE",
+      "note": "End position of keyboard input buffer"
+    },
+    "23684": {
+      "name": "DFCC",
+      "note": "Display file address of PRINT position"
+    },
+    "23686": {
+      "name": "DFCCL",
+      "note": "Like DFCC, for lower screen"
+    },
+    "23688": {
+      "name": "SPOSNCOL",
+      "note": "PRINT column (33-col)"
+    },
+    "23689": {
+      "name": "SPOSNLIN",
+      "note": "PRINT row (24-row)"
+    },
+    "23690": {
+      "name": "SPOSNLCOL",
+      "note": "Lower screen output column"
+    },
+    "23691": {
+      "name": "SPOSNLLIN",
+      "note": "Lower screen output row"
+    },
+    "23692": {
+      "name": "SCRCT",
+      "note": "Scroll count; decrements each scroll; 0 → \"scroll?\""
+    },
+    "23693": {
+      "name": "ATTRP",
+      "note": "Permanent print attributes (see format below)"
+    },
+    "23694": {
+      "name": "MASKP",
+      "note": "Permanent attribute mask (transparent bits)"
+    },
+    "23695": {
+      "name": "ATTRT",
+      "note": "Temporary print attributes"
+    },
+    "23696": {
+      "name": "MASKT",
+      "note": "Temporary attribute mask"
+    },
+    "23697": {
+      "name": "PFLAG",
+      "note": "Print flags: even bits=temp, odd bits=permanent"
+    },
+    "23728": {
+      "name": "NMIADD",
+      "note": "NMI routine address ($0000 = system reset)"
+    },
+    "23730": {
+      "name": "RAMTOP",
+      "note": "Last byte of BASIC system area"
+    },
+    "23732": {
+      "name": "PRAMT",
+      "note": "Last byte of physical RAM"
+    },
+    "23734": {
+      "name": "ERRLN",
+      "note": "ON ERROR GOTO line number"
+    },
+    "23736": {
+      "name": "ERRC",
+      "note": "Line number where error occurred"
+    },
+    "23738": {
+      "name": "ERRS",
+      "note": "Statement number where error occurred"
+    },
+    "23739": {
+      "name": "ERRT",
+      "note": "Error number / report code"
+    },
+    "23740": {
+      "name": "SYSCON",
+      "note": "Pointer to SYSCON table"
+    },
+    "23742": {
+      "name": "MAXBNK",
+      "note": "Number of expansion banks in system"
+    },
+    "23743": {
+      "name": "CRCBN",
+      "note": "Current channel bank number"
+    },
+    "23744": {
+      "name": "MSTBOT",
+      "note": "Address above machine stack base"
+    },
+    "23746": {
+      "name": "VIDMOD",
+      "note": "Video mode: 0=normal; non-zero=2nd display active"
+    },
+    "23748": {
+      "name": "ARSBUF",
+      "note": "Pointer to AROS buffer"
+    },
+    "23750": {
+      "name": "ARSFLAG",
+      "note": "AROS flags — see bit table below"
+    },
+    "23751": {
+      "name": "ADATLN",
+      "note": "Start of current DATA line (AROS only)"
+    },
+    "23752": {
+      "name": "DTLNLN",
+      "note": "Length of current DATA line (AROS only)"
+    },
+    "23755": {
+      "name": "STRMN",
+      "note": "Current stream number (bus expansion devices)"
+    },
+    "24553": {
+      "name": "BNADD",
+      "note": "Highest priority bank number address"
+    },
+    "24555": {
+      "name": "BANKP",
+      "note": "Highest bank priority"
+    }
+  }
+}
