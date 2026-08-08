@@ -10,6 +10,7 @@ import { FontViewer, isFontData } from './FontViewer';
 import { IconViewer, isIconData } from './IconViewer';
 import { XRefViewer, XRefEntry } from './XRefViewer';
 import { DisasmViewer } from './DisasmViewer';
+import type { Disassembly } from './DisasmViewer';
 
 const DEFAULT_WIDTH = 560;
 const MIN_WIDTH = 360;
@@ -87,7 +88,9 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   const [arrayData, setArrayData] = useState<ArrayData | null>(null);
   const [variables, setVariables] = useState<BasicVariable[] | null>(null);
   const [xrefData, setXrefData] = useState<XRefEntry[] | null>(null);
-  const [disasm, setDisasm] = useState<string | null>(null);
+  const [disasm, setDisasm] = useState<Disassembly | null>(null);
+  // undefined means "use whatever the planner infers".
+  const [originOverride, setOriginOverride] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');
@@ -129,6 +132,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
     setVariables(null);
     setXrefData(null);
     setDisasm(null);
+    setOriginOverride(undefined);
     setLoading(true);
 
     api.getFileData(diskPath, entry.index).then((data) => {
@@ -198,16 +202,17 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
     return () => { cancelled = true; };
   }, [activeTab, diskPath, entry.index, xrefData, ts2068Mode]);
 
-  // Disassemble when the tab activates
+  // Disassemble when the tab activates, and again whenever the origin changes.
   useEffect(() => {
-    if (activeTab !== 'disasm' || disasm) return;
+    if (activeTab !== 'disasm') return;
     let cancelled = false;
+    setDisasm(null);
     setLoading(true);
-    api.getDisassembly(diskPath, entry.index).then((d) => {
-      if (!cancelled) { setDisasm(d?.text ?? null); setLoading(false); }
-    }).catch(() => { if (!cancelled) setLoading(false); });
+    api.getDisassembly(diskPath, entry.index, originOverride).then((d) => {
+      if (!cancelled) { setDisasm(d); setLoading(false); }
+    }).catch(() => { if (!cancelled) { setDisasm(null); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [activeTab, diskPath, entry.index, disasm]);
+  }, [activeTab, diskPath, entry.index, originOverride]);
 
   // Extract BASIC from state capture
   const isStateCapture = entry.type === 'state' || entry.isMemoryDump;
@@ -397,7 +402,14 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
           <div style={{ padding: 12, color: 'var(--text-muted)' }}>Loading...</div>
         )}
 
-        {activeTab === 'disasm' && <DisasmViewer text={disasm} loading={loading} />}
+        {activeTab === 'disasm' && (
+          <DisasmViewer
+            result={disasm}
+            loading={loading}
+            overridden={originOverride !== undefined}
+            onSetOrigin={setOriginOverride}
+          />
+        )}
         {activeTab === 'hex' && hexData && <HexView data={hexData} />}
         {activeTab === 'text' && textContent && <TextView text={textContent} />}
         {activeTab === 'listing' && listing && (
