@@ -90,6 +90,15 @@
 > went from 72 flags to 1, and that one is a `DD` prefix the next opcode
 > ignores, which is the signal working as intended.
 >
+> One thing the origin override and the EXROM overlay both needed and did not
+> get when they landed: the export has to use them. `disassembleForExport` was
+> still calling with neither, so an extraction wrote a `.dis` built from the
+> detected origin against the HOME ROM while its sidecar recorded that origin
+> as provenance — an artifact describing a reading nobody performed. The
+> settings are now held per file in `App`, travel with `extract-all` and
+> `export-archive`, and the helper moved out of the Electron shell into
+> `disasm.ts` so that what reaches the disassembler can be tested at all.
+>
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
 

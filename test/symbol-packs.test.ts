@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { disassemble } from '../electron/parsers/disasm';
+import { disassemble, disassembleForExport } from '../electron/parsers/disasm';
 import type { FileEntry } from '../electron/parsers/types';
 
 const DIR = path.join(__dirname, '..', 'electron', 'data', 'symbols');
@@ -94,5 +94,46 @@ describe('choosing packs for a disk', () => {
     const ids = zx81!.sidecar.symbolPacks.map((p) => p.id);
     expect(ids).not.toContain('ts2068-exrom');
     expect(ids).toContain('zx81');
+  });
+});
+
+describe('the .dis an extraction writes', () => {
+  const entry = {
+    index: 0, filename: 'CODE', type: 'code', size: 7, isDirectory: false,
+    params: { startAddr: 0x8000 },
+  } as unknown as FileEntry;
+  const data = Buffer.from([0xcd, 0x38, 0x00, 0xcd, 0x00, 0x00, 0xc9]);
+  const run = (settings?: { origin?: number; exrom?: boolean }) =>
+    disassembleForExport({ format: 'larken', entry, data, loaders: [], source: 'disk.img', settings });
+
+  it('uses the origin the reader set, not the detected one', () => {
+    // The regression this exists for: export ignored both controls, so a
+    // corrected origin was silently replaced by the detected one — and the
+    // sidecar then recorded that origin as provenance.
+    expect(run()!.origin).toBe(0x8000);
+    expect(run({ origin: 0xf658 })!.origin).toBe(0xf658);
+    expect(run({ origin: 0xf658 })!.sidecar.origin).toBe(0xf658);
+    expect(run({ origin: 0xf658 })!.text).toContain('ORG $F658');
+  });
+
+  it('uses the EXROM overlay when the reader turned it on', () => {
+    expect(run()!.text).not.toContain('XRST38');
+    expect(run({ exrom: true })!.text).toContain('XRST38');
+    // The sidecar has to name the pack, or the artifact cannot say which ROM
+    // the names came from.
+    expect(run({ exrom: true })!.sidecar.symbolPacks.map((p) => p.id)).toContain('ts2068-exrom');
+    expect(run()!.sidecar.symbolPacks.map((p) => p.id)).not.toContain('ts2068-exrom');
+  });
+
+  it('honours both at once, and records the checksum of what it read', () => {
+    const r = run({ origin: 0xf658, exrom: true })!;
+    expect(r.origin).toBe(0xf658);
+    expect(r.text).toContain('XRST38');
+    expect(r.sidecar.sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('returns null rather than throwing for a file that cannot be traced', () => {
+    const dir = { ...entry, isDirectory: true } as unknown as FileEntry;
+    expect(disassembleForExport({ format: 'larken', entry: dir, data, loaders: [], source: 'd.img' })).toBeNull();
   });
 });
