@@ -93,6 +93,14 @@ import { detectFormat } from './electron/parsers/detect';
 - **TAP format:** Sequential header+data block pairs. Multi-file TAPs are just concatenated blocks. The `buildDumpTap` function already creates dual-file TAPs (BASIC loader + CODE block).
 - **ZX Spectrum BASIC tokens:** LOAD=0xEF, CODE=0xAF, SCREEN$=0xAA, CLEAR=0xF9, RANDOMIZE=0xF5, USR=0xC0, quote=0x22. Numbers have inline 5-byte floats after `0x0E`.
 
+## Pending Feature: Smart Disassembler
+
+See `.claude/plans/smart-disassembler.md` for the implementation plan. A Z80
+disassembler that names ROM/DOS routines, seeded from entry points harvested out of the
+BASIC the app already detokenizes (`RAND USR` on the ZX81, `SAVE … CODE addr` on the
+TS2068). Blocked on ZX81 symbol material; the TS2068 packs can be built from
+`~/Documents/Projects/TS2068 Ref Library`.
+
 ## Pending Feature: TAP Package Bundling
 
 See `.claude/plans/tap-package-bundling.md` for the implementation plan. BASIC programs that LOAD other files (CODE, SCREEN$, DATA) need to be bundled into a single TAP for emulator compatibility. The plan adds a BASIC content analyzer, package detection, and multi-file TAP export.
