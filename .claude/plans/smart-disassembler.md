@@ -52,10 +52,12 @@ PRO/FILE 40K/MT  12 distinct targets
 ### The out-of-range targets are the DOS, and they are the valuable half
 
 Targets that fall outside the file's own memory image are calls into ROM. On the ZX81
-Larken disks `11000` (`0x2AF8`), `12000` (`0x2EE0`), `2591` (`0x0A1F`) and `13303`
-(`0x33F7`) recur across unrelated programs — all below `0x4009`, i.e. the LKDOS
-interface ROM. `13303` is the number handwritten on the BBDOS disk sleeve as the
-program's start address. On the TS2068 Larken disks the equivalent is `PRINT USR 100`.
+Aerco disks `11000` (`0x2AF8`), `12000` (`0x2EE0`), `2591` (`0x0A1F`) and `13303`
+(`0x33F7`) recur across unrelated programs, all below `0x4009`. BBDOS documents three of
+them in its own on-disk help — `RAND USR 11000` enters BBDOS, `RAND USR 12000` invokes a
+BBDOS function selected by the BASIC variables `Z` and `Z$`, and `RAND USR 13303` hands
+over to SADOS — while `2591` is `$0A1F`, which the ZX81 ROM disassembly names
+`LINE-ENDS`. On the TS2068 Larken disks the equivalent is `PRINT USR 100`.
 
 So harvested targets split two ways, and both are useful:
 
@@ -193,6 +195,7 @@ Packs to build:
 | `dos-zebra` | `Zebra_OS-64_annotated.asm` | material in hand |
 | `dos-fdd3000` | `fdd3000_annotated.asm` | material in hand |
 | `zx81` | ZXSpectrumVault `rom-disassemblies` — see below | source identified |
+| `dos-bbdos-zx81` | BBDOS's own on-disk help files — see below | readable today |
 
 A small script under `scripts/build-symbols.ts` parses the markdown tables and the
 `label:` lines out of the annotated disassemblies into the JSON above, so regenerating
@@ -242,11 +245,24 @@ later to the Dos."
 Names above are cleaned up from the document's OCR. The 3-byte spacing confirms a `JP`
 table, which is also the first real test case for jump-table detection.
 
-**Still open:** whether the ZX81 LKDOS uses this same table. The ZX81 Larken disks call
-`11000` (`$2AF8`), `12000` (`$2EE0`), `2591` (`$0A1F`) and `13303` (`$33F7`) — a
-different, higher range, so the ZX81 interface ROM is mapped elsewhere and needs its own
-pack. `LFCM ZX-81` in the same archive.org item is the place to look; failing that, the
-recurring targets can be labelled by aggregating across many disks.
+#### `dos-bbdos-zx81` — from the disks themselves
+
+The ZX81 disks are **Aerco**, not Larken, so the LKDOS table above does not apply to
+them. Their entry points are documented in BBDOS's own HELP files, which the app can
+already read and detokenize:
+
+```
+11000 $2AF8  ENTER   "BBDOS may be entered at any time from BASIC"
+12000 $2EE0  FUNC    "initiates BBDOS functions from BASIC" — Z selects, Z$ names
+13303 $33F7  SADOS   "even RAND USR 13303 to use SADOS to load"
+ 2591 $0A1F  (ZX81 ROM LINE-ENDS — resolved by the `zx81` pack, not this one)
+```
+
+with the memory map given as `3000-37FFH AERCO BOARD` and `2800-29FF` for the printer
+drivers. HELP2 carries the full `Z` function table, so the pack can be filled out by
+reading it rather than by guessing. A genuine Larken ZX81 disk would instead call
+`14336` (`$3800`) or `16374` (`$3FF6`) per Larken's `LFCM ZX-81` manual — a clean
+discriminator if one turns up.
 
 ### 5. New module: `electron/parsers/disasm-emit.ts`
 
@@ -301,6 +317,7 @@ Nothing about the Layer 1 file format has to change if an MCP server is added la
 |---|---|---|
 | `zx81` | [ZXSpectrumVault/rom-disassemblies](https://github.com/ZXSpectrumVault/rom-disassemblies) — `Sinclair ZX81/Sinclair-ZX81.asm` | check the repository's stated terms before shipping derived labels |
 | `dos-larken` | [archive.org `larken`](https://archive.org/details/larken) — *LKDOS Machine Language Subroutines* | published by Larken as programmer documentation |
+| `dos-bbdos-zx81` | BBDOS HELP files on the disks themselves | the programs document their own API |
 | `ts2068-*`, `spectrum48`, `dos-zebra`, `dos-fdd3000` | `~/Documents/Projects/TS2068 Ref Library` | derived from published disassemblies |
 
 ## Provenance
