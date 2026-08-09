@@ -61,3 +61,40 @@ describe('a REM holding machine code', () => {
     expect(zx81RemCodeRegions(image([1, [REM, 0x26, 0x27]]), 1000)).toEqual([]);
   });
 });
+
+describe('showing a REM as bytes', () => {
+  const line = image([0, [REM, ...CODE]]);
+  const render = (style?: 'characters' | 'hex') =>
+    detokenizeZX81(line, 1000, style).lines[0].tokens.map((t) => t.text).join('');
+
+  it('writes each byte as two digits and an h', () => {
+    // A REM holding machine code has no reading as text; the bytes are the
+    // only honest rendering, and the format is the one the machine's own
+    // documentation uses.
+    expect(render('hex')).toBe('REM 3Eh 01h 76h 21h 00h 40h C9h ');
+  });
+
+  it('includes the NEWLINE byte that sits inside the routine', () => {
+    // $76 is HALT here. Showing the bytes and omitting that one would be a
+    // different kind of lie from truncating at it.
+    expect(render('hex')).toContain('76h');
+  });
+
+  it('does not render the line-terminating NEWLINE', () => {
+    // The last byte closes the line and is not part of the routine.
+    expect(render('hex').trim().endsWith('C9h')).toBe(true);
+  });
+
+  it('leaves the characters rendering as the default', () => {
+    expect(render()).toBe(render('characters'));
+    expect(render('characters')).not.toContain('h ');
+  });
+
+  it('only changes the REM body, not the rest of the program', () => {
+    const two = image([0, [REM, ...CODE]], [10, [0xf9]]);   // line 10: RAND
+    const asHex = detokenizeZX81(two, 1000, 'hex').lines[1].tokens.map((t) => t.text).join('');
+    const asChars = detokenizeZX81(two, 1000, 'characters').lines[1].tokens.map((t) => t.text).join('');
+    expect(asHex).toBe(asChars);
+    expect(asHex.trim()).toBe('RAND');
+  });
+});
