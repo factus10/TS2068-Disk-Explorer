@@ -9,6 +9,7 @@ import { StatusBar } from './components/StatusBar';
 import { DiskMap } from './components/DiskMap';
 import { ContentViewer } from './components/ContentViewer';
 import { TapCreator } from './components/TapCreator';
+import { Preferences } from './components/Preferences';
 import { FileBrowser } from './components/FileBrowser';
 import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './components/ArchiveExportDialog';
 import { RenamePrompt } from './components/RenamePrompt';
@@ -32,6 +33,7 @@ function App() {
   // Disassembly choices per file, so an extraction writes the .dis the reader
   // was actually looking at rather than one built from the detected origin.
   const [disasmState, setDisasmState] = useState<DisasmSettingsMap>({});
+  const [showPreferences, setShowPreferences] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
     (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'dark' | 'light') || 'dark',
@@ -361,6 +363,10 @@ function App() {
     try {
       const results = await api.extractAll(disk.path, destDir, editState, disasmState);
       setStatus(`Extracted ${results.length} file(s)`);
+      // Ask now rather than at launch: there is a folder to point at and a
+      // reason to care about it. Declining is remembered by not asking again
+      // until they set one deliberately in Preferences.
+      await api.offerDefaultExtractionDir(destDir);
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
@@ -452,6 +458,11 @@ function App() {
     const unsub = api.onMenuOpenFile(handleOpen);
     return unsub;
   }, [handleOpen]);
+
+  useEffect(() => {
+    if (!api) return;
+    return api.onMenuPreferences(() => setShowPreferences(true));
+  }, []);
 
   // Listen for menu Recent Files
   useEffect(() => {
@@ -641,6 +652,8 @@ function App() {
       <StatusBar message={status} format={disk?.format} fileCount={disk?.catalog.length} />
 
       {disk && <DropZone onDrop={handleDrop} overlay />}
+
+      {showPreferences && <Preferences onClose={() => setShowPreferences(false)} />}
 
       {showTapCreator && (
         <TapCreator

@@ -64,6 +64,11 @@ export type Ts2068Mode = 'auto' | 'ts2068' | 'spectrum';
  */
 export type RemStyle = 'characters' | 'hex';
 
+export interface Settings {
+  /** Where extractions go by default; also where their .dis files land. */
+  extractionDir?: string;
+}
+
 /** A SCREEN$ is 6912 bytes: 6144 of pixels then 768 of attributes. */
 export const SCREEN_SIZE = 6912;
 
@@ -200,6 +205,13 @@ interface DiskToolsAPI {
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) => Promise<ExtractionResult | null>;
+  getSettings: () => Promise<Settings>;
+  updateSettings: (patch: Partial<Settings>) => Promise<Settings>;
+  /** Offer to remember a folder after the first extraction; true if accepted. */
+  offerDefaultExtractionDir: (dir: string) => Promise<boolean>;
+  /** Choose the default extraction folder outright, from Preferences. */
+  pickExtractionDir: () => Promise<string | null>;
+  onMenuPreferences: (callback: () => void) => () => void;
   getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode, remStyle?: RemStyle) => Promise<BasicListing | null>;
   getBasicVariables: (imagePath: string, entryIndex: number) => Promise<BasicVariable[] | null>;
   getBasicXref: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<XRefResult | null>;

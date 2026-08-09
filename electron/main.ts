@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as zlib from 'zlib';
 import { getRecent, addRecent, clearRecent } from './recent-files';
+import { getSettings, updateSettings } from './settings';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
 import { readCatalog as readOliger, readFileData as readOligerFile } from './parsers/oliger';
@@ -140,6 +141,12 @@ function buildMenu() {
         {
           label: 'Recent Files',
           submenu: recentSubmenu.length > 0 ? recentSubmenu : [{ label: 'No Recent Files', enabled: false }],
+        },
+        { type: 'separator' },
+        {
+          label: 'Preferences...',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => mainWindow?.webContents.send('menu-preferences'),
         },
         { type: 'separator' },
         { role: 'quit' },
@@ -332,10 +339,57 @@ ipcMain.handle('list-directory', async (_event, dirPath: string) => {
 });
 
 ipcMain.handle('select-directory', async () => {
+  // Open where the reader last chose to extract. The dialog is still shown --
+  // writing a pile of files somewhere without confirming would be a poor
+  // trade for one saved click -- but they should not have to navigate there
+  // again every time.
+  const { extractionDir } = getSettings();
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openDirectory', 'createDirectory'],
+    ...(extractionDir ? { defaultPath: extractionDir } : {}),
   });
   if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle('get-settings', async () => getSettings());
+
+ipcMain.handle('update-settings', async (_event, patch: Record<string, unknown>) =>
+  updateSettings(patch));
+
+/**
+ * Ask whether a just-used folder should become the default.
+ *
+ * Asked once, after the first extraction, when there is something concrete to
+ * point at. Asking at launch would make people configure a path before they
+ * have opened a disk, and most sessions never export anything.
+ */
+ipcMain.handle('offer-default-extraction-dir', async (_event, dir: string) => {
+  if (getSettings().extractionDir) return false;
+  const { response } = await dialog.showMessageBox(mainWindow!, {
+    type: 'question',
+    buttons: ['Use This Folder', 'Not Now'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'Default extraction folder',
+    message: 'Always extract here?',
+    detail: `${dir}\n\nThe file browser will start here next time. You can change it later in `
+      + `Preferences.`,
+  });
+  if (response !== 0) return false;
+  updateSettings({ extractionDir: dir });
+  return true;
+});
+
+ipcMain.handle('pick-extraction-dir', async () => {
+  const { extractionDir } = getSettings();
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Choose the default extraction folder',
+    ...(extractionDir ? { defaultPath: extractionDir } : {}),
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  updateSettings({ extractionDir: result.filePaths[0] });
   return result.filePaths[0];
 });
 
