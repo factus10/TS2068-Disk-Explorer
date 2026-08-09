@@ -96,7 +96,7 @@ export interface DisasmPlan {
  * Most are short — the median is 47 characters — so nearly all survive whole.
  * The tail is long: one line runs to 4854 characters, and a header full of
  * those is unreadable. But a flat cut from the start is worse than unreadable,
- * because the call can be anywhere: a `USR` sits as far in as character 2922,
+ * because the call can be anywhere: a `USR` sits as far in as character 640,
  * and cutting at 120 left 231 of 2950 call sites recording a line that did not
  * contain the call it was there to document.
  *
@@ -205,19 +205,49 @@ export function harvestCodeAddresses(
  * Offsets of the machine code inside each ZX81 `REM` line. Walking the program
  * area is the only way to get byte offsets; the rendered listing has lost them.
  */
-export function zx81RemCodeStarts(data: Buffer, progEnd: number): number[] {
-  const starts: number[] = [];
+export interface RemCodeRegion {
+  /** Offset of the first code byte, just past the REM token. */
+  start: number;
+  /** Bytes of code, from the line's own length field. */
+  length: number;
+  lineNumber: number;
+}
+
+/**
+ * The machine code held in each REM, bounded exactly.
+ *
+ * A ZX81 line is `[number hi][number lo][length lo][length hi][body][$76]`, so
+ * the length field gives the body's extent outright — there is no need to scan
+ * for the terminator, and scanning would be wrong. `$76` is NEWLINE, but it is
+ * also `HALT`, and any operand byte that happens to equal 118. Keeping one out
+ * of a REM is long-standing advice precisely because the *editor* stops there,
+ * and it is advice rather than a rule: programs carry them.
+ *
+ * Reading the bytes with the length as the bound is therefore both simpler and
+ * more correct than anything derived from the detokenized text, which renders
+ * these bytes as a stream of BASIC keywords that mean nothing.
+ */
+export function zx81RemCodeRegions(data: Buffer, progEnd: number): RemCodeRegion[] {
+  const out: RemCodeRegion[] = [];
   let pos = ZX81_PROG - ZX81_SYSVARS;                 // $74
   while (pos + 4 <= progEnd && pos + 4 <= data.length) {
     const lineNumber = (data[pos] << 8) | data[pos + 1];
     const lineLength = data[pos + 2] | (data[pos + 3] << 8);
     if (lineNumber > 9999 || lineLength < 1) break;
     if (pos + 4 + lineLength > progEnd) break;
-    // A REM as the first token means the rest of the line is not BASIC.
-    if (data[pos + 4] === ZX81_REM && lineLength > 8) starts.push(pos + 5);
+    // A REM as the first token means the rest of the line is not BASIC. The
+    // body runs from just past the REM to just before the closing NEWLINE.
+    if (data[pos + 4] === ZX81_REM && lineLength > 8) {
+      out.push({ start: pos + 5, length: lineLength - 2, lineNumber });
+    }
     pos += 4 + lineLength;
   }
-  return starts;
+  return out;
+}
+
+/** Just the entry addresses, for callers that do not need the extent. */
+export function zx81RemCodeStarts(data: Buffer, progEnd: number): number[] {
+  return zx81RemCodeRegions(data, progEnd).map((r) => r.start);
 }
 
 export interface PlanInput {
@@ -261,9 +291,17 @@ function planZX81(input: PlanInput): DisasmPlan | null {
   // With nothing to go on, fall back to the code inside a REM. On the ZX81 that
   // is where machine code almost always lives, and its address is fixed.
   if (!seeds.length) {
-    for (const off of zx81RemCodeStarts(data, range[1])) seeds.push(origin + off);
+    const regions = zx81RemCodeRegions(data, range[1]);
+    for (const r of regions) seeds.push(origin + r.start);
     if (seeds.length) {
       notes.push(`no USR target inside the file; seeded from the machine code in ${seeds.length} REM line(s)`);
+      // The line's length field bounds each routine exactly, which is worth
+      // recording: it is the one thing that says where the code ends, and it
+      // comes from the bytes rather than from any reading of them.
+      for (const r of regions) {
+        notes.push(`  line ${r.lineNumber} REM holds ${r.length} byte(s) of code at `
+          + `$${(origin + r.start).toString(16).toUpperCase().padStart(4, '0')}`);
+      }
     }
   }
 

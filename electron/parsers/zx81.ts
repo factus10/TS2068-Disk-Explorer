@@ -144,7 +144,18 @@ function tokenizeLine(body: Buffer): BasicToken[] {
   for (let i = 0; i < body.length; i++) {
     const b = body[i];
 
-    if (b === 0x76) break; // end-of-line marker
+    // The line's own NEWLINE is its last byte, and the caller has already
+    // checked that it is there. An earlier $76 ends the line only outside a
+    // REM, where it would mean the program is malformed and stopping is the
+    // safe move.
+    //
+    // Inside a REM it is just a byte — $76 is HALT, and it is also any byte of
+    // an address or operand that happens to equal 118. The advice to keep it
+    // out of a REM is advice, given because the *editor* stops there; it is
+    // not a rule, and programs do carry one. The length field bounds the line
+    // regardless, so there is nothing to be gained by stopping early and a
+    // whole tail of the routine to be lost by it.
+    if (b === 0x76 && (!inRem || i === body.length - 1)) break;
 
     // Inside a REM everything is literal — machine code stashed in a REM can
     // contain any byte value, including token and number-marker codes.

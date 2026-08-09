@@ -176,6 +176,20 @@
 > so the distinction was there to be used: 141 phantom references gone, and the
 > nine remaining `USR 0` harvests are real BASIC.
 >
+> Machine code in a ZX81 REM is bounded by the line's own length field, not by
+> scanning for the `$76` terminator. `$76` is NEWLINE, but it is equally `HALT`
+> and any operand byte that happens to equal 118 — keeping one out of a REM is
+> long-standing advice, given because the *editor* stops there, and programs
+> carry them anyway. The line header is
+> `[number hi][number lo][length lo][length hi][body][$76]`, so the extent is
+> stated outright. `zx81RemCodeRegions` returns it and the `.dis` header records
+> how many bytes each REM holds and where.
+>
+> The detokenizer was stopping at the first `$76` within a line even though the
+> caller had already bounded the body by length, so a routine containing one
+> lost its tail in the listing. Fixed. What it renders is keyword soup either
+> way — these are code bytes, and rendering them as characters means nothing.
+>
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
 
