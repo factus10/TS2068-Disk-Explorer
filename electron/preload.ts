@@ -23,6 +23,15 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('analyze-packages', imagePath),
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) =>
     ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir, allEdits, customBaseName),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  updateSettings: (patch: Record<string, unknown>) => ipcRenderer.invoke('update-settings', patch),
+  offerDefaultExtractionDir: (dir: string) => ipcRenderer.invoke('offer-default-extraction-dir', dir),
+  pickExtractionDir: () => ipcRenderer.invoke('pick-extraction-dir'),
+  onMenuPreferences: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-preferences', handler);
+    return () => ipcRenderer.removeListener('menu-preferences', handler);
+  },
   getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: string, remStyle?: string) =>
     ipcRenderer.invoke('get-basic-listing', imagePath, entryIndex, ts2068Mode ?? 'auto', remStyle ?? 'characters'),
   getBasicVariables: (imagePath: string, entryIndex: number) =>
