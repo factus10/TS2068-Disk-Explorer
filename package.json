@@ -1,6 +1,6 @@
 {
   "name": "ts2068-disk-browser",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Browse and extract files from vintage Timex/Sinclair disk images",
   "main": "dist-electron/main.js",
   "scripts": {
