@@ -90,27 +90,86 @@ export interface DisasmPlan {
  * while reporting instructions. `USR FN a()` and `USR CODE "n"` are the same
  * problem, the latter yielding a character code rather than an address.
  */
+/**
+ * How much of a calling line to keep.
+ *
+ * Most are short — the median is 47 characters — so nearly all survive whole.
+ * The tail is long: one line runs to 4854 characters, and a header full of
+ * those is unreadable. But a flat cut from the start is worse than unreadable,
+ * because the call can be anywhere: a `USR` sits as far in as character 640,
+ * and cutting at 120 left 231 of 2950 call sites recording a line that did not
+ * contain the call it was there to document.
+ *
+ * So keep the whole line when it fits, and otherwise take a window around the
+ * call itself, marked with an ellipsis wherever text was dropped. The call is
+ * always inside the window, and the reader can see that something was cut
+ * rather than having to wonder whether a line really ended mid-token.
+ */
+const LINE_KEPT_WHOLE = 160;
+const CONTEXT_BEFORE = 60;
+const CONTEXT_AFTER = 90;
+
+function excerpt(text: string, at: number): string {
+  if (text.length <= LINE_KEPT_WHOLE) return text;
+  const start = Math.max(0, at - CONTEXT_BEFORE);
+  const end = Math.min(text.length, at + CONTEXT_AFTER);
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+}
+
+/**
+ * Sinclair BASIC accepts an exponent, and `USR 6e4` is a real way to write
+ * 60000. Matching only the digits reads that as address 6 — a seed in the ROM,
+ * or worse, a plausible-looking one inside a file whose origin was assumed to
+ * be zero. The trailing guard matters as much as the exponent: without it
+ * `USR 1e-2` and `USR 1.5` match their first digit and yield address 1.
+ *
+ * Anchored, because these are applied at a known `USR` token rather than
+ * searched for across the line.
+ */
+const USR_PLAIN = /^\s*USR\s*(\d+(?:[eE]\d+)?)(?![eE\d.])/;
+const USR_VAL = /^\s*USR\s*VAL\s*"(\d+(?:[eE]\d+)?)"/;
+
 export function harvestUsrReferences(listing: BasicListing, from = ''): UsrReference[] {
   const out: UsrReference[] = [];
   for (const line of listing.lines) {
-    const text = line.tokens.map((t) => t.text).join('').trim();
+    // Find the USR tokens first, by type, and only then read their operands.
+    //
+    // Searching the rendered line for the word instead finds every `USR` the
+    // detokenizer wrote, including the ones it wrote for bytes inside a REM.
+    // A REM holding machine code is a normal thing — it is how a program on
+    // these machines carries a routine, and setting its line number to 0 with
+    // a POKE to protect it is a normal thing too — so those bytes render as a
+    // stream of BASIC keywords, and a $C0 among them comes out as `USR`.
+    // GRANDPRIX has four such phantoms, one at character 2922 of a 4854
+    // character line, each yielding address 0.
+    //
+    // The detokenizer already knows the difference: it tracks whether it is
+    // inside a REM and emits everything there as plain text, so only a real
+    // call is typed `function`. Trusting that rather than the spelling is the
+    // same lesson the BASIC cross-reference learned.
+    const raw = line.tokens.map((t) => t.text).join('');
+    const lead = raw.length - raw.trimStart().length;
+    const text = raw.trim();
+    const calls: number[] = [];
+    let pos = 0;
+    for (const t of line.tokens) {
+      if (t.type === 'function' && t.text.trim() === 'USR') calls.push(pos - lead);
+      pos += t.text.length;
+    }
+
     const seen = new Set<number>();
-    const add = (raw: string) => {
-      const n = Number(raw);
+    for (const at of calls) {
+      if (at < 0 || at >= text.length) continue;
+      const rest = text.slice(at);
+      const m = USR_PLAIN.exec(rest) ?? USR_VAL.exec(rest);
+      if (!m) continue;
+      const n = Number(m[1]);
       // A USR operand is a 16-bit address, and a whole one. Anything else is a
       // mis-read.
-      if (!Number.isInteger(n) || n < 0 || n > 0xffff || seen.has(n)) return;
+      if (!Number.isInteger(n) || n < 0 || n > 0xffff || seen.has(n)) continue;
       seen.add(n);
-      out.push({ addr: n, from, lineNumber: line.lineNumber, text: text.slice(0, 120) });
-    };
-    // Sinclair BASIC accepts an exponent, and `USR 6e4` is a real way to write
-    // 60000. Matching only the digits reads that as address 6 — a seed in the
-    // ROM, or worse, a plausible-looking one inside a file whose origin was
-    // assumed to be zero.
-    // The trailing guard matters as much as the exponent: without it `USR 1e-2`
-    // and `USR 1.5` match their first digit and yield address 1.
-    for (const m of text.matchAll(/USR\s*(\d+(?:[eE]\d+)?)(?![eE\d.])/g)) add(m[1]);
-    for (const m of text.matchAll(/USR\s*VAL\s*"(\d+(?:[eE]\d+)?)"/g)) add(m[1]);
+      out.push({ addr: n, from, lineNumber: line.lineNumber, text: excerpt(text, at) });
+    }
   }
   return out;
 }
@@ -146,19 +205,49 @@ export function harvestCodeAddresses(
  * Offsets of the machine code inside each ZX81 `REM` line. Walking the program
  * area is the only way to get byte offsets; the rendered listing has lost them.
  */
-export function zx81RemCodeStarts(data: Buffer, progEnd: number): number[] {
-  const starts: number[] = [];
+export interface RemCodeRegion {
+  /** Offset of the first code byte, just past the REM token. */
+  start: number;
+  /** Bytes of code, from the line's own length field. */
+  length: number;
+  lineNumber: number;
+}
+
+/**
+ * The machine code held in each REM, bounded exactly.
+ *
+ * A ZX81 line is `[number hi][number lo][length lo][length hi][body][$76]`, so
+ * the length field gives the body's extent outright — there is no need to scan
+ * for the terminator, and scanning would be wrong. `$76` is NEWLINE, but it is
+ * also `HALT`, and any operand byte that happens to equal 118. Keeping one out
+ * of a REM is long-standing advice precisely because the *editor* stops there,
+ * and it is advice rather than a rule: programs carry them.
+ *
+ * Reading the bytes with the length as the bound is therefore both simpler and
+ * more correct than anything derived from the detokenized text, which renders
+ * these bytes as a stream of BASIC keywords that mean nothing.
+ */
+export function zx81RemCodeRegions(data: Buffer, progEnd: number): RemCodeRegion[] {
+  const out: RemCodeRegion[] = [];
   let pos = ZX81_PROG - ZX81_SYSVARS;                 // $74
   while (pos + 4 <= progEnd && pos + 4 <= data.length) {
     const lineNumber = (data[pos] << 8) | data[pos + 1];
     const lineLength = data[pos + 2] | (data[pos + 3] << 8);
     if (lineNumber > 9999 || lineLength < 1) break;
     if (pos + 4 + lineLength > progEnd) break;
-    // A REM as the first token means the rest of the line is not BASIC.
-    if (data[pos + 4] === ZX81_REM && lineLength > 8) starts.push(pos + 5);
+    // A REM as the first token means the rest of the line is not BASIC. The
+    // body runs from just past the REM to just before the closing NEWLINE.
+    if (data[pos + 4] === ZX81_REM && lineLength > 8) {
+      out.push({ start: pos + 5, length: lineLength - 2, lineNumber });
+    }
     pos += 4 + lineLength;
   }
-  return starts;
+  return out;
+}
+
+/** Just the entry addresses, for callers that do not need the extent. */
+export function zx81RemCodeStarts(data: Buffer, progEnd: number): number[] {
+  return zx81RemCodeRegions(data, progEnd).map((r) => r.start);
 }
 
 export interface PlanInput {
@@ -202,9 +291,17 @@ function planZX81(input: PlanInput): DisasmPlan | null {
   // With nothing to go on, fall back to the code inside a REM. On the ZX81 that
   // is where machine code almost always lives, and its address is fixed.
   if (!seeds.length) {
-    for (const off of zx81RemCodeStarts(data, range[1])) seeds.push(origin + off);
+    const regions = zx81RemCodeRegions(data, range[1]);
+    for (const r of regions) seeds.push(origin + r.start);
     if (seeds.length) {
       notes.push(`no USR target inside the file; seeded from the machine code in ${seeds.length} REM line(s)`);
+      // The line's length field bounds each routine exactly, which is worth
+      // recording: it is the one thing that says where the code ends, and it
+      // comes from the bytes rather than from any reading of them.
+      for (const r of regions) {
+        notes.push(`  line ${r.lineNumber} REM holds ${r.length} byte(s) of code at `
+          + `$${(origin + r.start).toString(16).toUpperCase().padStart(4, '0')}`);
+      }
     }
   }
 

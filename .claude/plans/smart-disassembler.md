@@ -159,6 +159,37 @@
 > read it as address 6. Fourteen operands across the sample disks are written
 > with an exponent.
 >
+> Call-site text is shown as a window around the call rather than the head of
+> the line. A flat 120-character cut looked like a cosmetic limit and was not:
+> a `USR` sits as far in as character 2922, and 231 of 2950 call sites were
+> recording a line that did not contain the call it was there to document. The
+> median line is 47 characters so most are still shown whole; the rest are
+> excerpted with an ellipsis at whichever end lost text.
+>
+> A `USR` is harvested only where the detokenizer typed it as a call. Searching
+> the rendered line for the word finds the ones it wrote for bytes inside a
+> REM — and a REM holding machine code is normal here, as is POKEing its line
+> number to zero to protect it, so those bytes render as a stream of keywords
+> with `$C0` among them coming out as `USR`. GRANDPRIX carries four such
+> phantoms, one at character 2922 of a 4854-character line. The detokenizer
+> already tracks whether it is inside a REM and types everything there as text,
+> so the distinction was there to be used: 141 phantom references gone, and the
+> nine remaining `USR 0` harvests are real BASIC.
+>
+> Machine code in a ZX81 REM is bounded by the line's own length field, not by
+> scanning for the `$76` terminator. `$76` is NEWLINE, but it is equally `HALT`
+> and any operand byte that happens to equal 118 — keeping one out of a REM is
+> long-standing advice, given because the *editor* stops there, and programs
+> carry them anyway. The line header is
+> `[number hi][number lo][length lo][length hi][body][$76]`, so the extent is
+> stated outright. `zx81RemCodeRegions` returns it and the `.dis` header records
+> how many bytes each REM holds and where.
+>
+> The detokenizer was stopping at the first `$76` within a line even though the
+> caller had already bounded the body by length, so a routine containing one
+> lost its tail in the listing. Fixed. What it renders is keyword soup either
+> way — these are code bytes, and rendering them as characters means nothing.
+>
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
 
