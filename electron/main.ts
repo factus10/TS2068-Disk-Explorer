@@ -21,6 +21,7 @@ import {
   readCatalog as readZX81Aerco, readFileData as readZX81AercoFile, readBasicListing as readZX81Listing,
 } from './parsers/zx81-aerco';
 import { parseZX81Variables } from './parsers/zx81';
+import type { RemStyle } from './parsers/zx81';
 import { disassemble, canDisassemble, disassembleForExport } from './parsers/disasm';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
@@ -224,8 +225,9 @@ function getParser(format: DiskFormat) {
  */
 function detokenizeEntry(
   format: DiskFormat, fileData: Buffer, entry: FileEntry, ts2068Mode?: Ts2068Mode,
+  remStyle?: RemStyle,
 ): BasicListing {
-  if (format === 'zx81-aerco') return readZX81Listing(fileData, entry);
+  if (format === 'zx81-aerco') return readZX81Listing(fileData, entry, remStyle);
   const varsOffset = entry.params.varsOffset ?? entry.params.param2;
   return detokenize(fileData, varsOffset, ts2068Mode);
 }
@@ -853,7 +855,7 @@ ipcMain.handle('extract-package', async (
   };
 });
 
-ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex: number, ts2068Mode: Ts2068Mode = 'auto'): Promise<BasicListing | null> => {
+ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex: number, ts2068Mode: Ts2068Mode = 'auto', remStyle: RemStyle = 'characters'): Promise<BasicListing | null> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
   if (!format) return null;
@@ -879,7 +881,7 @@ ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex
 
   if (entry.type !== 'basic') return null;
 
-  const listing = detokenizeEntry(format, fileData, entry, ts2068Mode);
+  const listing = detokenizeEntry(format, fileData, entry, ts2068Mode, remStyle);
   const autostart = entry.params.autostartLine ?? entry.params.param1;
   if (autostart && autostart > 0 && autostart < 10000) {
     listing.autostartLine = autostart;
@@ -1149,6 +1151,7 @@ ipcMain.handle('export-all-screens', async (_event, imagePath: string, destDir: 
 // Print BASIC listing to PDF
 ipcMain.handle('print-listing-pdf', async (
   _event, imagePath: string, entryIndex: number, ts2068Mode: Ts2068Mode = 'auto',
+  remStyle: RemStyle = 'characters',
 ): Promise<string | null> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -1169,7 +1172,7 @@ ipcMain.handle('print-listing-pdf', async (
     const stateInfo = extractBasicFromState(fileData, origin);
     if (stateInfo) listing = detokenize(stateInfo.basicData, undefined, ts2068Mode);
   } else if (entry.type === 'basic') {
-    listing = detokenizeEntry(format, fileData, entry, ts2068Mode);
+    listing = detokenizeEntry(format, fileData, entry, ts2068Mode, remStyle);
   }
 
   if (!listing || listing.lines.length === 0) return null;

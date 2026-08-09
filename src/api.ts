@@ -56,6 +56,14 @@ export interface TapPackage {
 
 export type Ts2068Mode = 'auto' | 'ts2068' | 'spectrum';
 
+/**
+ * How to show the body of a ZX81 REM. `characters` renders it through the
+ * character set and token table, which is right for a typed comment; `hex`
+ * shows the bytes, which is the only honest reading of a REM holding machine
+ * code — and on these disks most of them do.
+ */
+export type RemStyle = 'characters' | 'hex';
+
 /** A SCREEN$ is 6912 bytes: 6144 of pixels then 768 of attributes. */
 export const SCREEN_SIZE = 6912;
 
@@ -192,7 +200,7 @@ interface DiskToolsAPI {
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) => Promise<ExtractionResult | null>;
-  getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<BasicListing | null>;
+  getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode, remStyle?: RemStyle) => Promise<BasicListing | null>;
   getBasicVariables: (imagePath: string, entryIndex: number) => Promise<BasicVariable[] | null>;
   getBasicXref: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<XRefResult | null>;
   getDisassembly: (imagePath: string, entryIndex: number, originOverride?: number, exrom?: boolean)
@@ -206,7 +214,7 @@ interface DiskToolsAPI {
   onMenuCreateTap: (callback: () => void) => () => void;
   exportAllFonts: (imagePath: string, destDir: string) => Promise<number>;
   exportAllScreens: (imagePath: string, destDir: string) => Promise<number>;
-  printListingPdf: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode) => Promise<string | null>;
+  printListingPdf: (imagePath: string, entryIndex: number, ts2068Mode?: Ts2068Mode, remStyle?: RemStyle) => Promise<string | null>;
   saveTapDialog: (defaultName: string) => Promise<string | null>;
   saveZipDialog: (defaultName: string) => Promise<string | null>;
   selectFilesForTap: () => Promise<string[] | null>;

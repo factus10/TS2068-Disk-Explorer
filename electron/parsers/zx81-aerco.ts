@@ -87,6 +87,7 @@
 
 import { readUint16LE } from './utils';
 import { decodeZX81Text, detokenizeZX81 } from './zx81';
+import type { RemStyle } from './zx81';
 import type { CatalogResult, DiskHeader, FileEntry, FileType } from './types';
 
 const IMAGE_SIZE = 409600;
@@ -303,9 +304,11 @@ export function readFileData(buffer: Buffer, entry: FileEntry): Buffer | null {
 }
 
 /** Detokenize a ZX81 BASIC file read from one of these disks. */
-export function readBasicListing(fileData: Buffer, entry: FileEntry) {
+export function readBasicListing(
+  fileData: Buffer, entry: FileEntry, remStyle: RemStyle = 'characters',
+) {
   const progEnd = entry.params.progEnd || undefined;
-  return detokenizeZX81(fileData, progEnd);
+  return detokenizeZX81(fileData, progEnd, remStyle);
 }
 
 export { IMAGE_SIZE, TRACK_SIZE };

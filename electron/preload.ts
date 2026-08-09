@@ -23,8 +23,8 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('analyze-packages', imagePath),
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) =>
     ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir, allEdits, customBaseName),
-  getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
-    ipcRenderer.invoke('get-basic-listing', imagePath, entryIndex, ts2068Mode ?? 'auto'),
+  getBasicListing: (imagePath: string, entryIndex: number, ts2068Mode?: string, remStyle?: string) =>
+    ipcRenderer.invoke('get-basic-listing', imagePath, entryIndex, ts2068Mode ?? 'auto', remStyle ?? 'characters'),
   getBasicVariables: (imagePath: string, entryIndex: number) =>
     ipcRenderer.invoke('get-basic-variables', imagePath, entryIndex),
   getBasicXref: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
@@ -55,8 +55,8 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('export-all-fonts', imagePath, destDir),
   exportAllScreens: (imagePath: string, destDir: string) =>
     ipcRenderer.invoke('export-all-screens', imagePath, destDir),
-  printListingPdf: (imagePath: string, entryIndex: number, ts2068Mode?: string) =>
-    ipcRenderer.invoke('print-listing-pdf', imagePath, entryIndex, ts2068Mode ?? 'auto'),
+  printListingPdf: (imagePath: string, entryIndex: number, ts2068Mode?: string, remStyle?: string) =>
+    ipcRenderer.invoke('print-listing-pdf', imagePath, entryIndex, ts2068Mode ?? 'auto', remStyle ?? 'characters'),
   saveTapDialog: (defaultName: string) =>
     ipcRenderer.invoke('save-tap-dialog', defaultName),
   selectFilesForTap: () =>
