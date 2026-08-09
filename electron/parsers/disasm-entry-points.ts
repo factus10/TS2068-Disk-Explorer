@@ -116,27 +116,60 @@ function excerpt(text: string, at: number): string {
   return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
 }
 
+/**
+ * Sinclair BASIC accepts an exponent, and `USR 6e4` is a real way to write
+ * 60000. Matching only the digits reads that as address 6 — a seed in the ROM,
+ * or worse, a plausible-looking one inside a file whose origin was assumed to
+ * be zero. The trailing guard matters as much as the exponent: without it
+ * `USR 1e-2` and `USR 1.5` match their first digit and yield address 1.
+ *
+ * Anchored, because these are applied at a known `USR` token rather than
+ * searched for across the line.
+ */
+const USR_PLAIN = /^\s*USR\s*(\d+(?:[eE]\d+)?)(?![eE\d.])/;
+const USR_VAL = /^\s*USR\s*VAL\s*"(\d+(?:[eE]\d+)?)"/;
+
 export function harvestUsrReferences(listing: BasicListing, from = ''): UsrReference[] {
   const out: UsrReference[] = [];
   for (const line of listing.lines) {
-    const text = line.tokens.map((t) => t.text).join('').trim();
+    // Find the USR tokens first, by type, and only then read their operands.
+    //
+    // Searching the rendered line for the word instead finds every `USR` the
+    // detokenizer wrote, including the ones it wrote for bytes inside a REM.
+    // A REM holding machine code is a normal thing — it is how a program on
+    // these machines carries a routine, and setting its line number to 0 with
+    // a POKE to protect it is a normal thing too — so those bytes render as a
+    // stream of BASIC keywords, and a $C0 among them comes out as `USR`.
+    // GRANDPRIX has four such phantoms, one at character 2922 of a 4854
+    // character line, each yielding address 0.
+    //
+    // The detokenizer already knows the difference: it tracks whether it is
+    // inside a REM and emits everything there as plain text, so only a real
+    // call is typed `function`. Trusting that rather than the spelling is the
+    // same lesson the BASIC cross-reference learned.
+    const raw = line.tokens.map((t) => t.text).join('');
+    const lead = raw.length - raw.trimStart().length;
+    const text = raw.trim();
+    const calls: number[] = [];
+    let pos = 0;
+    for (const t of line.tokens) {
+      if (t.type === 'function' && t.text.trim() === 'USR') calls.push(pos - lead);
+      pos += t.text.length;
+    }
+
     const seen = new Set<number>();
-    const add = (raw: string, at: number) => {
-      const n = Number(raw);
+    for (const at of calls) {
+      if (at < 0 || at >= text.length) continue;
+      const rest = text.slice(at);
+      const m = USR_PLAIN.exec(rest) ?? USR_VAL.exec(rest);
+      if (!m) continue;
+      const n = Number(m[1]);
       // A USR operand is a 16-bit address, and a whole one. Anything else is a
       // mis-read.
-      if (!Number.isInteger(n) || n < 0 || n > 0xffff || seen.has(n)) return;
+      if (!Number.isInteger(n) || n < 0 || n > 0xffff || seen.has(n)) continue;
       seen.add(n);
       out.push({ addr: n, from, lineNumber: line.lineNumber, text: excerpt(text, at) });
-    };
-    // Sinclair BASIC accepts an exponent, and `USR 6e4` is a real way to write
-    // 60000. Matching only the digits reads that as address 6 — a seed in the
-    // ROM, or worse, a plausible-looking one inside a file whose origin was
-    // assumed to be zero.
-    // The trailing guard matters as much as the exponent: without it `USR 1e-2`
-    // and `USR 1.5` match their first digit and yield address 1.
-    for (const m of text.matchAll(/USR\s*(\d+(?:[eE]\d+)?)(?![eE\d.])/g)) add(m[1], m.index ?? 0);
-    for (const m of text.matchAll(/USR\s*VAL\s*"(\d+(?:[eE]\d+)?)"/g)) add(m[1], m.index ?? 0);
+    }
   }
   return out;
 }

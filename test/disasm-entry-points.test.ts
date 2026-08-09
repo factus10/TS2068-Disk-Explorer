@@ -2,15 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   harvestUsrTargets, harvestCodeAddresses, zx81RemCodeStarts, planDisassembly,
 } from '../electron/parsers/disasm-entry-points';
-import type { BasicListing } from '../electron/parsers/basic-detokenizer';
 import type { FileEntry } from '../electron/parsers/types';
 
-/** A listing is only read through its token text, so this is enough to drive it. */
-const listing = (...lines: [number, string][]): BasicListing => ({
-  lines: lines.map(([lineNumber, text]) => ({
-    lineNumber, tokens: [{ type: 'text' as const, text }],
-  })),
-});
+import { numberedListing as listing } from './helpers/basic';
 
 const entry = (over: Partial<FileEntry> = {}): FileEntry => ({
   index: 0, filename: 'TEST', type: 'code', typeName: 'CODE', size: 16,

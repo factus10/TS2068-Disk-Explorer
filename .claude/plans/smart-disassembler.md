@@ -166,6 +166,16 @@
 > median line is 47 characters so most are still shown whole; the rest are
 > excerpted with an ellipsis at whichever end lost text.
 >
+> A `USR` is harvested only where the detokenizer typed it as a call. Searching
+> the rendered line for the word finds the ones it wrote for bytes inside a
+> REM — and a REM holding machine code is normal here, as is POKEing its line
+> number to zero to protect it, so those bytes render as a stream of keywords
+> with `$C0` among them coming out as `USR`. GRANDPRIX carries four such
+> phantoms, one at character 2922 of a 4854-character line. The detokenizer
+> already tracks whether it is inside a REM and types everything there as text,
+> so the distinction was there to be used: 141 phantom references gone, and the
+> nine remaining `USR 0` harvests are real BASIC.
+>
 > Still open: Layer 2, deliberately — see the section near the end for why it is
 > a folder rather than a queue.
 

@@ -3,13 +3,9 @@ import { harvestUsrTargets, harvestCodeAddresses, harvestUsrReferences } from '.
 import { canDisassemble, disassemble, disassembleForExport } from '../electron/parsers/disasm';
 import { isTextData } from '../electron/parsers/utils';
 import { isTextData as rendererIsTextData } from '../src/api';
-import type { BasicListing } from '../electron/parsers/basic-detokenizer';
 import type { FileEntry } from '../electron/parsers/types';
 
-/** A listing of one line per string, as the detokenizer would render it. */
-const listing = (...lines: string[]) => ({
-  lines: lines.map((text, i) => ({ lineNumber: i + 1, tokens: [{ text }] })),
-} as unknown as BasicListing);
+import { listing } from './helpers/basic';
 
 describe('harvesting USR entry points', () => {
   it('reads the plain numeric form', () => {
@@ -189,7 +185,9 @@ describe('recording which BASIC line calls an entry point', () => {
 
 describe('how much of a calling line is kept', () => {
   const short = 'PRINT ;:LET L= USR VAL "51461"';
-  const pad = (n: number) => 'REM ' + 'x'.repeat(n);
+  // Filler that is not a REM: a USR after a REM is not a call, so padding with
+  // one would test the wrong thing.
+  const pad = (n: number) => 'POKE 0,0:'.repeat(Math.ceil(n / 9)).slice(0, n);
 
   it('keeps an ordinary line whole', () => {
     // The median calling line is 47 characters, so nearly all survive intact.
@@ -232,5 +230,58 @@ describe('how much of a calling line is kept', () => {
     expect(refs.map((r) => r.addr)).toEqual([40000, 50000]);
     expect(refs[0].text).toContain('USR 40000');
     expect(refs[1].text).toContain('USR 50000');
+  });
+});
+
+describe('a USR inside a REM', () => {
+  it('is not a call, because REM ends execution for the line', () => {
+    // A REM holding machine code is normal on these machines — it is how a
+    // program carries a routine, and POKEing its line number to 0 to protect
+    // it is normal too. The detokenizer renders those bytes as BASIC keywords,
+    // so a $C0 among them comes out spelled `USR`. GRANDPRIX has four such
+    // phantoms, each yielding address 0.
+    expect(harvestUsrTargets(listing('REM  USR 999'))).toEqual([]);
+    expect(harvestUsrTargets(listing('RANDOMIZE USR 32768: REM  USR 999'))).toEqual([32768]);
+  });
+
+  it('does not stop the same line contributing its real calls', () => {
+    const refs = harvestUsrReferences(listing('LET a= USR 40000: REM  USR 0 USR 0'), 'F');
+    expect(refs.map((r) => r.addr)).toEqual([40000]);
+  });
+
+  it('is decided by token type, not by looking for the word REM', () => {
+    // "REM " inside a string is not a REM. Matching on the spelling would end
+    // the line here and lose the call that follows.
+    expect(harvestUsrTargets(listing('PRINT "REM ONLY": RANDOMIZE USR 32768')))
+      .toEqual([32768]);
+  });
+});
+
+describe('the shape the detokenizer actually emits', () => {
+  /** Tokens exactly as the Spectrum detokenizer produced them for a real line. */
+  const raw = (...tokens: [string, string][]) => ({
+    lines: [{ lineNumber: 1841, tokens: tokens.map(([type, text]) => ({ type, text })) }],
+  } as never);
+
+  it('reads a USR token that carries a leading space', () => {
+    // `LET z= USR 59013` comes out with the space attached to the keyword:
+    // function:" USR ". Anchoring the operand pattern at the token start
+    // without allowing that space silently dropped 141 real call sites, and
+    // cost 4 files their entry point.
+    const refs = harvestUsrReferences(raw(
+      ['statement', 'LET '], ['text', 'z'], ['text', '='],
+      ['function', ' USR '], ['text', '5'], ['text', '9'], ['text', '0'],
+      ['text', '1'], ['text', '3'],
+    ), 'ART 2.27');
+    expect(refs.map((r) => r.addr)).toEqual([59013]);
+    expect(refs[0].lineNumber).toBe(1841);
+  });
+
+  it('reads one without a leading space just the same', () => {
+    const refs = harvestUsrReferences(raw(
+      ['statement', 'RANDOMIZE '], ['function', 'USR '],
+      ['text', '3'], ['text', '2'], ['text', '7'], ['text', '6'], ['text', '8'],
+    ), 'F');
+    expect(refs.map((r) => r.addr)).toEqual([32768]);
   });
 });
