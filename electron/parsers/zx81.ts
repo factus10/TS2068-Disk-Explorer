@@ -106,7 +106,20 @@ function charToken(code: number): BasicToken {
  * @param progEnd   Offset of the end of the program area (D_FILE - 0x4009).
  *                  Defaults to the whole buffer.
  */
-export function detokenizeZX81(data: Buffer, progEnd?: number): BasicListing {
+/**
+ * How to show the body of a REM.
+ *
+ * `characters` renders every byte through the ZX81 character set and token
+ * table, which is right for a REM someone typed as a comment. `hex` shows the
+ * bytes, which is the only honest reading of a REM holding machine code —
+ * there the character rendering is a stream of keywords that mean nothing,
+ * and on these disks that is most of them.
+ */
+export type RemStyle = 'characters' | 'hex';
+
+export function detokenizeZX81(
+  data: Buffer, progEnd?: number, remStyle: RemStyle = 'characters',
+): BasicListing {
   const PROG_START = 0x407d - 0x4009; // 0x74: program area follows the system variables
   const end = Math.min(progEnd ?? data.length, data.length);
   const lines: BasicLine[] = [];
@@ -124,14 +137,14 @@ export function detokenizeZX81(data: Buffer, progEnd?: number): BasicListing {
     if (data[pos + 4 + lineLength - 1] !== 0x76) break;
 
     const body = data.subarray(pos + 4, pos + 4 + lineLength);
-    lines.push({ lineNumber, tokens: tokenizeLine(body) });
+    lines.push({ lineNumber, tokens: tokenizeLine(body, remStyle) });
     pos += 4 + lineLength;
   }
 
   return { lines };
 }
 
-function tokenizeLine(body: Buffer): BasicToken[] {
+function tokenizeLine(body: Buffer, remStyle: RemStyle = 'characters'): BasicToken[] {
   const tokens: BasicToken[] = [];
   let inString = false;
   let inRem = false;
@@ -160,7 +173,9 @@ function tokenizeLine(body: Buffer): BasicToken[] {
     // Inside a REM everything is literal — machine code stashed in a REM can
     // contain any byte value, including token and number-marker codes.
     if (inRem) {
-      text += b < 0x40 ? CHARS[b] : (b >= 0x80 && b < 0xc0 ? CHARS[b - 0x80] : (TOKENS[b] ?? '?'));
+      text += remStyle === 'hex'
+        ? `${b.toString(16).toUpperCase().padStart(2, '0')}h `
+        : (b < 0x40 ? CHARS[b] : (b >= 0x80 && b < 0xc0 ? CHARS[b - 0x80] : (TOKENS[b] ?? '?')));
       continue;
     }
 

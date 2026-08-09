@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits, BasicVariable, XRefResult, DisasmSettings, isScreenEntry, isTextData } from '../api';
+import { api, FileEntry, BasicListing as BasicListingData, ArrayData, Ts2068Mode, FileEdits, BasicVariable, XRefResult, DisasmSettings, isScreenEntry, isTextData, RemStyle } from '../api';
 import { HexView } from './HexView';
 import { BasicListing } from './BasicListing';
 import { ScreenViewer } from './ScreenViewer';
@@ -90,12 +90,19 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   const setExrom = (on: boolean) => onChangeDisasm({ ...disasmSettings, exrom: on });
   const [loading, setLoading] = useState(false);
   const [ts2068Mode, setTs2068Mode] = useState<Ts2068Mode>('auto');
+  // ZX81 only, and the mirror image of the Tokens toggle: there the question
+  // is which machine's tokens to read the bytes as, here it is whether the
+  // bytes in a REM are text at all.
+  const [remStyle, setRemStyle] = useState<RemStyle>('characters');
   const [activeTab, setActiveTab] = useState<ViewTab>('hex');
 
   // The Tokens toggle chooses how to read the bytes the Spectrum and the
   // TS2068 disagree about. ZX81 BASIC is a separate dialect with its own token
   // table and ignores the setting, so the choice is meaningless there.
   const hasTokenDialects = diskFormat !== 'zx81-aerco';
+  // A ZX81 REM is where machine code lives on these disks, and rendering code
+  // bytes through the character set produces keyword soup. Offer the bytes.
+  const hasRemStyles = diskFormat === 'zx81-aerco';
 
   // Compute available tabs (text/font/icon tabs depend on data)
   const hasText = hexData ? isTextData(hexData) : false;
@@ -168,11 +175,11 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
     let cancelled = false;
     setListing(null);
     setLoading(true);
-    api.getBasicListing(diskPath, entry.index, ts2068Mode).then((data) => {
+    api.getBasicListing(diskPath, entry.index, ts2068Mode, remStyle).then((data) => {
       if (!cancelled) { setListing(data); setLoading(false); }
     }).catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [ts2068Mode, diskPath, entry.index, activeTab]);
+  }, [ts2068Mode, remStyle, diskPath, entry.index, activeTab]);
 
   // Load array data when array tab activates
   useEffect(() => {
@@ -365,6 +372,29 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
           borderBottom: '1px solid var(--border)',
           alignItems: 'center',
         }}>
+          {hasRemStyles && (
+            <>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>REM:</span>
+              {(['characters', 'hex'] as RemStyle[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setRemStyle(m)}
+                  title={m === 'characters'
+                    ? 'Render the REM through the ZX81 character set and token table'
+                    : 'Show the bytes. A REM holding machine code has no reading as text.'}
+                  style={{
+                    background: remStyle === m ? 'var(--accent)' : 'var(--bg-tertiary)',
+                    color: remStyle === m ? '#fff' : 'var(--text-secondary)',
+                    fontSize: 10,
+                    padding: '2px 8px',
+                    borderRadius: 3,
+                  }}
+                >
+                  {m === 'characters' ? 'Characters' : 'Hex'}
+                </button>
+              ))}
+            </>
+          )}
           {hasTokenDialects && (
             <>
               <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4 }}>Tokens:</span>
@@ -387,7 +417,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
           )}
           <div style={{ flex: 1 }} />
           <button
-            onClick={() => api.printListingPdf(diskPath, entry.index, ts2068Mode)}
+            onClick={() => api.printListingPdf(diskPath, entry.index, ts2068Mode, remStyle)}
             style={{
               background: 'var(--bg-tertiary)',
               color: 'var(--text-secondary)',
