@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api, DirEntry } from '../api';
+import { isSupportedFile as isSupported } from '../../electron/parsers/supported-formats';
 
 interface Props {
   onOpenFile: (filePath: string) => void;
   /** The currently-loaded disk file path, highlighted in the listing. */
   currentDiskPath?: string | null;
+  /** Change this to force a re-listing — a folder's archived state moved. */
+  refreshToken?: number;
 }
 
-const SUPPORTED_EXTENSIONS = new Set(['img', 'dsk', 'tap', 'tzx', 'sna', 'z80', 'scr', 'mgt', 'zip']);
 const DEFAULT_WIDTH = 250;
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 450;
@@ -18,21 +20,33 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}M`;
 }
 
-function getExtension(name: string): string {
-  const dot = name.lastIndexOf('.');
-  return dot >= 0 ? name.substring(dot + 1).toLowerCase() : '';
+/**
+ * Rows surviving the "hide archived" toggle. A folder with new images since
+ * it was marked stays visible — hiding it would bury the one case the mark is
+ * meant to surface.
+ */
+export function visibleAfterHide(entries: DirEntry[], hideArchived: boolean): DirEntry[] {
+  if (!hideArchived) return entries;
+  return entries.filter((e) => !e.archived || e.archived.stale);
 }
 
-function isSupported(name: string): boolean {
-  return SUPPORTED_EXTENSIONS.has(getExtension(name));
+/** "Archived 4 Mar 2026" — the date a mark was made, for its tooltip. */
+function formatMarkedAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
+export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props) {
   const [currentPath, setCurrentPath] = useState('');
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const [hideArchived, setHideArchived] = useState(() =>
+    typeof localStorage !== 'undefined' && localStorage.getItem('hideArchived') === 'true',
+  );
+  const [menu, setMenu] = useState<{ x: number; y: number; entry: DirEntry } | null>(null);
   const dragging = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
@@ -57,7 +71,7 @@ export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
       }
     });
     return () => { cancelled = true; };
-  }, [currentPath]);
+  }, [currentPath, refreshToken]);
 
   const navigateTo = useCallback((dirPath: string) => {
     setCurrentPath(dirPath);
@@ -89,6 +103,37 @@ export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
     }
   }, [navigateTo]);
 
+  useEffect(() => {
+    localStorage.setItem('hideArchived', String(hideArchived));
+  }, [hideArchived]);
+
+  // Any click or Escape outside the menu dismisses it.
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, entry: DirEntry) => {
+    if (!entry.isDirectory) return;
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, entry });
+  }, []);
+
+  const toggleArchived = useCallback(async (entry: DirEntry) => {
+    setMenu(null);
+    const next = await api.setFolderArchived(entry.path, !entry.archived);
+    // Patch the one row rather than re-listing: a re-list would also reset the
+    // selection, and nothing else in the folder changed.
+    setEntries((prev) => prev.map((e) => (e.path === entry.path ? { ...e, archived: next } : e)));
+  }, []);
+
   // Resize handle
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -118,6 +163,9 @@ export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
 
   // Breadcrumb path segments
   const pathSegments = currentPath.split(/[/\\]/).filter(Boolean);
+
+  const visibleEntries = visibleAfterHide(entries, hideArchived);
+  const hiddenCount = entries.length - visibleEntries.length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'row', width, flexShrink: 0 }}>
@@ -174,6 +222,21 @@ export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
           >
             {'\u21BB'}
           </button>
+          <button
+            onClick={() => setHideArchived((v) => !v)}
+            style={{
+              background: hideArchived ? 'var(--accent)' : 'var(--bg-tertiary)',
+              color: hideArchived ? '#fff' : 'var(--text-secondary)',
+              fontSize: 10,
+              padding: '2px 6px',
+              marginLeft: 'auto',
+            }}
+            title={hideArchived
+              ? 'Archived folders hidden \u2014 click to show them'
+              : 'Hide folders marked as archived'}
+          >
+            {hideArchived ? '\u2713 hidden' : '\u2713'}
+          </button>
         </div>
 
         {/* Breadcrumb path */}
@@ -220,19 +283,22 @@ export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
           {loading && (
             <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 11 }}>Loading...</div>
           )}
-          {!loading && entries.map((entry) => {
-            const ext = getExtension(entry.name);
+          {!loading && visibleEntries.map((entry) => {
             const supported = isSupported(entry.name);
             const isSelected = selectedPath === entry.path;
             const isCurrentDisk = !!currentDiskPath && currentDiskPath === entry.path;
             const bg = isCurrentDisk ? 'var(--accent)' : isSelected ? 'var(--row-selected)' : 'transparent';
             const fg = isCurrentDisk ? '#fff' : 'inherit';
+            const archived = entry.archived;
+            // A stale folder is not dimmed: it is the one that still wants work.
+            const settled = !!archived && !archived.stale;
 
             return (
               <div
                 key={entry.path}
                 onClick={() => handleItemClick(entry)}
                 onDoubleClick={() => handleItemDoubleClick(entry)}
+                onContextMenu={(e) => handleContextMenu(e, entry)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -242,7 +308,7 @@ export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
                   background: bg,
                   color: fg,
                   fontWeight: isCurrentDisk ? 600 : 400,
-                  opacity: !entry.isDirectory && !supported ? 0.4 : 1,
+                  opacity: !entry.isDirectory && !supported ? 0.4 : settled ? 0.55 : 1,
                 }}
                 onMouseEnter={(e) => {
                   if (!isSelected && !isCurrentDisk) (e.currentTarget as HTMLElement).style.background = 'var(--row-hover)';
@@ -274,6 +340,25 @@ export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
                   {entry.name}
                 </span>
 
+                {/* Archived mark */}
+                {archived && (
+                  <span
+                    title={archived.stale
+                      ? `Archived ${formatMarkedAt(archived.markedAt)} with ${archived.imageCount} image(s); ${archived.currentCount - archived.imageCount} added since`
+                      : `Archived ${formatMarkedAt(archived.markedAt)}`
+                        + (archived.external ? ' (recorded in app settings — folder not writable)' : '')}
+                    style={{
+                      fontSize: 10,
+                      marginLeft: 6,
+                      flexShrink: 0,
+                      fontFamily: 'monospace',
+                      color: archived.stale ? 'var(--badge-dir)' : 'var(--badge-basic)',
+                    }}
+                  >
+                    {archived.stale ? `✓+${archived.currentCount - archived.imageCount}` : '✓'}
+                  </span>
+                )}
+
                 {/* Size */}
                 {!entry.isDirectory && (
                   <span style={{
@@ -292,8 +377,52 @@ export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
           {!loading && entries.length === 0 && (
             <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 11 }}>Empty directory</div>
           )}
+          {!loading && hiddenCount > 0 && (
+            <div style={{ padding: '6px 12px', color: 'var(--text-muted)', fontSize: 10, fontStyle: 'italic' }}>
+              {hiddenCount} archived folder{hiddenCount === 1 ? '' : 's'} hidden
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Folder context menu */}
+      {menu && (
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: menu.x,
+            top: menu.y,
+            zIndex: 1200,
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            padding: 4,
+            minWidth: 170,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
+          }}
+        >
+          <button
+            onClick={() => toggleArchived(menu.entry)}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              fontSize: 11,
+              padding: '5px 10px',
+            }}
+          >
+            {menu.entry.archived ? 'Unmark as archived' : 'Mark as archived'}
+          </button>
+          {menu.entry.archived?.stale && (
+            <div style={{ padding: '2px 10px 5px', fontSize: 10, color: 'var(--badge-dir)' }}>
+              {menu.entry.archived.currentCount - menu.entry.archived.imageCount} new image(s) since
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Resize handle */}
       <div

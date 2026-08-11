@@ -81,6 +81,24 @@
   <li><strong>Resizable</strong> &mdash; drag the divider to adjust width</li>
 </ul>
 
+<h3>Marking Folders as Archived</h3>
+<p>When you have finished archiving everything in a folder, <strong>right-click</strong> it and choose <strong>Mark as archived</strong>. The folder gets a <code>&#10003;</code> and dims, so a long pass through a collection shows at a glance what is left. Right-click again to unmark.</p>
+<ul>
+  <li>The mark is a hidden <code>.ts2068-archived</code> file written into the folder itself, so it travels with your collection &mdash; move it to another drive, sync it, restore a backup, rename the folder, or open it on another machine and the mark is still there. Hidden files are skipped by this browser and by Finder, so it stays out of sight.</li>
+  <li>The mark records how many disk images the folder held at the time. If you later add more, the badge changes to <code>&#10003;+3</code> in amber and the folder stops being dimmed &mdash; "done" is no longer true, and the folder is asking for another look. Re-marking it settles it again at the new count.</li>
+  <li>The <code>&#10003;</code> button in the sidebar header <strong>hides archived folders</strong>, with a count of how many are hidden at the bottom of the listing. Folders with new images since marking stay visible, since those are the ones still wanting work.</li>
+  <li>If a folder cannot be written &mdash; read-only media, a mounted image &mdash; the mark is recorded in app settings instead, and its tooltip says so. That copy is keyed by path, so unlike the marker file it will not survive moving or renaming the folder.</li>
+</ul>
+
+<h4>Being offered the mark</h4>
+<p>Marking by hand is the step that gets forgotten, so the app keeps track. When you finish a whole-disk export &mdash; <strong>Extract All</strong>, or an <strong>Archive.org</strong> export with Contents set to the entire disk &mdash; and that was the last image in its folder still to be done, you are asked whether to mark the folder. Accept and the <code>&#10003;</code> appears straight away.</p>
+<ul>
+  <li>Exporting only a <em>selection</em> from a disk does not count. Taking a few files says nothing about being finished with that disk.</li>
+  <li>Answer <strong>Not Now</strong> and you are not asked about that folder again &mdash; you can still mark it by hand at any time. Unmarking a folder clears that, so a later pass will offer again.</li>
+  <li>Only the images this app can open are counted, and only those sitting directly in the folder &mdash; subfolders are counted as folders of their own.</li>
+  <li>The running tally is kept in app settings and is discarded as soon as the folder is marked, so it only ever holds folders you are partway through.</li>
+</ul>
+
 <h2>File Table</h2>
 <p>The file table shows all files on the disk with sortable columns (click column headers).</p>
 <h3>Disk Order (#)</h3>
@@ -206,6 +224,7 @@
 <h2>Extraction</h2>
 <ul>
   <li><strong>Extract Selected</strong> &mdash; extract selected files individually. With a single file selected, prompts for a custom filename so you can fix mismatched directory/block names or disambiguate same-named programs. With multiple selected, uses each file's own name with auto-suffixes (<code>_2</code>, <code>_3</code>) for collisions.</li>
+  <li><strong>Selected as TAP</strong> &mdash; appears when two or more files are selected on a TAP-capable disk (Larken, Oliger, Aerco DOS-64). Bundles them into one multi-file TAP, with the first in catalog order as the loader and the rest following as its blocks. Prompts for a custom filename.</li>
   <li><strong>Extract as Package</strong> &mdash; export a package as a single multi-file TAP. Also prompts for a custom filename.</li>
   <li><strong>Extract All</strong> &mdash; extract all files with auto-bundled packages, plus:
     <ul>
@@ -223,8 +242,11 @@
 <p>The <strong>Archive.org</strong> toolbar button bundles a disk for upload to archive.org using TOSEC-style naming.</p>
 <ul>
   <li>Fill in <strong>Year</strong>, <strong>Publisher / Author</strong>, <strong>System</strong>, and <strong>Country</strong>. The publisher field remembers all values you've used and offers them as autocomplete suggestions.</li>
-  <li>Choose <strong>ZIP file</strong> (default) to compress the original disk image as-is &mdash; the cleanest archival format. The ZIP filename follows <code>Title (Year)(Publisher)(System)(Country).zip</code>.</li>
-  <li>Choose <strong>Folder</strong> to extract every file individually with TOSEC names: <code>Title (Year)(Publisher)(System)(Country)(Type).tap</code>. Type is auto-derived (Program, Code, Screen, Font, Icon, Data, Snapshot).</li>
+  <li><strong>Contents</strong> chooses between the <strong>entire disk</strong> (default) and just the files selected in the catalog. The selected option is available only when something is selected.</li>
+  <li>Choose <strong>ZIP (disk image)</strong> (default) to compress the original disk image as-is &mdash; the cleanest archival format. The ZIP filename follows <code>Title (Year)(Publisher)(System)(Country).zip</code>. There is no disk image of a subset, so this option disappears when exporting a selection.</li>
+  <li>Choose <strong>ZIP (files)</strong> for the same TOSEC-named files the Folder option writes, packed into a single ZIP instead of written loose. Names that would collide inside the ZIP get a <code>(2)</code>, <code>(3)</code> suffix.</li>
+  <li>Choose <strong>Folder</strong> to extract the files individually with TOSEC names: <code>Title (Year)(Publisher)(System)(Country)(Type).tap</code>. Type is auto-derived (Program, Code, Screen, Font, Icon, Data, Snapshot).</li>
+  <li>When exporting a selection, a detected package is bundled into one TAP only if every one of its members was selected &mdash; otherwise its selected members are written individually, so the export never carries a file you did not pick.</li>
 </ul>
 
 <h3>Batch Export</h3>

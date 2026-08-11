@@ -1,8 +1,23 @@
+/** How an archived folder stands; see electron/archive-marker.ts. */
+export interface FolderArchiveState {
+  markedAt: string;
+  /** Images counted when the mark was made. */
+  imageCount: number;
+  /** Images in the folder now. */
+  currentCount: number;
+  /** Images have been added since the mark — "done" is no longer true. */
+  stale: boolean;
+  /** The mark lives in app settings because the folder was not writable. */
+  external: boolean;
+}
+
 export interface DirEntry {
   name: string;
   isDirectory: boolean;
   size: number;
   path: string;
+  /** Set for folders only; null when the folder was never marked. */
+  archived?: FolderArchiveState | null;
 }
 
 export interface DiskHeader {
@@ -196,12 +211,21 @@ interface DiskToolsAPI {
   getPathForFile: (file: File) => string;
   getHomeDirectory: () => Promise<string>;
   listDirectory: (dirPath: string) => Promise<DirEntry[]>;
+  /** Mark or unmark a folder as archived; returns its new state, or null when unmarked. */
+  setFolderArchived: (dirPath: string, archived: boolean) => Promise<FolderArchiveState | null>;
+  /**
+   * Record that an image has had a whole-disk export. If that was the last one
+   * in its folder, the main process offers to mark the folder and reports
+   * whether it did.
+   */
+  offerFolderArchive: (imagePath: string) =>
+    Promise<{ marked: boolean; dir: string; exported: number; total: number }>;
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
   selectDirectory: () => Promise<string | null>;
   extractFile: (imagePath: string, entryIndex: number, destDir: string, editedLines?: Record<number, string>, customBaseName?: string) => Promise<ExtractionResult | null>;
   extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>, allDisasm?: DisasmSettingsMap) => Promise<ExtractionResult[]>;
-  exportArchive: (imagePath: string, destOrZipPath: string, metadata: { year: string; publisher: string; system: string; country: string; format: string }, allEdits?: Record<number, Record<number, string>>, allDisasm?: DisasmSettingsMap) => Promise<ExtractionResult[]>;
+  exportArchive: (imagePath: string, destOrZipPath: string, metadata: { year: string; publisher: string; system: string; country: string; format: string }, allEdits?: Record<number, Record<number, string>>, allDisasm?: DisasmSettingsMap, entryIndices?: number[]) => Promise<ExtractionResult[]>;
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) => Promise<ExtractionResult | null>;

@@ -4,6 +4,10 @@ contextBridge.exposeInMainWorld('diskTools', {
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getHomeDirectory: () => ipcRenderer.invoke('get-home-directory'),
   listDirectory: (dirPath: string) => ipcRenderer.invoke('list-directory', dirPath),
+  setFolderArchived: (dirPath: string, archived: boolean) =>
+    ipcRenderer.invoke('set-folder-archived', dirPath, archived),
+  offerFolderArchive: (imagePath: string) =>
+    ipcRenderer.invoke('offer-folder-archive', imagePath),
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
   openPath: (filePath: string) => ipcRenderer.invoke('open-path', filePath),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
@@ -13,8 +17,8 @@ contextBridge.exposeInMainWorld('diskTools', {
     allDisasm?: Record<number, { origin?: number; exrom?: boolean }>) =>
     ipcRenderer.invoke('extract-all', imagePath, destDir, allEdits, allDisasm),
   exportArchive: (imagePath: string, destDir: string, metadata: any, allEdits?: Record<number, Record<number, string>>,
-    allDisasm?: Record<number, { origin?: number; exrom?: boolean }>) =>
-    ipcRenderer.invoke('export-archive', imagePath, destDir, metadata, allEdits, allDisasm),
+    allDisasm?: Record<number, { origin?: number; exrom?: boolean }>, entryIndices?: number[]) =>
+    ipcRenderer.invoke('export-archive', imagePath, destDir, metadata, allEdits, allDisasm, entryIndices),
   saveZipDialog: (defaultName: string) =>
     ipcRenderer.invoke('save-zip-dialog', defaultName),
   getFileData: (imagePath: string, entryIndex: number) =>

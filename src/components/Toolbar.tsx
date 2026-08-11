@@ -3,9 +3,11 @@ import React, { forwardRef } from 'react';
 interface Props {
   onOpen: () => void;
   onExtractSelected: () => void;
+  onExtractSelectedAsTap: () => void;
   onExtractAll: () => void;
   onExtractPackage: () => void;
   hasSelection: boolean;
+  canBundleTap: boolean;
   hasPackageSelected: boolean;
   hasDisk: boolean;
   extracting: boolean;
@@ -26,8 +28,8 @@ interface Props {
 }
 
 export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
-  onOpen, onExtractSelected, onExtractAll, onExtractPackage,
-  hasSelection, hasPackageSelected, hasDisk, extracting,
+  onOpen, onExtractSelected, onExtractSelectedAsTap, onExtractAll, onExtractPackage,
+  hasSelection, canBundleTap, hasPackageSelected, hasDisk, extracting,
   autoPackagesEnabled, onToggleAutoPackages,
   searchQuery, onSearchChange,
   theme, onToggleTheme,
@@ -83,6 +85,16 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
         >
           Extract Selected
         </button>
+        {canBundleTap && (
+          <button
+            onClick={onExtractSelectedAsTap}
+            disabled={extracting}
+            style={{ background: 'var(--bg-tertiary)', color: 'var(--accent)' }}
+            title="Bundle the selected files into one multi-file TAP (first in catalog order becomes the loader)"
+          >
+            Selected as TAP
+          </button>
+        )}
         {hasPackageSelected && (
           <button
             onClick={onExtractPackage}

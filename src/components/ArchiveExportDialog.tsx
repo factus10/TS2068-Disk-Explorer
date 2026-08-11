@@ -1,6 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 
-export type ArchiveFormat = 'folder' | 'zip';
+/**
+ * `image-zip` wraps the untouched disk image — what archive.org wants when the
+ * item *is* the disk. `zip` and `folder` carry the extracted, archive-named
+ * files instead, and so are the only sensible shapes for a subset of a disk.
+ */
+export type ArchiveFormat = 'image-zip' | 'zip' | 'folder';
+
+export type ArchiveScope = 'disk' | 'selected';
 
 export interface ArchiveMetadata {
   year: string;
@@ -8,10 +15,13 @@ export interface ArchiveMetadata {
   system: string;
   country: string;
   format: ArchiveFormat;
+  scope: ArchiveScope;
 }
 
 interface Props {
   diskName: string;
+  /** How many catalog rows are selected; 0 disables the selected-files scope. */
+  selectedCount: number;
   onExport: (metadata: ArchiveMetadata) => void;
   onCancel: () => void;
 }
@@ -37,12 +47,13 @@ function savePublisherToHistory(value: string) {
   localStorage.setItem(PUBLISHER_HISTORY_KEY, JSON.stringify(history));
 }
 
-export function ArchiveExportDialog({ diskName, onExport, onCancel }: Props) {
+export function ArchiveExportDialog({ diskName, selectedCount, onExport, onCancel }: Props) {
   const [year, setYear] = useState('198x');
   const [publisher, setPublisher] = useState('');
   const [system, setSystem] = useState('TS2068');
   const [country, setCountry] = useState('US');
-  const [format, setFormat] = useState<ArchiveFormat>('zip');
+  const [format, setFormat] = useState<ArchiveFormat>('image-zip');
+  const [scope, setScope] = useState<ArchiveScope>('disk');
   const [publisherHistory] = useState(loadPublisherHistory);
   const yearRef = useRef<HTMLInputElement>(null);
 
@@ -51,12 +62,20 @@ export function ArchiveExportDialog({ diskName, onExport, onCancel }: Props) {
     yearRef.current?.select();
   }, []);
 
+  // There is no disk image of a subset, so the raw-image ZIP falls away with
+  // the selected scope and the file ZIP takes its place.
+  const chooseScope = useCallback((next: ArchiveScope) => {
+    setScope(next);
+    if (next === 'selected' && format === 'image-zip') setFormat('zip');
+    if (next === 'disk' && format === 'zip') setFormat('image-zip');
+  }, [format]);
+
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     const pub = publisher || '-';
     savePublisherToHistory(pub);
-    onExport({ year, publisher: pub, system, country, format });
-  }, [year, publisher, system, country, format, onExport]);
+    onExport({ year, publisher: pub, system, country, format, scope });
+  }, [year, publisher, system, country, format, scope, onExport]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onCancel();
@@ -105,6 +124,38 @@ export function ArchiveExportDialog({ diskName, onExport, onCancel }: Props) {
             Disk: <strong>{diskName}</strong>
           </div>
         )}
+
+        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-primary)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', alignSelf: 'center' }}>Contents:</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+            <input
+              type="radio"
+              name="scope"
+              checked={scope === 'disk'}
+              onChange={() => chooseScope('disk')}
+            />
+            Entire disk
+          </label>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              cursor: selectedCount > 0 ? 'pointer' : 'default',
+              color: selectedCount > 0 ? undefined : 'var(--text-muted)',
+            }}
+            title={selectedCount > 0 ? undefined : 'Select files in the catalog first'}
+          >
+            <input
+              type="radio"
+              name="scope"
+              disabled={selectedCount === 0}
+              checked={scope === 'selected'}
+              onChange={() => chooseScope('selected')}
+            />
+            Selected ({selectedCount})
+          </label>
+        </div>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Year</span>
@@ -184,8 +235,19 @@ export function ArchiveExportDialog({ diskName, onExport, onCancel }: Props) {
           </label>
         </div>
 
-        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-primary)' }}>
+        <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--text-primary)', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: 'var(--text-secondary)', alignSelf: 'center' }}>Export as:</span>
+          {scope === 'disk' && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="format"
+                checked={format === 'image-zip'}
+                onChange={() => setFormat('image-zip')}
+              />
+              ZIP (disk image)
+            </label>
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
             <input
               type="radio"
@@ -193,7 +255,7 @@ export function ArchiveExportDialog({ diskName, onExport, onCancel }: Props) {
               checked={format === 'zip'}
               onChange={() => setFormat('zip')}
             />
-            ZIP file
+            ZIP (files)
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
             <input
@@ -204,6 +266,12 @@ export function ArchiveExportDialog({ diskName, onExport, onCancel }: Props) {
             />
             Folder
           </label>
+        </div>
+
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: -8 }}>
+          {format === 'image-zip'
+            ? 'A ZIP holding the disk image byte-for-byte, named for the metadata above.'
+            : `Archive-named TAP/raw files${scope === 'selected' ? ' for the selected entries' : ' for every catalog entry'}, plus any disassembly.`}
         </div>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
