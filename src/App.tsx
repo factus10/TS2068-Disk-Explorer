@@ -19,6 +19,9 @@ function buildArchiveZipName(diskBase: string, meta: ArchiveMetadata): string {
   return `${clean} (${meta.year})(${meta.publisher})(${meta.system})(${meta.country})`;
 }
 
+/** Formats whose files are exported as ZX Spectrum tape blocks. */
+const TAP_FORMATS = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64', 'tap'];
+
 function App() {
   const [disk, setDisk] = useState<DiskImage | null>(null);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
@@ -326,6 +329,43 @@ function App() {
     setStatus(`Extracted ${results.length} file(s)`);
   }, [disk, selectedIndices, editState, askForRename]);
 
+  /**
+   * Bundle the selected entries into one multi-file TAP — the loader is the
+   * first of them in catalog order, the rest follow as its blocks, exactly as
+   * a detected package would be written.
+   */
+  const handleExtractSelectedAsTap = useCallback(async () => {
+    if (!disk || selectedIndices.size < 2) return;
+
+    const chosen = flattenEntries(disk.catalog)
+      .filter((e) => !e.isDirectory && selectedIndices.has(e.index));
+    if (chosen.length < 2) return;
+
+    const suggested = chosen[0].filename.trim();
+    const newName = await askForRename('Save combined TAP as', suggested);
+    if (newName === null) return;
+    const customName = newName.trim() && newName.trim() !== suggested ? newName.trim() : undefined;
+
+    const destDir = await api.selectDirectory();
+    if (!destDir) return;
+
+    setExtracting(true);
+    setStatus('Building TAP...');
+    try {
+      const result = await api.extractPackage(
+        disk.path, chosen[0].index, chosen.slice(1).map((e) => e.index),
+        destDir, editState, customName,
+      );
+      const written = result?.outputPaths[0]?.split(/[/\\]/).pop();
+      setStatus(result
+        ? `Wrote ${chosen.length} file(s) to ${written}`
+        : 'TAP build failed');
+    } catch (err: any) {
+      setStatus(`Error: ${err.message}`);
+    }
+    setExtracting(false);
+  }, [disk, selectedIndices, editState, askForRename]);
+
   const handleExtractPackage = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
 
@@ -377,17 +417,30 @@ function App() {
     if (!disk) return;
     setShowArchiveExport(false);
 
-    if (metadata.format === 'zip') {
-      // For ZIP, use save dialog to pick the .zip file path
+    const chosen = metadata.scope === 'selected'
+      ? flattenEntries(disk.catalog).filter((e) => !e.isDirectory && selectedIndices.has(e.index))
+      : [];
+    const entryIndices = metadata.scope === 'selected' ? chosen.map((e) => e.index) : undefined;
+    if (metadata.scope === 'selected' && chosen.length === 0) {
+      setStatus('Nothing selected to export');
+      return;
+    }
+
+    if (metadata.format === 'image-zip' || metadata.format === 'zip') {
+      // For ZIP, use save dialog to pick the .zip file path. A single selected
+      // file names its own ZIP; anything wider is named for the disk.
       const diskBase = disk.path.split('/').pop()?.replace(/\.[^.]+$/, '') || 'archive';
-      const zipName = buildArchiveZipName(diskBase, metadata);
+      const base = chosen.length === 1 ? chosen[0].filename.trim() : diskBase;
+      const zipName = buildArchiveZipName(base, metadata);
       const zipPath = await api.saveZipDialog(zipName + '.zip');
       if (!zipPath) return;
       setExtracting(true);
       setStatus('Exporting archive ZIP...');
       try {
-        const results = await api.exportArchive(disk.path, zipPath, metadata, editState, disasmState);
-        setStatus(`Exported ${results.length} file(s) to ZIP`);
+        const results = await api.exportArchive(disk.path, zipPath, metadata, editState, disasmState, entryIndices);
+        setStatus(metadata.format === 'image-zip'
+          ? 'Exported disk image to ZIP'
+          : `Exported ${results.length} file(s) to ZIP`);
       } catch (err: any) {
         setStatus(`Error: ${err.message}`);
       }
@@ -398,14 +451,14 @@ function App() {
       setExtracting(true);
       setStatus('Exporting for archive.org...');
       try {
-        const results = await api.exportArchive(disk.path, destDir, metadata, editState, disasmState);
+        const results = await api.exportArchive(disk.path, destDir, metadata, editState, disasmState, entryIndices);
         setStatus(`Exported ${results.length} file(s) for archive.org`);
       } catch (err: any) {
         setStatus(`Error: ${err.message}`);
       }
       setExtracting(false);
     }
-  }, [disk, editState, disasmState]);
+  }, [disk, selectedIndices, editState, disasmState]);
 
   const handleExportAllFonts = useCallback(async () => {
     if (!disk) return;
@@ -562,15 +615,23 @@ function App() {
     ? packages.find((p) => p.loader.index === selectedEntry.index) ?? null
     : null;
 
+  // Bundling is only meaningful where the files are tape blocks to begin with.
+  const canBundleTap = disk !== null
+    && TAP_FORMATS.includes(disk.format)
+    && flattenEntries(disk.catalog)
+      .filter((e) => !e.isDirectory && selectedIndices.has(e.index)).length >= 2;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <Toolbar
         ref={searchInputRef}
         onOpen={handleOpen}
         onExtractSelected={handleExtractSelected}
+        onExtractSelectedAsTap={handleExtractSelectedAsTap}
         onExtractAll={handleExtractAll}
         onExtractPackage={handleExtractPackage}
         hasSelection={selectedIndices.size > 0}
+        canBundleTap={canBundleTap}
         hasPackageSelected={selectedPackage !== null}
         hasDisk={disk !== null}
         extracting={extracting}
@@ -665,6 +726,9 @@ function App() {
       {showArchiveExport && (
         <ArchiveExportDialog
           diskName={disk?.header.diskName || disk?.path.split('/').pop() || ''}
+          selectedCount={disk
+            ? flattenEntries(disk.catalog).filter((e) => !e.isDirectory && selectedIndices.has(e.index)).length
+            : 0}
           onExport={handleExportArchive}
           onCancel={() => setShowArchiveExport(false)}
         />

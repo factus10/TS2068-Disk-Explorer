@@ -13,8 +13,8 @@ contextBridge.exposeInMainWorld('diskTools', {
     allDisasm?: Record<number, { origin?: number; exrom?: boolean }>) =>
     ipcRenderer.invoke('extract-all', imagePath, destDir, allEdits, allDisasm),
   exportArchive: (imagePath: string, destDir: string, metadata: any, allEdits?: Record<number, Record<number, string>>,
-    allDisasm?: Record<number, { origin?: number; exrom?: boolean }>) =>
-    ipcRenderer.invoke('export-archive', imagePath, destDir, metadata, allEdits, allDisasm),
+    allDisasm?: Record<number, { origin?: number; exrom?: boolean }>, entryIndices?: number[]) =>
+    ipcRenderer.invoke('export-archive', imagePath, destDir, metadata, allEdits, allDisasm, entryIndices),
   saveZipDialog: (defaultName: string) =>
     ipcRenderer.invoke('save-zip-dialog', defaultName),
   getFileData: (imagePath: string, entryIndex: number) =>

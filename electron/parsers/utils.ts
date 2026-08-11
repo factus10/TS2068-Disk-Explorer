@@ -22,6 +22,28 @@ export function uniquePath(filepath: string): string {
   return path.join(dir, `${name}_${counter}${ext}`);
 }
 
+/**
+ * Disambiguate names that are about to share one namespace with no directory
+ * to check against — a ZIP central directory, say. Two catalog entries can
+ * carry the same name, and archive.org naming keeps them the same, so the
+ * copies would otherwise silently overwrite one another.
+ *
+ * The counter goes before the extension, which starts at the first dot after
+ * the metadata suffixes so that a `.dis.json` stays a `.dis.json`.
+ */
+export function uniqueNames(names: string[]): string[] {
+  const used = new Set<string>();
+  return names.map((original) => {
+    const dot = original.indexOf('.', original.lastIndexOf(')') + 1);
+    const stem = dot < 0 ? original : original.slice(0, dot);
+    const ext = dot < 0 ? '' : original.slice(dot);
+    let name = original;
+    for (let n = 2; used.has(name); n++) name = `${stem} (${n})${ext}`;
+    used.add(name);
+    return name;
+  });
+}
+
 export function calculateCrc(data: Buffer | Uint8Array): number {
   let result = 0;
   for (let i = 0; i < data.length; i++) {

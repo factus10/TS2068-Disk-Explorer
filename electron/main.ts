@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeImage } from 'e
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as zlib from 'zlib';
 import { getRecent, addRecent, clearRecent } from './recent-files';
 import { getSettings, updateSettings } from './settings';
 import { detectFormat } from './parsers/detect';
@@ -26,6 +25,8 @@ import type { RemStyle } from './parsers/zx81';
 import { disassemble, canDisassemble, disassembleForExport } from './parsers/disasm';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
 import { buildTapPackages } from './parsers/basic-analyzer';
+import { planArchiveExport } from './parsers/archive-selection';
+import { buildZipArchive } from './parsers/zip-writer';
 import { detokenize } from './parsers/basic-detokenizer';
 import { decodeScreen, SCREEN_SIZE } from './parsers/screen-decoder';
 import { decodeNumericArray, decodeCharArray } from './parsers/array-decoder';
@@ -37,7 +38,7 @@ import type { XRefResult } from './parsers/basic-xref';
 import { rebuildBasicProgram } from './parsers/basic-editor';
 import { buildTtfFont, isFontFile } from './parsers/font-export';
 import { encodePng } from './parsers/png-export';
-import { makeSafeFilename, uniquePath } from './parsers/utils';
+import { makeSafeFilename, uniquePath, uniqueNames } from './parsers/utils';
 import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage, DiskHeader, DisasmSettings, DisasmSettingsMap } from './parsers/types';
 import type { BasicListing, Ts2068Mode } from './parsers/basic-detokenizer';
 import type { ScreenData } from './parsers/screen-decoder';
@@ -561,90 +562,6 @@ ipcMain.handle('extract-all', async (
   return results;
 });
 
-// Minimal ZIP archive builder using Node's built-in zlib (no external deps).
-// Produces a valid ZIP with deflate-compressed entries.
-function buildZipArchive(files: { name: string; data: Buffer }[]): Buffer {
-  const entries: { name: Buffer; compressed: Buffer; crc: number; sizeRaw: number; sizeComp: number; offset: number }[] = [];
-  const chunks: Buffer[] = [];
-  let offset = 0;
-
-  for (const f of files) {
-    const nameBytes = Buffer.from(f.name, 'utf8');
-    const crc = crc32(f.data);
-    const compressed = zlib.deflateRawSync(f.data, { level: 9 });
-
-    // Local file header (30 bytes + name + compressed data)
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);  // signature
-    local.writeUInt16LE(20, 4);          // version needed
-    local.writeUInt16LE(0, 6);           // flags
-    local.writeUInt16LE(8, 8);           // compression: deflate
-    local.writeUInt16LE(0, 10);          // mod time
-    local.writeUInt16LE(0, 12);          // mod date
-    local.writeUInt32LE(crc, 14);        // crc-32
-    local.writeUInt32LE(compressed.length, 18);  // compressed size
-    local.writeUInt32LE(f.data.length, 22);      // uncompressed size
-    local.writeUInt16LE(nameBytes.length, 26);   // filename length
-    local.writeUInt16LE(0, 28);          // extra field length
-
-    entries.push({ name: nameBytes, compressed, crc, sizeRaw: f.data.length, sizeComp: compressed.length, offset });
-    chunks.push(local, nameBytes, compressed);
-    offset += 30 + nameBytes.length + compressed.length;
-  }
-
-  // Central directory
-  const cdStart = offset;
-  for (const e of entries) {
-    const cd = Buffer.alloc(46);
-    cd.writeUInt32LE(0x02014b50, 0);   // signature
-    cd.writeUInt16LE(20, 4);           // version made by
-    cd.writeUInt16LE(20, 6);           // version needed
-    cd.writeUInt16LE(0, 8);            // flags
-    cd.writeUInt16LE(8, 10);           // compression: deflate
-    cd.writeUInt16LE(0, 12);           // mod time
-    cd.writeUInt16LE(0, 14);           // mod date
-    cd.writeUInt32LE(e.crc, 16);       // crc-32
-    cd.writeUInt32LE(e.sizeComp, 20);  // compressed size
-    cd.writeUInt32LE(e.sizeRaw, 24);   // uncompressed size
-    cd.writeUInt16LE(e.name.length, 28); // filename length
-    cd.writeUInt16LE(0, 30);           // extra field length
-    cd.writeUInt16LE(0, 32);           // comment length
-    cd.writeUInt16LE(0, 34);           // disk number start
-    cd.writeUInt16LE(0, 36);           // internal file attributes
-    cd.writeUInt32LE(0, 38);           // external file attributes
-    cd.writeUInt32LE(e.offset, 42);    // offset of local header
-    chunks.push(cd, e.name);
-    offset += 46 + e.name.length;
-  }
-  const cdSize = offset - cdStart;
-
-  // End of central directory
-  const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0);   // signature
-  eocd.writeUInt16LE(0, 4);            // disk number
-  eocd.writeUInt16LE(0, 6);            // disk with CD
-  eocd.writeUInt16LE(entries.length, 8);  // entries on this disk
-  eocd.writeUInt16LE(entries.length, 10); // total entries
-  eocd.writeUInt32LE(cdSize, 12);      // CD size
-  eocd.writeUInt32LE(cdStart, 16);     // CD offset
-  eocd.writeUInt16LE(0, 20);           // comment length
-  chunks.push(eocd);
-
-  return Buffer.concat(chunks);
-}
-
-// CRC-32 for ZIP (IEEE 802.3)
-function crc32(data: Buffer): number {
-  let crc = 0xFFFFFFFF;
-  for (let i = 0; i < data.length; i++) {
-    crc ^= data[i];
-    for (let j = 0; j < 8; j++) {
-      crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
-    }
-  }
-  return (crc ^ 0xFFFFFFFF) >>> 0;
-}
-
 // Archive.org TOSEC-style export
 interface ArchiveMetadata {
   year: string;
@@ -696,11 +613,13 @@ function fileTypeToArchiveSuffix(entry: FileEntry): string {
   }
 }
 
-// Collect all archive-named file buffers from a disk image.
+// Collect all archive-named file buffers from a disk image. When `selection`
+// is given only those catalog entries are exported.
 function buildArchiveFiles(
   imagePath: string, metadata: ArchiveMetadata,
   allEdits?: Record<number, Record<number, string>>,
   allDisasm?: DisasmSettingsMap,
+  selection?: number[],
 ): { name: string; data: Buffer; entry: FileEntry }[] {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -719,11 +638,13 @@ function buildArchiveFiles(
 
   const usesTap = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64'].includes(format);
   const packages = usesTap ? buildTapPackages(entries, fileDataMap) : [];
-  const bundledIndices = new Set<number>();
+  const plan = planArchiveExport(allEntries, packages, selection);
   const files: { name: string; data: Buffer; entry: FileEntry }[] = [];
 
-  // Packages
-  for (const pkg of packages) {
+  // Packages. A bundle that fails to build leaves its members unclaimed, so
+  // they still go out individually below rather than vanishing.
+  const bundledIndices = new Set<number>();
+  for (const pkg of plan.bundled) {
     const tapData = buildMultiFileTap(pkg, fileDataMap, allEdits);
     if (!tapData) continue;
 
@@ -735,8 +656,8 @@ function buildArchiveFiles(
   }
 
   // Individual files
-  for (const entry of allEntries) {
-    if (entry.isDirectory || bundledIndices.has(entry.index)) continue;
+  for (const entry of plan.covered) {
+    if (bundledIndices.has(entry.index)) continue;
     const fileData = fileDataMap.get(entry.index);
     if (!fileData) continue;
 
@@ -763,8 +684,7 @@ function buildArchiveFiles(
   // file it describes: the .dis is reproducible from the bytes, and the
   // .dis.json records the checksum those bytes hashed to.
   const loaders = collectLoaders(format, allEntries, fileDataMap);
-  for (const entry of allEntries) {
-    if (entry.isDirectory) continue;
+  for (const entry of plan.covered) {
     const fileData = fileDataMap.get(entry.index);
     if (!fileData) continue;
     const dis = disassembleForExport({
@@ -789,11 +709,17 @@ ipcMain.handle('export-archive', async (
   metadata: ArchiveMetadata & { format?: string },
   allEdits?: Record<number, Record<number, string>>,
   allDisasm?: DisasmSettingsMap,
+  entryIndices?: number[],
 ): Promise<ExtractionResult[]> => {
-  const isZip = metadata.format === 'zip' || destOrZipPath.endsWith('.zip');
+  // A selection can only be expressed as extracted files, so it forces the
+  // file shapes even if an older caller asks for the raw-image ZIP.
+  const selection = entryIndices && entryIndices.length > 0 ? entryIndices : undefined;
+  const wantsImageZip = !selection
+    && (metadata.format === 'image-zip'
+      || ((metadata.format === 'zip' || !metadata.format) && destOrZipPath.endsWith('.zip')));
 
-  if (isZip) {
-    // ZIP mode: archive the original disk image file as-is
+  if (wantsImageZip) {
+    // Whole-disk ZIP: archive the original disk image file as-is
     const rawImage = fs.readFileSync(imagePath);
     const innerName = path.basename(imagePath);
     const zipData = buildZipArchive([{ name: innerName, data: rawImage }]);
@@ -807,10 +733,26 @@ ipcMain.handle('export-archive', async (
     }];
   }
 
-  // Folder mode: export individual files with archive.org naming
-  const archiveFiles = buildArchiveFiles(imagePath, metadata, allEdits, allDisasm);
+  const archiveFiles = buildArchiveFiles(imagePath, metadata, allEdits, allDisasm, selection);
   if (archiveFiles.length === 0) return [];
 
+  // ZIP mode: the archive-named files, packed instead of written loose.
+  if (metadata.format === 'zip') {
+    // A ZIP has no uniquePath to fall back on, so names are made distinct
+    // before they go in.
+    const names = uniqueNames(archiveFiles.map((f) => f.name));
+    const zipData = buildZipArchive(archiveFiles.map((f, i) => ({ name: names[i], data: f.data })));
+    fs.writeFileSync(destOrZipPath, zipData);
+
+    return archiveFiles.map((f) => ({
+      filename: f.entry.filename,
+      outputPaths: [destOrZipPath],
+      format: 'zip',
+      size: f.data.length,
+    }));
+  }
+
+  // Folder mode: export individual files with archive.org naming
   fs.mkdirSync(destOrZipPath, { recursive: true });
   const results: ExtractionResult[] = [];
   for (const f of archiveFiles) {

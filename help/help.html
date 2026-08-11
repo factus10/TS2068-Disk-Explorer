@@ -206,6 +206,7 @@
 <h2>Extraction</h2>
 <ul>
   <li><strong>Extract Selected</strong> &mdash; extract selected files individually. With a single file selected, prompts for a custom filename so you can fix mismatched directory/block names or disambiguate same-named programs. With multiple selected, uses each file's own name with auto-suffixes (<code>_2</code>, <code>_3</code>) for collisions.</li>
+  <li><strong>Selected as TAP</strong> &mdash; appears when two or more files are selected on a TAP-capable disk (Larken, Oliger, Aerco DOS-64). Bundles them into one multi-file TAP, with the first in catalog order as the loader and the rest following as its blocks. Prompts for a custom filename.</li>
   <li><strong>Extract as Package</strong> &mdash; export a package as a single multi-file TAP. Also prompts for a custom filename.</li>
   <li><strong>Extract All</strong> &mdash; extract all files with auto-bundled packages, plus:
     <ul>
@@ -223,8 +224,11 @@
 <p>The <strong>Archive.org</strong> toolbar button bundles a disk for upload to archive.org using TOSEC-style naming.</p>
 <ul>
   <li>Fill in <strong>Year</strong>, <strong>Publisher / Author</strong>, <strong>System</strong>, and <strong>Country</strong>. The publisher field remembers all values you've used and offers them as autocomplete suggestions.</li>
-  <li>Choose <strong>ZIP file</strong> (default) to compress the original disk image as-is &mdash; the cleanest archival format. The ZIP filename follows <code>Title (Year)(Publisher)(System)(Country).zip</code>.</li>
-  <li>Choose <strong>Folder</strong> to extract every file individually with TOSEC names: <code>Title (Year)(Publisher)(System)(Country)(Type).tap</code>. Type is auto-derived (Program, Code, Screen, Font, Icon, Data, Snapshot).</li>
+  <li><strong>Contents</strong> chooses between the <strong>entire disk</strong> (default) and just the files selected in the catalog. The selected option is available only when something is selected.</li>
+  <li>Choose <strong>ZIP (disk image)</strong> (default) to compress the original disk image as-is &mdash; the cleanest archival format. The ZIP filename follows <code>Title (Year)(Publisher)(System)(Country).zip</code>. There is no disk image of a subset, so this option disappears when exporting a selection.</li>
+  <li>Choose <strong>ZIP (files)</strong> for the same TOSEC-named files the Folder option writes, packed into a single ZIP instead of written loose. Names that would collide inside the ZIP get a <code>(2)</code>, <code>(3)</code> suffix.</li>
+  <li>Choose <strong>Folder</strong> to extract the files individually with TOSEC names: <code>Title (Year)(Publisher)(System)(Country)(Type).tap</code>. Type is auto-derived (Program, Code, Screen, Font, Icon, Data, Snapshot).</li>
+  <li>When exporting a selection, a detected package is bundled into one TAP only if every one of its members was selected &mdash; otherwise its selected members are written individually, so the export never carries a file you did not pick.</li>
 </ul>
 
 <h3>Batch Export</h3>

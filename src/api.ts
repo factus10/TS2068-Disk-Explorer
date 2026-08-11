@@ -201,7 +201,7 @@ interface DiskToolsAPI {
   selectDirectory: () => Promise<string | null>;
   extractFile: (imagePath: string, entryIndex: number, destDir: string, editedLines?: Record<number, string>, customBaseName?: string) => Promise<ExtractionResult | null>;
   extractAll: (imagePath: string, destDir: string, allEdits?: Record<number, Record<number, string>>, allDisasm?: DisasmSettingsMap) => Promise<ExtractionResult[]>;
-  exportArchive: (imagePath: string, destOrZipPath: string, metadata: { year: string; publisher: string; system: string; country: string; format: string }, allEdits?: Record<number, Record<number, string>>, allDisasm?: DisasmSettingsMap) => Promise<ExtractionResult[]>;
+  exportArchive: (imagePath: string, destOrZipPath: string, metadata: { year: string; publisher: string; system: string; country: string; format: string }, allEdits?: Record<number, Record<number, string>>, allDisasm?: DisasmSettingsMap, entryIndices?: number[]) => Promise<ExtractionResult[]>;
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) => Promise<ExtractionResult | null>;
