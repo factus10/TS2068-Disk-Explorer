@@ -1,8 +1,23 @@
+/** How an archived folder stands; see electron/archive-marker.ts. */
+export interface FolderArchiveState {
+  markedAt: string;
+  /** Images counted when the mark was made. */
+  imageCount: number;
+  /** Images in the folder now. */
+  currentCount: number;
+  /** Images have been added since the mark — "done" is no longer true. */
+  stale: boolean;
+  /** The mark lives in app settings because the folder was not writable. */
+  external: boolean;
+}
+
 export interface DirEntry {
   name: string;
   isDirectory: boolean;
   size: number;
   path: string;
+  /** Set for folders only; null when the folder was never marked. */
+  archived?: FolderArchiveState | null;
 }
 
 export interface DiskHeader {
@@ -196,6 +211,8 @@ interface DiskToolsAPI {
   getPathForFile: (file: File) => string;
   getHomeDirectory: () => Promise<string>;
   listDirectory: (dirPath: string) => Promise<DirEntry[]>;
+  /** Mark or unmark a folder as archived; returns its new state, or null when unmarked. */
+  setFolderArchived: (dirPath: string, archived: boolean) => Promise<FolderArchiveState | null>;
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
   selectDirectory: () => Promise<string | null>;

@@ -81,6 +81,15 @@
   <li><strong>Resizable</strong> &mdash; drag the divider to adjust width</li>
 </ul>
 
+<h3>Marking Folders as Archived</h3>
+<p>When you have finished archiving everything in a folder, <strong>right-click</strong> it and choose <strong>Mark as archived</strong>. The folder gets a <code>&#10003;</code> and dims, so a long pass through a collection shows at a glance what is left. Right-click again to unmark.</p>
+<ul>
+  <li>The mark is a hidden <code>.ts2068-archived</code> file written into the folder itself, so it travels with your collection &mdash; move it to another drive, sync it, restore a backup, rename the folder, or open it on another machine and the mark is still there. Hidden files are skipped by this browser and by Finder, so it stays out of sight.</li>
+  <li>The mark records how many disk images the folder held at the time. If you later add more, the badge changes to <code>&#10003;+3</code> in amber and the folder stops being dimmed &mdash; "done" is no longer true, and the folder is asking for another look. Re-marking it settles it again at the new count.</li>
+  <li>The <code>&#10003;</code> button in the sidebar header <strong>hides archived folders</strong>, with a count of how many are hidden at the bottom of the listing. Folders with new images since marking stay visible, since those are the ones still wanting work.</li>
+  <li>If a folder cannot be written &mdash; read-only media, a mounted image &mdash; the mark is recorded in app settings instead, and its tooltip says so. That copy is keyed by path, so unlike the marker file it will not survive moving or renaming the folder.</li>
+</ul>
+
 <h2>File Table</h2>
 <p>The file table shows all files on the disk with sortable columns (click column headers).</p>
 <h3>Disk Order (#)</h3>

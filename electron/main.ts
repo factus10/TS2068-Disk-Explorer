@@ -4,6 +4,9 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { getRecent, addRecent, clearRecent } from './recent-files';
 import { getSettings, updateSettings } from './settings';
+import { getFolderState, markFolder, unmarkFolder } from './archive-marker';
+import { SUPPORTED_EXTENSIONS } from './parsers/supported-formats';
+import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
 import { readCatalog as readOliger, readFileData as readOligerFile } from './parsers/oliger';
@@ -285,7 +288,7 @@ ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openFile'],
     filters: [
-      { name: 'Disk & Tape Images', extensions: ['img', 'dsk', 'tap', 'tzx', 'sna', 'z80', 'scr', 'mgt', 'zip'] },
+      { name: 'Disk & Tape Images', extensions: SUPPORTED_EXTENSIONS },
       { name: 'All Files', extensions: ['*'] },
     ],
   });
@@ -314,7 +317,10 @@ ipcMain.handle('get-home-directory', async () => {
 ipcMain.handle('list-directory', async (_event, dirPath: string) => {
   try {
     const items = fs.readdirSync(dirPath, { withFileTypes: true });
-    const results: { name: string; isDirectory: boolean; size: number; path: string }[] = [];
+    const results: {
+      name: string; isDirectory: boolean; size: number; path: string;
+      archived?: FolderArchiveState | null;
+    }[] = [];
 
     for (const item of items) {
       if (item.name.startsWith('.')) continue; // skip hidden files
@@ -324,7 +330,10 @@ ipcMain.handle('list-directory', async (_event, dirPath: string) => {
       if (!isDir) {
         try { size = fs.statSync(fullPath).size; } catch { /* skip */ }
       }
-      results.push({ name: item.name, isDirectory: isDir, size, path: fullPath });
+      // Folders carry their archived state with the listing so the browser can
+      // badge them without a round trip each.
+      const archived = isDir ? getFolderState(fullPath) : null;
+      results.push({ name: item.name, isDirectory: isDir, size, path: fullPath, archived });
     }
 
     // Sort: folders first, then files, alphabetical within each
@@ -337,6 +346,16 @@ ipcMain.handle('list-directory', async (_event, dirPath: string) => {
   } catch {
     return [];
   }
+});
+
+ipcMain.handle('set-folder-archived', async (
+  _event, dirPath: string, archived: boolean,
+): Promise<FolderArchiveState | null> => {
+  if (!archived) {
+    unmarkFolder(dirPath);
+    return null;
+  }
+  return markFolder(dirPath, new Date().toISOString());
 });
 
 ipcMain.handle('select-directory', async () => {
