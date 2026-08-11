@@ -128,6 +128,93 @@ describe('marking a folder as archived', () => {
   });
 });
 
+describe('offering the mark once a folder is fully exported', () => {
+  const img = (dir: string, name: string) => path.join(dir, name);
+
+  it('does not offer while images remain', async () => {
+    const { recordImageExported } = await load();
+    const dir = makeFolder(3);
+
+    const first = recordImageExported(img(dir, 'disk0.img'));
+    expect(first).toMatchObject({ dir, exported: 1, total: 3, offer: false });
+    expect(recordImageExported(img(dir, 'disk1.img')).offer).toBe(false);
+  });
+
+  it('offers when the last image is exported', async () => {
+    const { recordImageExported } = await load();
+    const dir = makeFolder(3);
+
+    recordImageExported(img(dir, 'disk0.img'));
+    recordImageExported(img(dir, 'disk1.img'));
+    expect(recordImageExported(img(dir, 'disk2.img'))).toMatchObject({ exported: 3, total: 3, offer: true });
+  });
+
+  it('counts an image exported twice only once', async () => {
+    const { recordImageExported } = await load();
+    const dir = makeFolder(3);
+
+    recordImageExported(img(dir, 'disk0.img'));
+    expect(recordImageExported(img(dir, 'disk0.img'))).toMatchObject({ exported: 1, offer: false });
+  });
+
+  it('never offers for a folder holding no images', async () => {
+    // "All zero images are exported" is true and useless.
+    const { recordImageExported } = await load();
+    const empty = fs.mkdtempSync(path.join(collection, 'empty-'));
+    expect(recordImageExported(img(empty, 'ghost.img')).offer).toBe(false);
+  });
+
+  it('does not offer for a folder already marked', async () => {
+    const { recordImageExported, markFolder } = await load();
+    const dir = makeFolder(1);
+    markFolder(dir, AT);
+    expect(recordImageExported(img(dir, 'disk0.img')).offer).toBe(false);
+  });
+
+  it('does not offer again once declined', async () => {
+    // The reader said no; asking on every later export would be nagging.
+    const { recordImageExported, declineFolderOffer } = await load();
+    const dir = makeFolder(1);
+    expect(recordImageExported(img(dir, 'disk0.img')).offer).toBe(true);
+
+    declineFolderOffer(dir);
+    expect(recordImageExported(img(dir, 'disk0.img')).offer).toBe(false);
+  });
+
+  it('completes even when an image is deleted mid-pass', async () => {
+    // Otherwise a folder whose spare copy was thrown away could never reach
+    // its recorded total and would never offer.
+    const { recordImageExported } = await load();
+    const dir = makeFolder(3);
+    recordImageExported(img(dir, 'disk0.img'));
+    fs.unlinkSync(path.join(dir, 'disk1.img'));
+
+    expect(recordImageExported(img(dir, 'disk2.img'))).toMatchObject({ total: 2, offer: true });
+  });
+
+  it('drops the per-image record once the folder is marked', async () => {
+    // The record only exists to time the offer, so it must not outlive it.
+    const { recordImageExported, markFolder } = await load();
+    const { getSettings } = await import('../electron/settings');
+    const dir = makeFolder(1);
+    recordImageExported(img(dir, 'disk0.img'));
+    expect(getSettings().exportProgress?.[dir]).toBeDefined();
+
+    markFolder(dir, AT);
+    expect(getSettings().exportProgress?.[dir]).toBeUndefined();
+  });
+
+  it('offers again after a decline is undone by unmarking', async () => {
+    const { recordImageExported, declineFolderOffer, unmarkFolder } = await load();
+    const dir = makeFolder(1);
+    declineFolderOffer(dir);
+    expect(recordImageExported(img(dir, 'disk0.img')).offer).toBe(false);
+
+    unmarkFolder(dir);
+    expect(recordImageExported(img(dir, 'disk0.img')).offer).toBe(true);
+  });
+});
+
 describe('a folder that cannot be written', () => {
   const readOnly = (dir: string) => fs.chmodSync(dir, 0o555);
 

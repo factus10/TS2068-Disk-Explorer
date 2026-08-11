@@ -213,6 +213,13 @@ interface DiskToolsAPI {
   listDirectory: (dirPath: string) => Promise<DirEntry[]>;
   /** Mark or unmark a folder as archived; returns its new state, or null when unmarked. */
   setFolderArchived: (dirPath: string, archived: boolean) => Promise<FolderArchiveState | null>;
+  /**
+   * Record that an image has had a whole-disk export. If that was the last one
+   * in its folder, the main process offers to mark the folder and reports
+   * whether it did.
+   */
+  offerFolderArchive: (imagePath: string) =>
+    Promise<{ marked: boolean; dir: string; exported: number; total: number }>;
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
   selectDirectory: () => Promise<string | null>;

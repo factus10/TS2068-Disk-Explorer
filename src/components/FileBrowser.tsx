@@ -6,6 +6,8 @@ interface Props {
   onOpenFile: (filePath: string) => void;
   /** The currently-loaded disk file path, highlighted in the listing. */
   currentDiskPath?: string | null;
+  /** Change this to force a re-listing — a folder's archived state moved. */
+  refreshToken?: number;
 }
 
 const DEFAULT_WIDTH = 250;
@@ -35,7 +37,7 @@ function formatMarkedAt(iso: string): string {
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
+export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props) {
   const [currentPath, setCurrentPath] = useState('');
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -69,7 +71,7 @@ export function FileBrowser({ onOpenFile, currentDiskPath }: Props) {
       }
     });
     return () => { cancelled = true; };
-  }, [currentPath]);
+  }, [currentPath, refreshToken]);
 
   const navigateTo = useCallback((dirPath: string) => {
     setCurrentPath(dirPath);

@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('diskTools', {
   listDirectory: (dirPath: string) => ipcRenderer.invoke('list-directory', dirPath),
   setFolderArchived: (dirPath: string, archived: boolean) =>
     ipcRenderer.invoke('set-folder-archived', dirPath, archived),
+  offerFolderArchive: (imagePath: string) =>
+    ipcRenderer.invoke('offer-folder-archive', imagePath),
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
   openPath: (filePath: string) => ipcRenderer.invoke('open-path', filePath),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),

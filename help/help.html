@@ -90,6 +90,15 @@
   <li>If a folder cannot be written &mdash; read-only media, a mounted image &mdash; the mark is recorded in app settings instead, and its tooltip says so. That copy is keyed by path, so unlike the marker file it will not survive moving or renaming the folder.</li>
 </ul>
 
+<h4>Being offered the mark</h4>
+<p>Marking by hand is the step that gets forgotten, so the app keeps track. When you finish a whole-disk export &mdash; <strong>Extract All</strong>, or an <strong>Archive.org</strong> export with Contents set to the entire disk &mdash; and that was the last image in its folder still to be done, you are asked whether to mark the folder. Accept and the <code>&#10003;</code> appears straight away.</p>
+<ul>
+  <li>Exporting only a <em>selection</em> from a disk does not count. Taking a few files says nothing about being finished with that disk.</li>
+  <li>Answer <strong>Not Now</strong> and you are not asked about that folder again &mdash; you can still mark it by hand at any time. Unmarking a folder clears that, so a later pass will offer again.</li>
+  <li>Only the images this app can open are counted, and only those sitting directly in the folder &mdash; subfolders are counted as folders of their own.</li>
+  <li>The running tally is kept in app settings and is discarded as soon as the folder is marked, so it only ever holds folders you are partway through.</li>
+</ul>
+
 <h2>File Table</h2>
 <p>The file table shows all files on the disk with sortable columns (click column headers).</p>
 <h3>Disk Order (#)</h3>

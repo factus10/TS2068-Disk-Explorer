@@ -41,15 +41,20 @@ export interface FolderArchiveState {
   external: boolean;
 }
 
-/** Count the openable images sitting directly in a folder, not recursively. */
-export function countImages(dir: string): number {
+/** The openable images sitting directly in a folder, not recursively. */
+export function listImages(dir: string): string[] {
   try {
     return fs.readdirSync(dir, { withFileTypes: true })
       .filter((item) => !item.isDirectory() && isSupportedFile(item.name))
-      .length;
+      .map((item) => item.name);
   } catch {
-    return 0;
+    return [];
   }
+}
+
+/** Count the openable images sitting directly in a folder, not recursively. */
+export function countImages(dir: string): number {
+  return listImages(dir).length;
 }
 
 function parseMarker(raw: string): ArchiveMarker | null {
@@ -109,6 +114,11 @@ export function markFolder(dir: string, now: string): FolderArchiveState {
   const imageCount = countImages(dir);
   const marker: ArchiveMarker = { version: 1, markedAt: now, imageCount };
 
+  // The per-image record exists only to decide when to offer the mark. Once
+  // the folder is marked it has done its job, which is what keeps the store
+  // to folders still in progress.
+  forgetProgress(dir);
+
   try {
     fs.writeFileSync(path.join(dir, MARKER_FILENAME), JSON.stringify(marker, null, 2) + '\n');
     // A previous fallback entry would now shadow nothing, but leaving it
@@ -120,6 +130,68 @@ export function markFolder(dir: string, now: string): FolderArchiveState {
     updateSettings({ archivedFolders });
     return { ...marker, currentCount: imageCount, stale: false, external: true };
   }
+}
+
+/** How far through a folder a run of exports has got. */
+export interface FolderProgress {
+  dir: string;
+  /** Images in the folder that have had a full export. */
+  exported: number;
+  /** Images in the folder. */
+  total: number;
+  /** Every image is exported, the folder is not marked, and nobody declined. */
+  offer: boolean;
+}
+
+function readProgress(dir: string): { exported: string[]; declined?: boolean } {
+  return getSettings().exportProgress?.[dir] ?? { exported: [] };
+}
+
+function writeProgress(dir: string, value: { exported: string[]; declined?: boolean } | null): void {
+  const current = getSettings().exportProgress ?? {};
+  const exportProgress = { ...current };
+  if (value) exportProgress[dir] = value;
+  else delete exportProgress[dir];
+  updateSettings({ exportProgress });
+}
+
+/**
+ * Note that an image has had a full export, and say whether that finishes its
+ * folder. Only a whole-disk export counts — extracting a few files says
+ * nothing about being done with the disk.
+ *
+ * An empty folder never offers: "all zero images are exported" is true and
+ * useless. Neither does one already marked, nor one whose mark was declined.
+ */
+export function recordImageExported(imagePath: string): FolderProgress {
+  const dir = path.dirname(imagePath);
+  const name = path.basename(imagePath);
+  const images = listImages(dir);
+
+  const record = readProgress(dir);
+  // Keep only names still present, so a deleted image cannot hold a folder
+  // permanently short of complete.
+  const exported = [...new Set([...record.exported, name])].filter((n) => images.includes(n));
+  writeProgress(dir, { exported, ...(record.declined ? { declined: true } : {}) });
+
+  return {
+    dir,
+    exported: exported.length,
+    total: images.length,
+    offer: images.length > 0
+      && exported.length >= images.length
+      && !record.declined
+      && getFolderState(dir) === null,
+  };
+}
+
+/** Remember that the reader said no, so the offer is made once per folder. */
+export function declineFolderOffer(dir: string): void {
+  writeProgress(dir, { ...readProgress(dir), declined: true });
+}
+
+function forgetProgress(dir: string): void {
+  if (getSettings().exportProgress?.[dir]) writeProgress(dir, null);
 }
 
 function forgetSettingsMark(dir: string): void {
@@ -138,4 +210,7 @@ export function unmarkFolder(dir: string): void {
     // Not there, or not removable; the settings copy below may still be.
   }
   forgetSettingsMark(dir);
+  // Unmarking says the folder wants doing again, so a past decline should not
+  // go on suppressing the offer.
+  forgetProgress(dir);
 }

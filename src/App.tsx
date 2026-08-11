@@ -42,6 +42,9 @@ function App() {
     (typeof localStorage !== 'undefined' && localStorage.getItem('theme') as 'dark' | 'light') || 'dark',
   );
 
+  // Bumped when something outside the browser changes a folder's state, so it
+  // re-lists rather than showing a mark that is one export out of date.
+  const [browserRefresh, setBrowserRefresh] = useState(0);
   const [showTapCreator, setShowTapCreator] = useState(false);
   const [showArchiveExport, setShowArchiveExport] = useState(false);
   const [renamePrompt, setRenamePrompt] = useState<{
@@ -393,6 +396,20 @@ function App() {
     setExtracting(false);
   }, [disk, selectedIndices, packages, editState, askForRename]);
 
+  /**
+   * After a whole-disk export, let the main process record it and offer to
+   * mark the folder if that was the last image in it. Bookkeeping must never
+   * fail an export that already succeeded, so this swallows its errors.
+   */
+  const offerFolderMark = useCallback(async (imagePath: string) => {
+    try {
+      const result = await api.offerFolderArchive(imagePath);
+      if (!result.marked) return;
+      setStatus((prev) => `${prev} — folder marked as archived`);
+      setBrowserRefresh((n) => n + 1);
+    } catch { /* the export stands regardless */ }
+  }, []);
+
   const handleExtractAll = useCallback(async () => {
     if (!disk) return;
     const destDir = await api.selectDirectory();
@@ -407,11 +424,12 @@ function App() {
       // reason to care about it. Declining is remembered by not asking again
       // until they set one deliberately in Preferences.
       await api.offerDefaultExtractionDir(destDir);
+      await offerFolderMark(disk.path);
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk, editState, disasmState]);
+  }, [disk, editState, disasmState, offerFolderMark]);
 
   const handleExportArchive = useCallback(async (metadata: ArchiveMetadata) => {
     if (!disk) return;
@@ -441,6 +459,8 @@ function App() {
         setStatus(metadata.format === 'image-zip'
           ? 'Exported disk image to ZIP'
           : `Exported ${results.length} file(s) to ZIP`);
+        // Only a whole-disk export means this image is done with.
+        if (metadata.scope === 'disk') await offerFolderMark(disk.path);
       } catch (err: any) {
         setStatus(`Error: ${err.message}`);
       }
@@ -453,12 +473,13 @@ function App() {
       try {
         const results = await api.exportArchive(disk.path, destDir, metadata, editState, disasmState, entryIndices);
         setStatus(`Exported ${results.length} file(s) for archive.org`);
+        if (metadata.scope === 'disk') await offerFolderMark(disk.path);
       } catch (err: any) {
         setStatus(`Error: ${err.message}`);
       }
       setExtracting(false);
     }
-  }, [disk, selectedIndices, editState, disasmState]);
+  }, [disk, selectedIndices, editState, disasmState, offerFolderMark]);
 
   const handleExportAllFonts = useCallback(async () => {
     if (!disk) return;
@@ -653,7 +674,11 @@ function App() {
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {showBrowser && (
-          <FileBrowser onOpenFile={handleDrop} currentDiskPath={disk?.path ?? null} />
+          <FileBrowser
+            onOpenFile={handleDrop}
+            currentDiskPath={disk?.path ?? null}
+            refreshToken={browserRefresh}
+          />
         )}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {disk && <DiskInfo header={disk.header} path={disk.path} />}

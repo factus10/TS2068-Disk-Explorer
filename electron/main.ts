@@ -4,7 +4,9 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { getRecent, addRecent, clearRecent } from './recent-files';
 import { getSettings, updateSettings } from './settings';
-import { getFolderState, markFolder, unmarkFolder } from './archive-marker';
+import {
+  getFolderState, markFolder, unmarkFolder, recordImageExported, declineFolderOffer,
+} from './archive-marker';
 import { SUPPORTED_EXTENSIONS } from './parsers/supported-formats';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
@@ -399,6 +401,39 @@ ipcMain.handle('offer-default-extraction-dir', async (_event, dir: string) => {
   if (response !== 0) return false;
   updateSettings({ extractionDir: dir });
   return true;
+});
+
+/**
+ * Called after a whole-disk export. Records that this image is done and, if
+ * that was the last one in its folder, offers to mark the folder — asked here
+ * rather than left to the reader to remember, since marking by hand is the
+ * step that gets forgotten.
+ */
+ipcMain.handle('offer-folder-archive', async (
+  _event, imagePath: string,
+): Promise<{ marked: boolean; dir: string; exported: number; total: number }> => {
+  const progress = recordImageExported(imagePath);
+  const answer = { marked: false, dir: progress.dir, exported: progress.exported, total: progress.total };
+  if (!progress.offer) return answer;
+
+  const { response } = await dialog.showMessageBox(mainWindow!, {
+    type: 'question',
+    buttons: ['Mark as Archived', 'Not Now'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'Folder finished',
+    message: `All ${progress.total} image(s) in this folder have been exported.`,
+    detail: `${progress.dir}\n\nMarking it puts a ✓ beside it in the file browser, and a hidden `
+      + `marker file in the folder so the mark travels with it. You can unmark it at any time by `
+      + `right-clicking the folder.`,
+  });
+
+  if (response !== 0) {
+    declineFolderOffer(progress.dir);
+    return answer;
+  }
+  markFolder(progress.dir, new Date().toISOString());
+  return { ...answer, marked: true };
 });
 
 ipcMain.handle('pick-extraction-dir', async () => {
