@@ -10,11 +10,22 @@ export type DiskFormat =
   | 'zx81-aerco'
   | 'tap'
   | 'tzx'
+  | 'zx81-tzx'
   | 'sna'
   | 'z80'
   | 'scr'
   | 'mgt'
   | 'zip';
+
+/**
+ * ZX81 disks and tapes, whatever they arrived in. Their files are memory
+ * images from 0x4009 rather than Spectrum blocks, they list in ZX81 BASIC,
+ * and they disassemble against the ZX81 ROM — so almost everywhere one is
+ * special-cased the other must be too.
+ */
+export function isZX81Format(format: DiskFormat): boolean {
+  return format === 'zx81-aerco' || format === 'zx81-tzx';
+}
 
 export type FileType =
   | 'basic'

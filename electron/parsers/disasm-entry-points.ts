@@ -16,6 +16,7 @@
  * into the disk interface, and get resolved against a symbol pack instead.
  */
 
+import { isZX81Format } from './types';
 import { ZX81, SPECTRUM } from './z80-trace';
 import type { Machine } from './z80-trace';
 import type { BasicListing } from './basic-detokenizer';
@@ -265,7 +266,7 @@ export interface PlanInput {
 export function planDisassembly(input: PlanInput): DisasmPlan | null {
   const { format, entry, data } = input;
   if (!data.length) return null;
-  return format === 'zx81-aerco' ? planZX81(input) : planSpectrum(input);
+  return isZX81Format(format) ? planZX81(input) : planSpectrum(input);
 }
 
 function planZX81(input: PlanInput): DisasmPlan | null {

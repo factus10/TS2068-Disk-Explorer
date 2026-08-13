@@ -44,6 +44,7 @@ import { rebuildBasicProgram } from './parsers/basic-editor';
 import { buildTtfFont, isFontFile } from './parsers/font-export';
 import { encodePng } from './parsers/png-export';
 import { makeSafeFilename, uniquePath, uniqueNames } from './parsers/utils';
+import { isZX81Format } from './parsers/types';
 import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage, DiskHeader, DisasmSettings, DisasmSettingsMap } from './parsers/types';
 import type { BasicListing, Ts2068Mode } from './parsers/basic-detokenizer';
 import type { ScreenData } from './parsers/screen-decoder';
@@ -221,7 +222,8 @@ function getParser(format: DiskFormat) {
     case 'ql': return { readCatalog: readQL, readFileData: readQLFile };
     case 'zx81-aerco': return { readCatalog: readZX81Aerco, readFileData: readZX81AercoFile };
     case 'tap': return { readCatalog: readTap, readFileData: readTapFile };
-    case 'tzx': return { readCatalog: readTzx, readFileData: readTzxFile };
+    case 'tzx':
+    case 'zx81-tzx': return { readCatalog: readTzx, readFileData: readTzxFile };
     case 'sna': return { readCatalog: readSNA, readFileData: readSNAFile };
     case 'z80': return { readCatalog: readZ80, readFileData: readZ80File };
     case 'scr': return { readCatalog: readSCR, readFileData: readSCRFile };
@@ -240,7 +242,7 @@ function detokenizeEntry(
   format: DiskFormat, fileData: Buffer, entry: FileEntry, ts2068Mode?: Ts2068Mode,
   remStyle?: RemStyle,
 ): BasicListing {
-  if (format === 'zx81-aerco') return readZX81Listing(fileData, entry, remStyle);
+  if (isZX81Format(format)) return readZX81Listing(fileData, entry, remStyle);
   const varsOffset = entry.params.varsOffset ?? entry.params.param2;
   return detokenize(fileData, varsOffset, ts2068Mode);
 }
@@ -648,7 +650,7 @@ function buildArchiveName(title: string, meta: ArchiveMetadata, typeSuffix: stri
  * starting at 0x4009, which is exactly the `.p` tape format emulators expect.
  */
 function rawFileExtension(format: DiskFormat, entry: FileEntry): string {
-  if (format === 'zx81-aerco') return '.p';
+  if (isZX81Format(format)) return '.p';
   return entry.type === 'module' ? '.bin' : '';
 }
 
@@ -1023,7 +1025,7 @@ ipcMain.handle('get-basic-variables', async (_event, imagePath: string, entryInd
   const varsData = Buffer.from(fileData.subarray(varsOffset));
   // ZX81 names its variables in its own character set and sizes FOR blocks
   // differently, so it needs its own decoder.
-  return format === 'zx81-aerco' ? parseZX81Variables(varsData) : parseVariables(varsData);
+  return isZX81Format(format) ? parseZX81Variables(varsData) : parseVariables(varsData);
 });
 
 ipcMain.handle('get-screen-data', async (_event, imagePath: string, entryIndex: number, invert: boolean): Promise<number[] | null> => {
@@ -1132,7 +1134,7 @@ ipcMain.handle('get-disk-map', async (_event, imagePath: string): Promise<{ tota
   const blockSizes: Record<string, number> = {
     'larken': 5120, 'oliger-v1': 5120, 'oliger-v2': 5120,
     'aerco-dos64': 5120, 'aerco-rpm': 2048, 'zebra-dirscp': 4096,
-    'zebra-cpm': 4096, 'ql': 1536, 'zx81-aerco': 5120, 'tap': 0,
+    'zebra-cpm': 4096, 'ql': 1536, 'zx81-aerco': 5120, 'zx81-tzx': 0, 'tap': 0,
   };
   const blockSize = blockSizes[format] ?? 5120;
   if (blockSize === 0) return null;

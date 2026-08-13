@@ -3,6 +3,7 @@
  * plan the entry points, trace, and emit.
  */
 
+import { isZX81Format } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -65,7 +66,7 @@ function packsFor(format: DiskFormat, exrom = false): SymbolPack[] {
   // Machine ROM first, then the DOS pack, which must win over the addresses it
   // pages across — on a Larken TS2068, $0064 is a cartridge control, not
   // whatever the HOME ROM happens to hold there.
-  if (format === 'zx81-aerco') return pick('zx81', 'zx81-sysvars', 'aerco-zx81');
+  if (isZX81Format(format)) return pick('zx81', 'zx81-sysvars', 'aerco-zx81');
   // The EXROM overlay replaces the machine ROM rather than sitting under it:
   // where it has a name, that name is the whole truth about the address.
   const machine = exrom ? ['spectrum48', 'ts2068-home', 'ts2068-exrom'] : ['spectrum48', 'ts2068-home'];
@@ -231,7 +232,7 @@ export function canDisassemble(
   if (entry.isDirectory || entry.size <= 0) return false;
   // A ZX81 file is a whole memory image and its text is not ASCII, so neither
   // test below applies.
-  if (format === 'zx81-aerco') return true;
+  if (isZX81Format(format)) return true;
   // A SCREEN$ is stored as CODE, so it reaches here looking like a program.
   // Tracing pixels does not fail — it produces a confident listing of
   // instructions that were never executed, which is the one output this
