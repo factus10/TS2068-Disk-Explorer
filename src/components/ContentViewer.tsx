@@ -12,6 +12,9 @@ import { XRefViewer, XRefEntry } from './XRefViewer';
 import { DisasmViewer } from './DisasmViewer';
 import type { Disassembly } from './DisasmViewer';
 
+/** ZX81 disks and tapes both list, disassemble and export as ZX81. */
+const isZX81 = (format?: string) => format === 'zx81-aerco' || format === 'zx81-tzx';
+
 const DEFAULT_WIDTH = 560;
 const MIN_WIDTH = 360;
 const MAX_WIDTH = 900;
@@ -99,10 +102,10 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   // The Tokens toggle chooses how to read the bytes the Spectrum and the
   // TS2068 disagree about. ZX81 BASIC is a separate dialect with its own token
   // table and ignores the setting, so the choice is meaningless there.
-  const hasTokenDialects = diskFormat !== 'zx81-aerco';
+  const hasTokenDialects = !isZX81(diskFormat);
   // A ZX81 REM is where machine code lives on these disks, and rendering code
   // bytes through the character set produces keyword soup. Offer the bytes.
-  const hasRemStyles = diskFormat === 'zx81-aerco';
+  const hasRemStyles = isZX81(diskFormat);
 
   // Compute available tabs (text/font/icon tabs depend on data)
   const hasText = hexData ? isTextData(hexData) : false;
@@ -115,7 +118,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
   // be offered a Disasm tab, where tracing them yields a confident listing of
   // instructions that never ran. Kept in step with canDisassemble in the main
   // process, which applies the same two tests once it has the bytes.
-  const canDisasm = diskFormat === 'zx81-aerco'
+  const canDisasm = isZX81(diskFormat)
     ? entry.size > 0
     : (entry.type === 'code' || entry.type === 'module')
       && !isScreenEntry(entry) && !hasText;
@@ -445,7 +448,7 @@ export function ContentViewer({ entry, diskPath, diskFormat, onClose, fileEdits,
             onSetOrigin={setOriginOverride}
             exrom={exrom}
             onSetExrom={setExrom}
-            showExrom={diskFormat !== 'zx81-aerco'}
+            showExrom={!isZX81(diskFormat)}
           />
         )}
         {activeTab === 'hex' && hexData && <HexView data={hexData} />}

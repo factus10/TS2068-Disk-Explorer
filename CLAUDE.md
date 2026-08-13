@@ -53,6 +53,7 @@ src/                   # Renderer (React)
 | Zebra CP/M | .dsk | CPC DSK without DIRSCP | Catalog only |
 | Sinclair QL | .img | QL5A/QL5B magic | Raw binary |
 | ZX81 Aerco | .img | "DIRECTORY" sector at 0x7800 (+ backup copy), else ZX81 sysvars at 2+ slot starts | Raw `.p` (ZX81 memory image) |
+| ZX81 TZX | .tzx | Generalized Data blocks (0x19) whose stream is a bit-7-terminated name then an image whose E_LINE accounts for it | Raw `.p` (ZX81 memory image) |
 
 ## Commands
 
@@ -88,6 +89,14 @@ import { detectFormat } from './electron/parsers/detect';
 ## Architecture Notes
 
 - **IPC boundary:** All file I/O and parsing runs in the main process. The renderer only receives serialized data (no Buffer objects cross IPC — use number arrays).
+- **TZX serves two machines.** A Spectrum/TS2068 tape uses standard and turbo data
+  blocks (0x10, 0x11) carrying TAP-style header+data pairs. A ZX81 tape has no headers
+  at all: its recording lives in the Generalized Data Block (0x19, TZX v1.20), whose
+  data stream — when the symbol alphabet is two wide, so one bit per symbol — is the raw
+  tape bytes: a filename in the ZX81 character set with bit 7 set on its last character,
+  then a memory image from `0x4009`. A tape is only read as ZX81 when it has no
+  header blocks *and* a generalized stream whose E_LINE accounts for its own length,
+  because a TS2068 custom loader may legitimately use a generalized block too.
 - **Format detection order:** Zebra (magic bytes) → QL (magic) → ZX81 Aerco (directory sector or slot sysvars) → Aerco (boot sector) → Larken (directory markers) → Oliger V2 (header) → Oliger V1 (BASIC boot) → fallback by size.
 - **ZX81 disks (Aerco):** these are Aerco-interface disks — BBDOS names itself `AERCO/DS/40` and maps the `3000-37FFH AERCO BOARD`; the "Larken" in some filenames is a mislabel. 40 cyl × 2 sides × 10 × 512, stored side-interleaved per cylinder, so a track is 5120 bytes and each side occupies alternate tracks. BBDOS splits each side into ten fixed 4-cylinder slots (20 total) — Aerco "pages", numbered 1-20. A 16K page holds 20K; a 64K page is three consecutive slots (default heads at pages 4, 7, 11, 14, 17), which is why a large file like PRO/FILE 40K appears to span slots. Page 1 holds the DOS and the directory. Page count follows the drive geometry (DD/SS/35T=8, DD/SS/40T=10, DD/DS/35T=16, DD/DS/40T=20); the parser handles the 20-page 409600-byte case only. The drive EPROM sits at 0x3000-0x37FF and BASIC drives it with `USR (12290+page)` to load and `USR (12720+page)` to save. A Larken ZX81 interface is a different machine entirely — its LDOS EPROM starts at 0x3800 and is entered with `RAND USR 14336`. Files are raw ZX81 memory images from 0x4009 (the `.p` format); their length comes from the E_LINE system variable, and an oversized file spills into the following slots, which are left marked free. BBDOS 4.0 stores names in a directory sector at 0x7800 (plus a backup copy in the next sector); SADOS+ writes no directory at all — it is a BASIC menu program holding its names in a `Q$` array among its own variables — so those disks are read by probing each slot start for a ZX81 sysvar block and are listed by page number.
 - **TAP format:** Sequential header+data block pairs. Multi-file TAPs are just concatenated blocks. The `buildDumpTap` function already creates dual-file TAPs (BASIC loader + CODE block).

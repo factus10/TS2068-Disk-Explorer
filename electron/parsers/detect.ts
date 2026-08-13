@@ -1,3 +1,4 @@
+import { readCatalog as readTzxCatalog } from './tzx-reader';
 import type { DiskFormat } from './types';
 import { detect as detectZebra } from './zebra';
 import { detect as detectQL } from './ql';
@@ -14,6 +15,16 @@ import { detect as detectZX81Aerco } from './zx81-aerco';
  * Order matters: check extension-based formats first,
  * then magic bytes, then heuristics.
  */
+/** Which machine a TZX tape is for, from what its block chain carries. */
+function detectTzxMachine(buffer: Buffer): DiskFormat {
+  try {
+    const { header } = readTzxCatalog(buffer);
+    return header.format === 'zx81-tzx' ? 'zx81-tzx' : 'tzx';
+  } catch {
+    return 'tzx';
+  }
+}
+
 export function detectFormat(buffer: Buffer, filePath?: string): DiskFormat | null {
   // 0. ZIP container (check magic bytes before extension-based detection)
   if (buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4B &&
@@ -24,7 +35,9 @@ export function detectFormat(buffer: Buffer, filePath?: string): DiskFormat | nu
   // 0a. Extension-based detection for unambiguous formats
   const ext = filePath?.toLowerCase().split('.').pop();
   if (ext === 'tap') return 'tap';
-  if (ext === 'tzx') return 'tzx';
+  // A .tzx may be a Spectrum/TS2068 tape or a ZX81 one; only the blocks say
+  // which, so the reader is asked rather than the extension trusted.
+  if (ext === 'tzx') return detectTzxMachine(buffer);
   if (ext === 'z80') return 'z80';
 
   // 0b. SNA by extension + size validation
