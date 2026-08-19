@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    // The scripts are .mts run through tsx: ES modules, top-level await, and
+    // imports that name the .mts file directly. That is a different world from
+    // the CommonJS the Electron main process is built as, which is why this is
+    // its own config rather than another include in tsconfig.electron.json.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["scripts"]
+}

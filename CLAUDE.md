@@ -68,9 +68,15 @@ npm run electron:build  # Full production build with electron-builder
 ## Type Checking
 
 ```bash
-npx tsc --noEmit                      # Check renderer (src/)
-npx tsc -p tsconfig.electron.json --noEmit  # Check electron (electron/)
+npm run typecheck                           # all three, as CI runs it
+npx tsc --noEmit                            # renderer (src/)
+npx tsc -p tsconfig.electron.json --noEmit  # electron (electron/)
+npx tsc -p tsconfig.scripts.json --noEmit   # scripts/
 ```
+
+`scripts/` needs its own config because those files are `.mts` run through
+tsx — ES modules with top-level await, importing `.mts` by name — which is a
+different world from the CommonJS the main process builds as.
 
 ## Testing Parsers
 

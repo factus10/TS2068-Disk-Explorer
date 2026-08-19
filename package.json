@@ -10,7 +10,7 @@
     "test:watch": "vitest",
     "test:fixture": "tsx scripts/gen-opcode-fixture.ts && git diff --exit-code test/fixtures/z80-opcodes.json",
     "symbols": "tsx scripts/build-symbols.ts",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder"
