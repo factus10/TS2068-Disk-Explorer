@@ -591,7 +591,10 @@ function App() {
     if (!api) return;
     const unsub = api.onMenuCreateTap(() => setShowTapCreator(true));
     const unsubKnown = api.onMenuExportKnown(() => { handleExportKnown(); });
-    return () => { unsub(); unsubKnown(); };
+    const unsubCheck = api.onMenuCheckCatalogUpdate(() => {
+      api.checkCatalogUpdate(false).then((r) => setStatus(r.message)).catch(() => {});
+    });
+    return () => { unsub(); unsubKnown(); unsubCheck(); };
   }, [handleExportKnown]);
 
   // Keyboard shortcuts

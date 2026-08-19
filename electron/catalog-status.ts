@@ -261,10 +261,15 @@ function bundledKnownPath(): string | null {
  * A live catalogue wins over the shipped copy: whoever built it has the
  * newest answer, and the shipped one is a snapshot of some earlier release.
  */
-export function loadKnown(catalogDir?: string): Known | null {
+export function loadKnown(catalogDir?: string, downloadedPath?: string): Known | null {
   const live = catalogDir ? path.join(catalogDir, 'catalog.csv') : null;
   let file: string | null = null;
   try { if (live && fs.statSync(live).isFile()) file = live; } catch { /* fall through */ }
+  // Then a list downloaded since the app was built, then the one it shipped
+  // with. Each is newer than the one after it.
+  if (!file && downloadedPath) {
+    try { if (fs.statSync(downloadedPath).isFile()) file = downloadedPath; } catch { /* fall through */ }
+  }
   if (!file) file = bundledKnownPath();
   if (!file) return null;
 

@@ -103,6 +103,10 @@ export interface Settings {
   extractionDir?: string;
   /** A catalogue folder holding occurrences.csv and marks.json. */
   catalogDir?: string;
+  /** What the last check of the published program list saw. */
+  catalogUpdate?: { etag?: string; checkedAt?: string; rows?: number };
+  /** Check for a newer published program list on launch. */
+  autoCheckCatalogUpdate?: boolean;
   /** Whether package and archive.org exports also mark those programs archived. */
   markArchivedOnExport?: boolean;
 }
@@ -255,6 +259,10 @@ interface DiskToolsAPI {
   /** Rebuild the shared list of known programs from the catalogue. */
   exportKnownPrograms: () => Promise<{ path: string; rows: number; archived: number; matched: number } | null>;
   onMenuExportKnown: (callback: () => void) => () => void;
+  /** Compare the published program list against the one in use, and offer it. */
+  checkCatalogUpdate: (quiet?: boolean) => Promise<{ updated: boolean; message: string }>;
+  clearCatalogUpdate: () => Promise<boolean>;
+  onMenuCheckCatalogUpdate: (callback: () => void) => () => void;
   pickCatalogDir: () => Promise<string | null>;
   clearCatalogDir: () => Promise<boolean>;
   openFileDialog: () => Promise<DiskImage | null>;

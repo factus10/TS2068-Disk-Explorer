@@ -49,6 +49,15 @@ export interface Settings {
    * is the act of archiving, and marking by hand afterwards gets forgotten.
    */
   markArchivedOnExport?: boolean;
+
+  /** What the last check of the published program list saw. */
+  catalogUpdate?: { etag?: string; checkedAt?: string; rows?: number };
+
+  /**
+   * Check for a newer published program list when the app starts. Off unless
+   * asked for: it is a network request the reader did not initiate.
+   */
+  autoCheckCatalogUpdate?: boolean;
 }
 
 function getFilePath(): string {
@@ -94,6 +103,15 @@ export function getSettings(): Settings {
       } catch { /* gone, or not a catalogue; leave it unset */ }
     }
     if (typeof raw.markArchivedOnExport === 'boolean') out.markArchivedOnExport = raw.markArchivedOnExport;
+    if (typeof raw.autoCheckCatalogUpdate === 'boolean') out.autoCheckCatalogUpdate = raw.autoCheckCatalogUpdate;
+    if (raw.catalogUpdate && typeof raw.catalogUpdate === 'object') {
+      const u = raw.catalogUpdate as Record<string, unknown>;
+      out.catalogUpdate = {
+        ...(typeof u.etag === 'string' ? { etag: u.etag } : {}),
+        ...(typeof u.checkedAt === 'string' ? { checkedAt: u.checkedAt } : {}),
+        ...(typeof u.rows === 'number' ? { rows: u.rows } : {}),
+      };
+    }
     if (raw.exportProgress && typeof raw.exportProgress === 'object') {
       const progress: Record<string, { exported: string[]; declined?: boolean }> = {};
       for (const [dir, value] of Object.entries(raw.exportProgress as Record<string, unknown>)) {

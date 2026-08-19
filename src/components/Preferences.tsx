@@ -13,6 +13,8 @@ interface Props {
  * File ▸ Preferences (Cmd/Ctrl+,).
  */
 export function Preferences({ onClose }: Props) {
+  const [checking, setChecking] = useState(false);
+  const [checkMessage, setCheckMessage] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<{ dir: string; images: number; folders: number; programs: number; archived: number } | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
 
@@ -36,6 +38,19 @@ export function Preferences({ onClose }: Props) {
   const clear = async () => {
     const next = await api.updateSettings({ extractionDir: undefined });
     setSettings(next);
+  };
+
+  const checkUpdate = async () => {
+    setChecking(true);
+    try {
+      const r = await api.checkCatalogUpdate(false);
+      setCheckMessage(r.message);
+      setSettings(await api.getSettings());
+      if (r.updated) setCatalog(await api.getCatalogSummary());
+    } catch (err: any) {
+      setCheckMessage(`Check failed: ${err.message}`);
+    }
+    setChecking(false);
   };
 
   const chooseCatalog = async () => {
@@ -150,6 +165,49 @@ export function Preferences({ onClose }: Props) {
             </span>
           </label>
         )}
+
+        <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />
+
+        <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 6 }}>
+          Program list
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+          A list of every program the collection is known to hold travels inside the app, so a
+          freshly imaged disk can be told apart from one already held. It is current on the day
+          you install and drifts afterwards; checking fetches the published copy from GitHub.
+          Nothing in your collection or your catalogue is touched either way.
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={checkUpdate} style={btn} disabled={checking}>
+            {checking ? 'Checking...' : 'Check now'}
+          </button>
+          {settings?.catalogUpdate?.checkedAt && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              last checked {new Date(settings.catalogUpdate.checkedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
+        {checkMessage && (
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>{checkMessage}</div>
+        )}
+
+        <label style={{
+          display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10,
+          fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer',
+        }}>
+          <input
+            type="checkbox"
+            checked={settings?.autoCheckCatalogUpdate === true}
+            onChange={async (e) => {
+              const next = await api.updateSettings({ autoCheckCatalogUpdate: e.target.checked });
+              setSettings(next);
+            }}
+            style={{ marginTop: 2 }}
+          />
+          <span>Check for a newer program list when the app starts. Off by default, because it is
+            a network request you did not ask for.</span>
+        </label>
 
         {catalog && (
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>

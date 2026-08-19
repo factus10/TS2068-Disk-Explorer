@@ -12,6 +12,13 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('set-catalog-archived', targetPath, isDirectory, archived),
   getCatalogSummary: () => ipcRenderer.invoke('get-catalog-summary'),
   exportKnownPrograms: () => ipcRenderer.invoke('export-known-programs'),
+  checkCatalogUpdate: (quiet?: boolean) => ipcRenderer.invoke('check-catalog-update', quiet ?? false),
+  clearCatalogUpdate: () => ipcRenderer.invoke('clear-catalog-update'),
+  onMenuCheckCatalogUpdate: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-check-catalog-update', handler);
+    return () => ipcRenderer.removeListener('menu-check-catalog-update', handler);
+  },
   onMenuExportKnown: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on('menu-export-known', handler);
