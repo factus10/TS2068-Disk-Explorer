@@ -9,7 +9,9 @@ import {
   getFolderState, markFolder, unmarkFolder, recordImageExported, declineFolderOffer,
 } from './archive-marker';
 import { SUPPORTED_EXTENSIONS, isSupportedFile } from './parsers/supported-formats';
-import { archiveCount, setArchived, catalogSummary, statusForIds, markIds, loadKnown } from './catalog-status';
+import {
+  archiveCount, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv,
+} from './catalog-status';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -146,6 +148,10 @@ function buildMenu() {
           label: 'Create TAP...',
           accelerator: 'CmdOrCtrl+Shift+A',
           click: () => mainWindow?.webContents.send('menu-create-tap'),
+        },
+        {
+          label: 'Update Shared Program List...',
+          click: () => mainWindow?.webContents.send('menu-export-known'),
         },
         {
           label: 'Recent Files',
@@ -454,6 +460,58 @@ ipcMain.handle('set-catalog-archived', async (
   const { catalogDir } = getSettings();
   if (!catalogDir) return null;
   return setArchived(catalogDir, targetPath, isDirectory, archived);
+});
+
+/**
+ * Where a refreshed known-programs.csv should go. Running from source that is
+ * the copy the app ships, so it can be committed; a packaged app cannot write
+ * inside its own bundle, so it falls back to the catalogue folder.
+ */
+function knownProgramsTarget(catalogDir: string): string {
+  const inRepo = path.join(app.getAppPath(), 'electron', 'data', 'known-programs.csv');
+  try {
+    fs.accessSync(path.dirname(inRepo), fs.constants.W_OK);
+    return inRepo;
+  } catch {
+    return path.join(catalogDir, 'known-programs.csv');
+  }
+}
+
+ipcMain.handle('export-known-programs', async (): Promise<
+  { path: string; rows: number; archived: number; matched: number } | null
+> => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) {
+    await dialog.showMessageBox(mainWindow!, {
+      type: 'info',
+      title: 'No catalogue',
+      message: 'Set a catalogue folder first.',
+      detail: 'Preferences → Catalogue folder. The shared list is built from the catalogue there.',
+    });
+    return null;
+  }
+
+  const built = buildKnownProgramsCsv(catalogDir);
+  if (!built) {
+    await dialog.showMessageBox(mainWindow!, {
+      type: 'warning',
+      title: 'Nothing to export',
+      message: 'That catalogue has no catalog.csv in it.',
+      detail: 'Render the catalogue first, then try again.',
+    });
+    return null;
+  }
+
+  const suggested = knownProgramsTarget(catalogDir);
+  const result = await dialog.showSaveDialog(mainWindow!, {
+    title: 'Write the shared list of known programs',
+    defaultPath: suggested,
+    filters: [{ name: 'CSV', extensions: ['csv'] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+
+  fs.writeFileSync(result.filePath, built.text);
+  return { path: result.filePath, rows: built.rows, archived: built.archived, matched: built.matched };
 });
 
 ipcMain.handle('get-catalog-summary', async (): Promise<

@@ -504,6 +504,22 @@ function App() {
     }
   }, [disk, selectedIndices, editState, disasmState, offerFolderMark, refreshArchiveStatus]);
 
+  /**
+   * Refresh the list that ships with the app, from the catalogue. The
+   * catalogue is upstream of everything now, so this is how the copy other
+   * people see gets brought up to date.
+   */
+  const handleExportKnown = useCallback(async () => {
+    try {
+      const r = await api.exportKnownPrograms();
+      if (!r) return;
+      setStatus(`Wrote ${r.rows} program(s) to ${r.path.split(/[/\\]/).pop()}`
+        + ` — ${r.archived} archived, ${r.matched} matched`);
+    } catch (err: any) {
+      setStatus(`Error: ${err.message}`);
+    }
+  }, []);
+
   const handleExportAllFonts = useCallback(async () => {
     if (!disk) return;
     const destDir = await api.selectDirectory();
@@ -574,8 +590,9 @@ function App() {
   useEffect(() => {
     if (!api) return;
     const unsub = api.onMenuCreateTap(() => setShowTapCreator(true));
-    return unsub;
-  }, []);
+    const unsubKnown = api.onMenuExportKnown(() => { handleExportKnown(); });
+    return () => { unsub(); unsubKnown(); };
+  }, [handleExportKnown]);
 
   // Keyboard shortcuts
   useEffect(() => {

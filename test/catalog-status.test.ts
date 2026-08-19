@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { archiveCount, programsAt, setArchived, catalogSummary, statusForIds, markIds, loadKnown } from '../electron/catalog-status';
+import { archiveCount, programsAt, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv } from '../electron/catalog-status';
 
 /**
  * The catalogue records paths relative to the collection root, which the app
@@ -194,5 +194,49 @@ describe('the shipped list of known programs', () => {
     const known = loadKnown(cat)!;
     expect(known.ids.get('aaa11111')?.archived).toBe('yes');
     expect(known.ids.get('bbb22222')?.archived).toBe('matched');
+  });
+});
+
+describe('building the shared list', () => {
+  beforeEach(() => {
+    fs.writeFileSync(path.join(cat, 'catalog.csv'), [
+      'id,title,title_from,type,kind,size,copies,archived',
+      'ccc33333,Zeta,filename,code,code,100,1,not found',
+      'aaa11111,Chess,filename,basic,basic,200,3,archived',
+      'bbb22222,Banner,REM,code,screen,6912,2,not found',
+    ].join('\n') + '\n');
+  });
+
+  it('projects the catalogue to id, title, kind, size, copies and state', () => {
+    const built = buildKnownProgramsCsv(cat)!;
+    expect(built.rows).toBe(3);
+    expect(built.text.split('\n')[0]).toBe('id,title,kind,size,copies,archived');
+  });
+
+  it('sorts by id, so refreshing the file is a small diff', () => {
+    const ids = buildKnownProgramsCsv(cat)!.text.trim().split('\n').slice(1).map((l) => l.split(',')[0]);
+    expect(ids).toEqual([...ids].sort());
+  });
+
+  it('takes status from marks.json, not from the rendered CSV', () => {
+    // catalog.csv is only as fresh as the last render; a mark made since then
+    // must still count, or the shipped list would lag behind reality.
+    markIds(cat, ['ccc33333'], true);
+    const built = buildKnownProgramsCsv(cat)!;
+    expect(built.archived).toBe(1);
+    expect(built.text).toMatch(/^ccc33333,Zeta,code,100,1,yes$/m);
+  });
+
+  it('records a name match as a guess, distinctly from your mark', () => {
+    fs.writeFileSync(path.join(cat, 'matches.json'), JSON.stringify({
+      matches: [{ programId: 'bbb22222', exact: true }],
+    }));
+    const built = buildKnownProgramsCsv(cat)!;
+    expect(built.matched).toBe(1);
+    expect(built.text).toMatch(/^bbb22222,Banner,screen,6912,2,matched$/m);
+  });
+
+  it('is null when the folder holds no catalogue', () => {
+    expect(buildKnownProgramsCsv(collection)).toBeNull();
   });
 });

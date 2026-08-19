@@ -338,6 +338,68 @@ export function markIds(dir: string, ids: string[], archived: boolean): { change
   return { changed };
 }
 
+/**
+ * The shareable projection of a catalogue: which programs exist and which are
+ * published, with nothing about where anybody keeps them.
+ *
+ * Built from catalog.csv for the program list, but from marks.json and
+ * matches.json for the status, because those are live while the CSV is only
+ * as fresh as the last render.
+ */
+export function buildKnownProgramsCsv(dir: string): { text: string; rows: number; archived: number; matched: number } | null {
+  let text: string;
+  try { text = fs.readFileSync(path.join(dir, 'catalog.csv'), 'utf-8'); } catch { return null; }
+
+  const lines = text.split('\n');
+  const header = splitCsvLine(lines[0] ?? '');
+  const col = (n: string) => header.indexOf(n);
+  const iId = col('id'); const iTitle = col('title'); const iKind = col('kind');
+  const iSize = col('size'); const iCopies = col('copies');
+  if (iId < 0) return null;
+
+  const { marks } = readMarks(dir);
+  const exact = readExactMatches(dir);
+
+  const seen = new Set<string>();
+  const rows: { id: string; cells: string[] }[] = [];
+  let archived = 0; let matched = 0;
+
+  for (let n = 1; n < lines.length; n++) {
+    if (!lines[n]) continue;
+    const f = splitCsvLine(lines[n]);
+    const id = f[iId];
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+
+    let state = '';
+    if (marks[id]?.status === 'archived') { state = 'yes'; archived++; }
+    else if (exact.has(id)) { state = 'matched'; matched++; }
+
+    rows.push({
+      id,
+      cells: [
+        id,
+        iTitle >= 0 ? f[iTitle] ?? '' : '',
+        iKind >= 0 ? f[iKind] ?? '' : '',
+        iSize >= 0 ? f[iSize] ?? '' : '',
+        iCopies >= 0 ? f[iCopies] ?? '' : '',
+        state,
+      ],
+    });
+  }
+
+  // Sorted by id so refreshing the file is a small diff rather than seven
+  // thousand reshuffled lines.
+  rows.sort((a, b) => a.id.localeCompare(b.id));
+
+  const csv = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const out = ['id,title,kind,size,copies,archived']
+    .concat(rows.map((r) => r.cells.map(csv).join(',')))
+    .join('\n') + '\n';
+
+  return { text: out, rows: rows.length, archived, matched };
+}
+
 /** A quick sanity summary for Preferences, so a wrong folder is obvious. */
 export function catalogSummary(dir: string): { images: number; folders: number; programs: number; archived: number } | null {
   const catalog = readCatalog(dir);

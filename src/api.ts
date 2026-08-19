@@ -252,6 +252,9 @@ interface DiskToolsAPI {
    * already known, and which of those are archived. Null when nothing is loaded.
    */
   getDiskArchiveStatus: (imagePath: string) => Promise<DiskArchiveStatus | null>;
+  /** Rebuild the shared list of known programs from the catalogue. */
+  exportKnownPrograms: () => Promise<{ path: string; rows: number; archived: number; matched: number } | null>;
+  onMenuExportKnown: (callback: () => void) => () => void;
   pickCatalogDir: () => Promise<string | null>;
   clearCatalogDir: () => Promise<boolean>;
   openFileDialog: () => Promise<DiskImage | null>;
