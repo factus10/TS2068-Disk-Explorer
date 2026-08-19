@@ -151,6 +151,10 @@ npx tsx scripts/export-shared-catalog.mts ~/TS-Catalog          # refresh the sh
 
 - **`lib/collection.mts`** holds the parser dispatch and `hashPrograms`, the one
   definition of program identity every script must come through.
+- **Catalogue Insights** (File menu) answers the two questions browsing cannot:
+  what is rarest and still unarchived, and which folders hold programs found
+  nowhere else. Rarity is counted in folders rather than copies — three copies
+  in one folder is one disk's worth, and disappears together.
 - **`catalog.json` is the only generated artifact** besides the extracted programs.
   The app reads it directly, so there are no CSVs or HTML to keep in step with it.
   (An earlier `render-catalog.mts` produced a browsable index; the app replaced it.)

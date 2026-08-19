@@ -8,6 +8,9 @@ interface Props {
   currentDiskPath?: string | null;
   /** Change this to force a re-listing — a folder's archived state moved. */
   refreshToken?: number;
+  /** Somewhere to go, set when a finding elsewhere should be acted on. */
+  gotoPath?: string | null;
+  onWentTo?: () => void;
 }
 
 const DEFAULT_WIDTH = 250;
@@ -43,7 +46,7 @@ function formatMarkedAt(iso: string): string {
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props) {
+export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken, gotoPath, onWentTo }: Props) {
   const [currentPath, setCurrentPath] = useState('');
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -113,6 +116,13 @@ export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props
   useEffect(() => {
     localStorage.setItem('hideArchived', String(hideArchived));
   }, [hideArchived]);
+
+  // Somewhere else asked to be taken here — an insight worth acting on.
+  useEffect(() => {
+    if (!gotoPath) return;
+    setCurrentPath(gotoPath);
+    onWentTo?.();
+  }, [gotoPath, onWentTo]);
 
   // Any click or Escape outside the menu dismisses it.
   useEffect(() => {

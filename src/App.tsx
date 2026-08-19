@@ -14,6 +14,7 @@ import { FileBrowser } from './components/FileBrowser';
 import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './components/ArchiveExportDialog';
 import { RenamePrompt } from './components/RenamePrompt';
 import { CatalogIngest } from './components/CatalogIngest';
+import { CatalogInsights } from './components/CatalogInsights';
 
 function buildArchiveZipName(diskBase: string, meta: ArchiveMetadata): string {
   const clean = diskBase.replace(/[<>:"/\\|?*]/g, '-').replace(/\s+/g, ' ').trim() || 'archive';
@@ -58,6 +59,9 @@ function App() {
   const [showTapCreator, setShowTapCreator] = useState(false);
   const [showArchiveExport, setShowArchiveExport] = useState(false);
   const [showIngest, setShowIngest] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
+  // Set when a finding should take the browser somewhere.
+  const [browseTo, setBrowseTo] = useState<string | null>(null);
   const [renamePrompt, setRenamePrompt] = useState<{
     title: string;
     defaultValue: string;
@@ -594,10 +598,11 @@ function App() {
     const unsub = api.onMenuCreateTap(() => setShowTapCreator(true));
     const unsubKnown = api.onMenuExportKnown(() => { handleExportKnown(); });
     const unsubIngest = api.onMenuIngestCatalog(() => setShowIngest(true));
+    const unsubInsights = api.onMenuCatalogInsights(() => setShowInsights(true));
     const unsubCheck = api.onMenuCheckCatalogUpdate(() => {
       api.checkCatalogUpdate(false).then((r) => setStatus(r.message)).catch(() => {});
     });
-    return () => { unsub(); unsubKnown(); unsubCheck(); unsubIngest(); };
+    return () => { unsub(); unsubKnown(); unsubCheck(); unsubIngest(); unsubInsights(); };
   }, [handleExportKnown]);
 
   // Keyboard shortcuts
@@ -724,6 +729,8 @@ function App() {
             onOpenFile={handleDrop}
             currentDiskPath={disk?.path ?? null}
             refreshToken={browserRefresh}
+            gotoPath={browseTo}
+            onWentTo={() => setBrowseTo(null)}
           />
         )}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -817,6 +824,18 @@ function App() {
           onClose={() => setShowIngest(false)}
           onStatus={setStatus}
           onIngested={() => {
+            setBrowserRefresh((n) => n + 1);
+            if (disk) refreshArchiveStatus(disk.path);
+          }}
+        />
+      )}
+
+      {showInsights && (
+        <CatalogInsights
+          onClose={() => setShowInsights(false)}
+          onStatus={setStatus}
+          onBrowseTo={(p) => { setBrowseTo(p); setShowBrowser(true); }}
+          onChanged={() => {
             setBrowserRefresh((n) => n + 1);
             if (disk) refreshArchiveStatus(disk.path);
           }}

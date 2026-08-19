@@ -14,6 +14,14 @@ contextBridge.exposeInMainWorld('diskTools', {
   exportKnownPrograms: () => ipcRenderer.invoke('export-known-programs'),
   checkCatalogUpdate: (quiet?: boolean) => ipcRenderer.invoke('check-catalog-update', quiet ?? false),
   surveyCollection: (root?: string) => ipcRenderer.invoke('survey-collection', root),
+  getCatalogInsights: () => ipcRenderer.invoke('get-catalog-insights'),
+  markProgramsArchived: (ids: string[], archived?: boolean) =>
+    ipcRenderer.invoke('mark-programs-archived', ids, archived ?? true),
+  onMenuCatalogInsights: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-catalog-insights', handler);
+    return () => ipcRenderer.removeListener('menu-catalog-insights', handler);
+  },
   ingestImages: (root: string, relPaths: string[]) => ipcRenderer.invoke('ingest-images', root, relPaths),
   onIngestProgress: (callback: (p: { done: number; total: number; current: string }) => void) => {
     const handler = (_e: any, p: any) => callback(p);

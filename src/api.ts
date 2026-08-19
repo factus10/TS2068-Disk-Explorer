@@ -55,6 +55,31 @@ export interface DiskImage {
   catalog: FileEntry[];
 }
 
+export interface TodoEntry {
+  id: string; title: string; kind: string; size: number;
+  /** Copies across the whole collection. */
+  copies: number;
+  /** Distinct folders holding it — the real measure of how rare it is. */
+  folders: number;
+  foundIn: string[];
+  clue: string;
+}
+
+export interface FolderStat {
+  folder: string; entries: number; programs: number;
+  /** Programs that exist in no other folder — what would be lost with it. */
+  onlyHere: number;
+  archived: number;
+}
+
+export interface Insights {
+  root: string;
+  todo: TodoEntry[];
+  folders: FolderStat[];
+  archived: number;
+  programs: number;
+}
+
 export interface CollectionSurvey {
   root: string;
   /** Images on disk the catalogue has never seen. */
@@ -287,6 +312,10 @@ interface DiskToolsAPI {
   ingestImages: (root: string, relPaths: string[]) => Promise<IngestResult | null>;
   onIngestProgress: (callback: (p: { done: number; total: number; current: string }) => void) => () => void;
   onMenuIngestCatalog: (callback: () => void) => () => void;
+  /** What is rarest and unarchived, and which folders hold unique material. */
+  getCatalogInsights: () => Promise<Insights | null>;
+  markProgramsArchived: (ids: string[], archived?: boolean) => Promise<{ changed: number } | null>;
+  onMenuCatalogInsights: (callback: () => void) => () => void;
   pickCatalogDir: () => Promise<string | null>;
   clearCatalogDir: () => Promise<boolean>;
   openFileDialog: () => Promise<DiskImage | null>;

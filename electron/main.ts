@@ -14,6 +14,7 @@ import {
 } from './catalog-status';
 import { checkForUpdate, saveUpdate, clearUpdate, countRows } from './catalog-update';
 import { surveyCollection, ingestImages } from './catalog-ingest';
+import { buildInsights } from './catalog-insights';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -158,6 +159,10 @@ function buildMenu() {
           label: 'Create TAP...',
           accelerator: 'CmdOrCtrl+Shift+A',
           click: () => mainWindow?.webContents.send('menu-create-tap'),
+        },
+        {
+          label: 'Catalogue Insights...',
+          click: () => mainWindow?.webContents.send('menu-catalog-insights'),
         },
         {
           label: 'Add New Disks to Catalogue...',
@@ -561,6 +566,17 @@ async function runCatalogUpdateCheck(quiet: boolean): Promise<{ updated: boolean
 }
 
 ipcMain.handle('check-catalog-update', async (_event, quiet = false) => runCatalogUpdateCheck(quiet));
+
+ipcMain.handle('get-catalog-insights', async () => {
+  const { catalogDir } = getSettings();
+  return catalogDir ? buildInsights(catalogDir) : null;
+});
+
+ipcMain.handle('mark-programs-archived', async (_event, ids: string[], archived = true) => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+  return markIds(catalogDir, ids, archived);
+});
 
 ipcMain.handle('survey-collection', async (_event, root?: string) => {
   const { catalogDir } = getSettings();
