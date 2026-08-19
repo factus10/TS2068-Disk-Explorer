@@ -56,4 +56,3 @@ console.log(`\nadded ${result.newPrograms} new program(s), ${result.newOccurrenc
   + ` from ${result.imagesAdded} image(s)`);
 if (result.unreadable.length > 0) console.log(`${result.unreadable.length} image(s) could not be read`);
 console.log(`catalogue now ${result.uniqueCount} programs across ${result.imageCount} images`);
-console.log(`\nNow render the views:  npx tsx scripts/render-catalog.mts ${outDir}`);

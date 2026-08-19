@@ -144,18 +144,16 @@ occurrences — and a mark against it survives a rebuild.
 ```bash
 npx tsx scripts/scan-collection.mts '<collection>'              # read-only survey
 npx tsx scripts/build-catalog.mts '<collection>' ~/TS-Catalog   # first pass: extract + characterise
-npx tsx scripts/update-catalog.mts '<collection>' ~/TS-Catalog  # fold in newly imaged disks
-npx tsx scripts/render-catalog.mts ~/TS-Catalog                 # CSVs + index.html
+npx tsx scripts/update-catalog.mts '<collection>' ~/TS-Catalog  # fold in new disks (the app does this too)
 npx tsx scripts/mark-archived.mts ~/TS-Catalog <id...>          # record a decision
 npx tsx scripts/export-shared-catalog.mts ~/TS-Catalog          # refresh the shipped list
 ```
 
 - **`lib/collection.mts`** holds the parser dispatch and `hashPrograms`, the one
   definition of program identity every script must come through.
-- **The build is separate from the render** because the build re-reads the whole
-  collection — minutes of waiting on cloud storage — while the CSVs and the index
-  are what actually get iterated on. `build-catalog` writes `catalog.json` and the
-  extracted programs and nothing else; every view is `render-catalog`'s.
+- **`catalog.json` is the only generated artifact** besides the extracted programs.
+  The app reads it directly, so there are no CSVs or HTML to keep in step with it.
+  (An earlier `render-catalog.mts` produced a browsable index; the app replaced it.)
 - **`update-catalog` folds in new disks without re-reading everything.** It finds
   images the catalogue has never seen, fingerprints their contents, and merges:
   a known program gains an occurrence, an unknown one becomes an entry. Verified
@@ -166,11 +164,10 @@ npx tsx scripts/export-shared-catalog.mts ~/TS-Catalog          # refresh the sh
   is described by the same rules as one added on the first pass.
 - **Reads run 32 deep.** Parsing an image takes about a millisecond; fetching one
   off cloud storage takes the better part of a second, and that wait is idle.
-- **`catalog.json` is the source of truth**; every CSV and `index.html` is a
-  generated view of it. Nothing writes back into them.
-- **`marks.json` is the exception** — hand-made decisions, keyed by content hash,
-  written by `mark-archived.mts` and by the app alike, and never overwritten by a
-  rebuild.
+- **`catalog.json` is the source of truth**, and nothing writes back into it.
+- **`marks.json` sits beside it** — hand-made decisions, keyed by content hash,
+  written by the app and by `mark-archived.mts` alike, and never overwritten by a
+  rebuild. A mark is a decision about a program, not a fact about the collection.
 - **Titles are guesses, and `title_from` says how good a guess.** Filenames in a
   real collection are conventions — 148 different programs called `AUTOSTART` —
   so a title mined from a REM or a `PRINT` often beats the name on the disk.

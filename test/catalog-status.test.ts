@@ -13,20 +13,37 @@ import { archiveCount, programsAt, setArchived, catalogSummary, statusForIds, ma
 let cat = '';
 let collection = '';
 
-const CSV = [
-  'id,title,kind,image,folder,format,catalog_index,filed_as',
-  'aaa11111,Chess,basic,Disks/Sincus_103/Sincus_103.img,Disks/Sincus_103,larken,0,CHESS',
-  'bbb22222,Banner,code,Disks/Sincus_103/Sincus_103.img,Disks/Sincus_103,larken,1,BANNER',
-  'aaa11111,Chess,basic,Disks/Sincus_103/chess.tap,Disks/Sincus_103,tap,0,CHESS',
-  // The same program on a different disk: a mark must reach it too.
-  'aaa11111,Chess,basic,Disks/Other_Disk/Other.img,Disks/Other_Disk,larken,3,CHESS',
-  'ccc33333,"Comma, Title",code,Disks/Other_Disk/Other.img,Disks/Other_Disk,larken,4,CT',
-].join('\n') + '\n';
+/** A catalogue as build-catalog writes one, trimmed to what is read here. */
+const prog = (
+  id: string, title: string, type: string,
+  occ: [string, string][], extra: Record<string, unknown> = {},
+) => ({
+  id, sha256: id.repeat(8), title, titleSource: 'filename',
+  type, size: 100, isScreen: false, isFont: false, isUdg: false,
+  names: [title], formats: ['larken'], basic: null,
+  occurrences: occ.map(([image, folder], i) => ({ image, folder, format: 'larken', index: i, filename: title })),
+  ...extra,
+});
+
+const CATALOG = {
+  root: '/collection', generated: 'x', imageCount: 3, entryCount: 5, uniqueCount: 3,
+  programs: [
+    prog('aaa11111', 'Chess', 'basic', [
+      ['Disks/Sincus_103/Sincus_103.img', 'Disks/Sincus_103'],
+      ['Disks/Sincus_103/chess.tap', 'Disks/Sincus_103'],
+      // The same program on a different disk: a mark must reach it too.
+      ['Disks/Other_Disk/Other.img', 'Disks/Other_Disk'],
+    ]),
+    prog('bbb22222', 'Banner', 'code', [['Disks/Sincus_103/Sincus_103.img', 'Disks/Sincus_103']]),
+    prog('ccc33333', 'Comma, Title', 'code', [['Disks/Other_Disk/Other.img', 'Disks/Other_Disk']]),
+  ],
+  unreadable: [],
+};
 
 beforeEach(() => {
   cat = fs.mkdtempSync(path.join(os.tmpdir(), 'ts-cat-'));
   collection = fs.mkdtempSync(path.join(os.tmpdir(), 'ts-coll-'));
-  fs.writeFileSync(path.join(cat, 'occurrences.csv'), CSV);
+  fs.writeFileSync(path.join(cat, 'catalog.json'), JSON.stringify(CATALOG));
   fs.mkdirSync(path.join(collection, 'Disks/Sincus_103'), { recursive: true });
   fs.mkdirSync(path.join(collection, 'Disks/Other_Disk'), { recursive: true });
 });
@@ -59,7 +76,7 @@ describe('finding a disk in the catalogue', () => {
     expect(archiveCount(cat, img('Disks/Sincus_103/unknown.img'), false)).toBeNull();
   });
 
-  it('reads a quoted field containing a comma', () => {
+  it('handles a title containing a comma', () => {
     expect(programsAt(cat, img('Disks/Other_Disk/Other.img'), false)).toContain('ccc33333');
   });
 });
@@ -118,13 +135,13 @@ describe('marking from the browser', () => {
     expect(archiveCount(cat, img('Disks/Sincus_103'), true)).toMatchObject({ archived: 0, total: 2 });
   });
 
-  it('writes marks.json and leaves the CSV untouched', () => {
-    // The CSV is a generated view; a mark stored there would be destroyed the
-    // next time the catalogue was rendered.
-    const before = fs.readFileSync(path.join(cat, 'occurrences.csv'), 'utf-8');
+  it('writes marks.json and leaves the catalogue untouched', () => {
+    // A mark is a decision about a program, not a fact about the collection;
+    // rebuilding the one must never destroy the other.
+    const before = fs.readFileSync(path.join(cat, 'catalog.json'), 'utf-8');
     setArchived(cat, img('Disks/Sincus_103'), true, true);
     expect(fs.existsSync(path.join(cat, 'marks.json'))).toBe(true);
-    expect(fs.readFileSync(path.join(cat, 'occurrences.csv'), 'utf-8')).toBe(before);
+    expect(fs.readFileSync(path.join(cat, 'catalog.json'), 'utf-8')).toBe(before);
   });
 
   it('keeps marks made by the command line', () => {
@@ -181,16 +198,16 @@ describe('the shipped list of known programs', () => {
   it('prefers a live catalogue over the shipped copy', () => {
     // Whoever built the catalogue has the newest answer; the shipped file is
     // a snapshot of some earlier release.
-    fs.writeFileSync(path.join(cat, 'catalog.csv'),
-      'id,title,kind,size,copies,archived\nzzz99999,Only Here,basic,10,1,yes\n');
-    const known = loadKnown(cat);
-    expect(known!.ids.has('zzz99999')).toBe(true);
-    expect(known!.source).toContain(cat);
+    const known = loadKnown(cat)!;
+    expect(known.ids.has('aaa11111')).toBe(true);
+    expect(known.source).toContain(cat);
   });
 
   it('carries the archived flag, so a reader with no catalogue still sees it', () => {
-    fs.writeFileSync(path.join(cat, 'catalog.csv'),
-      'id,title,kind,size,copies,archived\naaa11111,Chess,basic,10,2,yes\nbbb22222,Banner,code,10,1,matched\n');
+    markIds(cat, ['aaa11111'], true);
+    fs.writeFileSync(path.join(cat, 'matches.json'), JSON.stringify({
+      matches: [{ programId: 'bbb22222', exact: true }],
+    }));
     const known = loadKnown(cat)!;
     expect(known.ids.get('aaa11111')?.archived).toBe('yes');
     expect(known.ids.get('bbb22222')?.archived).toBe('matched');
@@ -198,15 +215,6 @@ describe('the shipped list of known programs', () => {
 });
 
 describe('building the shared list', () => {
-  beforeEach(() => {
-    fs.writeFileSync(path.join(cat, 'catalog.csv'), [
-      'id,title,title_from,type,kind,size,copies,archived',
-      'ccc33333,Zeta,filename,code,code,100,1,not found',
-      'aaa11111,Chess,filename,basic,basic,200,3,archived',
-      'bbb22222,Banner,REM,code,screen,6912,2,not found',
-    ].join('\n') + '\n');
-  });
-
   it('projects the catalogue to id, title, kind, size, copies and state', () => {
     const built = buildKnownProgramsCsv(cat)!;
     expect(built.rows).toBe(3);
@@ -218,13 +226,11 @@ describe('building the shared list', () => {
     expect(ids).toEqual([...ids].sort());
   });
 
-  it('takes status from marks.json, not from the rendered CSV', () => {
-    // catalog.csv is only as fresh as the last render; a mark made since then
-    // must still count, or the shipped list would lag behind reality.
+  it('takes status from marks.json, which is live', () => {
     markIds(cat, ['ccc33333'], true);
     const built = buildKnownProgramsCsv(cat)!;
     expect(built.archived).toBe(1);
-    expect(built.text).toMatch(/^ccc33333,Zeta,code,100,1,yes$/m);
+    expect(built.text).toMatch(/^ccc33333,"Comma, Title",code,100,1,yes$/m);
   });
 
   it('records a name match as a guess, distinctly from your mark', () => {
@@ -233,7 +239,7 @@ describe('building the shared list', () => {
     }));
     const built = buildKnownProgramsCsv(cat)!;
     expect(built.matched).toBe(1);
-    expect(built.text).toMatch(/^bbb22222,Banner,screen,6912,2,matched$/m);
+    expect(built.text).toMatch(/^bbb22222,Banner,code,100,1,matched$/m);
   });
 
   it('is null when the folder holds no catalogue', () => {

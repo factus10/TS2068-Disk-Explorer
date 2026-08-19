@@ -4,10 +4,9 @@
  *
  *   npx tsx scripts/build-catalog.mts <root> <outDir>
  *
- * Writes catalog.json and one extracted copy of each unique program. The
- * human-facing views — the CSVs and index.html — are render-catalog.mts's job,
- * because they are cheap to regenerate and get iterated on constantly, while
- * this pass re-reads the whole collection.
+ * Writes catalog.json and one extracted copy of each unique program. That is
+ * the whole catalogue: the app reads catalog.json directly, so there are no
+ * generated views to keep in step with it.
  *
  * Programs are grouped by the SHA-256 of their bytes, so the same program on
  * twelve disks is one entry with twelve occurrences. Characterisation comes
@@ -181,4 +180,3 @@ fs.writeFileSync(path.join(outDir, 'catalog.json'), JSON.stringify({
 console.log(`catalog.json      ${list.length} programs`);
 console.log(`programs/         one copy of each`);
 console.log(`\nwritten to ${outDir}`);
-console.log(`\nNow render the views:  npx tsx scripts/render-catalog.mts ${outDir}`);
