@@ -11,6 +11,7 @@ import {
 import { SUPPORTED_EXTENSIONS, isSupportedFile } from './parsers/supported-formats';
 import {
   archiveCount, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv,
+  compareShippedList,
 } from './catalog-status';
 import { checkForUpdate, saveUpdate, clearUpdate, countRows } from './catalog-update';
 import { surveyCollection, ingestImages } from './catalog-ingest';
@@ -638,6 +639,11 @@ ipcMain.handle('export-known-programs', async (): Promise<
 
   fs.writeFileSync(result.filePath, built.text);
   return { path: result.filePath, rows: built.rows, archived: built.archived, matched: built.matched };
+});
+
+ipcMain.handle('compare-shipped-list', async () => {
+  const { catalogDir } = getSettings();
+  return catalogDir ? compareShippedList(catalogDir) : null;
 });
 
 ipcMain.handle('get-catalog-summary', async (): Promise<

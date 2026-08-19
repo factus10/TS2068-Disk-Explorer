@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { archiveCount, programsAt, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv } from '../electron/catalog-status';
+import { archiveCount, programsAt, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv, compareShippedList } from '../electron/catalog-status';
 
 /**
  * The catalogue records paths relative to the collection root, which the app
@@ -244,5 +244,36 @@ describe('building the shared list', () => {
 
   it('is null when the folder holds no catalogue', () => {
     expect(buildKnownProgramsCsv(collection)).toBeNull();
+  });
+});
+
+describe('whether the shipped list has fallen behind', () => {
+  it('says so plainly when it matches', () => {
+    // The shipped list ships with the app, so the fixture cannot replace it;
+    // what matters is that a real comparison reports both sides.
+    const c = compareShippedList(cat)!;
+    expect(c.catalogPrograms).toBe(3);
+    expect(typeof c.inStep).toBe('boolean');
+  });
+
+  it('counts programs the catalogue has that the list does not', () => {
+    const c = compareShippedList(cat)!;
+    // The fixture's three programs are not in the app's shipped list, so all
+    // three read as additions.
+    expect(c.added).toBe(3);
+    expect(c.inStep).toBe(false);
+  });
+
+  it('notices an archived state that changed since the list was written', () => {
+    const before = compareShippedList(cat)!;
+    markIds(cat, ['aaa11111'], true);
+    const after = compareShippedList(cat)!;
+    // Marking does not add a program, so the difference is in state, not count.
+    expect(after.catalogPrograms).toBe(before.catalogPrograms);
+    expect(after.inStep).toBe(false);
+  });
+
+  it('is null when there is no catalogue to compare against', () => {
+    expect(compareShippedList(collection)).toBeNull();
   });
 });
