@@ -13,6 +13,7 @@ interface Props {
  * File ▸ Preferences (Cmd/Ctrl+,).
  */
 export function Preferences({ onClose }: Props) {
+  const [shipped, setShipped] = useState<import('../api').ShippedComparison | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkMessage, setCheckMessage] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<{ dir: string; images: number; folders: number; programs: number; archived: number } | null>(null);
@@ -21,6 +22,7 @@ export function Preferences({ onClose }: Props) {
   useEffect(() => {
     api.getSettings().then(setSettings).catch(() => setSettings({}));
     api.getCatalogSummary().then(setCatalog).catch(() => setCatalog(null));
+    api.compareShippedList().then(setShipped).catch(() => setShipped(null));
   }, []);
 
   // Escape closes, as it does in every other dialog.
@@ -58,6 +60,7 @@ export function Preferences({ onClose }: Props) {
     if (!dir) return;
     setSettings((prev) => ({ ...prev, catalogDir: dir }));
     setCatalog(await api.getCatalogSummary());
+    setShipped(await api.compareShippedList());
   };
 
   const clearCatalog = async () => {
@@ -159,9 +162,10 @@ export function Preferences({ onClose }: Props) {
               style={{ marginTop: 2 }}
             />
             <span>
-              Mark programs archived when I export them as a package or for archive.org.
-              Plain extraction never marks anything &mdash; extracting to a working folder
-              is not archiving.
+              Mark programs archived when I get them out of an image &mdash; extracting,
+              a package, or an archive.org bundle. You can always mark a program by hand
+              from the toolbar, which is how to record a copy the catalogue could not
+              match on its own.
             </span>
           </label>
         )}
@@ -190,6 +194,39 @@ export function Preferences({ onClose }: Props) {
         </div>
         {checkMessage && (
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>{checkMessage}</div>
+        )}
+
+        {shipped && (
+          <div style={{
+            fontSize: 11, marginTop: 10, padding: '8px 10px', borderRadius: 4,
+            border: `1px solid ${shipped.inStep ? 'var(--border)' : 'var(--badge-dir)'}`,
+            color: shipped.inStep ? 'var(--text-secondary)' : 'var(--text-primary)',
+            lineHeight: 1.6,
+          }}>
+            {shipped.inStep ? (
+              <>
+                The list shipping with the app matches your catalogue —{' '}
+                {shipped.catalogPrograms.toLocaleString()} programs. Nothing to publish.
+              </>
+            ) : (
+              <>
+                <strong style={{ color: 'var(--badge-dir)' }}>
+                  The list shipping with the app has fallen behind your catalogue.
+                </strong>
+                <br />
+                {shipped.added > 0 && <>{shipped.added.toLocaleString()} program(s) it does not have. </>}
+                {shipped.removed > 0 && <>{shipped.removed.toLocaleString()} it has that you no longer do. </>}
+                {shipped.statusChanged > 0 && (
+                  <>{shipped.statusChanged.toLocaleString()} whose archived state has changed. </>
+                )}
+                <br />
+                <span style={{ color: 'var(--text-muted)' }}>
+                  Use Update Shared Program List in the File menu, commit the file, and it reaches
+                  everyone else on the next release.
+                </span>
+              </>
+            )}
+          </div>
         )}
 
         <label style={{

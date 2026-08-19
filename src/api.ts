@@ -55,6 +55,16 @@ export interface DiskImage {
   catalog: FileEntry[];
 }
 
+export interface ShippedComparison {
+  inStep: boolean;
+  catalogPrograms: number;
+  shippedPrograms: number;
+  added: number;
+  removed: number;
+  statusChanged: number;
+  shippedPath: string | null;
+}
+
 export interface TodoEntry {
   id: string; title: string; kind: string; size: number;
   /** Copies across the whole collection. */
@@ -295,6 +305,8 @@ interface DiskToolsAPI {
   setCatalogArchived: (targetPath: string, isDirectory: boolean, archived: boolean)
     => Promise<{ changed: number; total: number; titles: string[] } | null>;
   getCatalogSummary: () => Promise<{ dir: string; images: number; folders: number; programs: number; archived: number } | null>;
+  /** Whether the list shipping inside the app still says what the catalogue says. */
+  compareShippedList: () => Promise<ShippedComparison | null>;
   /**
    * How the open disk stands against the collection: which of its programs are
    * already known, and which of those are archived. Null when nothing is loaded.
@@ -314,6 +326,9 @@ interface DiskToolsAPI {
   onMenuIngestCatalog: (callback: () => void) => () => void;
   /** What is rarest and unarchived, and which folders hold unique material. */
   getCatalogInsights: () => Promise<Insights | null>;
+  /** Mark chosen entries of an open image, for what the catalogue could not match. */
+  markEntriesArchived: (imagePath: string, entryIndices: number[], archived?: boolean)
+    => Promise<{ changed: number; total: number } | null>;
   markProgramsArchived: (ids: string[], archived?: boolean) => Promise<{ changed: number } | null>;
   onMenuCatalogInsights: (callback: () => void) => () => void;
   pickCatalogDir: () => Promise<string | null>;

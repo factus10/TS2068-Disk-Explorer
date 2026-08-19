@@ -346,7 +346,10 @@ function App() {
     }
 
     setExtracting(false);
-    setStatus(`Extracted ${results.length} file(s)`);
+    const marked = results.reduce((n, r) => n + (r.marked ?? 0), 0);
+    setStatus(`Extracted ${results.length} file(s)`
+      + (marked ? ` — ${marked} marked archived` : ''));
+    if (marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
   }, [disk, selectedIndices, editState, askForRename, refreshArchiveStatus]);
 
   /**
@@ -387,6 +390,27 @@ function App() {
     }
     setExtracting(false);
   }, [disk, selectedIndices, editState, askForRename, refreshArchiveStatus]);
+
+  /**
+   * Mark the selected programs by hand. The catalogue matches on bytes, so two
+   * copies that differ by a renamed file or a byte of padding look like
+   * different programs; this is how you say they are not.
+   */
+  const handleMarkSelected = useCallback(async (archived: boolean) => {
+    if (!disk || selectedIndices.size === 0) return;
+    try {
+      const r = await api.markEntriesArchived(disk.path, [...selectedIndices], archived);
+      if (!r) { setStatus('No catalogue is set — choose one in Preferences'); return; }
+      setStatus(archived
+        ? `Marked ${r.changed} of ${r.total} selected program(s) archived`
+          + (r.changed < r.total ? ' — the rest were already' : '')
+        : `Unmarked ${r.changed} program(s)`);
+      refreshArchiveStatus(disk.path);
+      setBrowserRefresh((n) => n + 1);
+    } catch (err: any) {
+      setStatus(`Error: ${err.message}`);
+    }
+  }, [disk, selectedIndices, refreshArchiveStatus]);
 
   const handleExtractPackage = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
@@ -442,7 +466,10 @@ function App() {
     setStatus('Extracting all files...');
     try {
       const results = await api.extractAll(disk.path, destDir, editState, disasmState);
-      setStatus(`Extracted ${results.length} file(s)`);
+      const marked = results[0]?.marked ?? 0;
+      setStatus(`Extracted ${results.length} file(s)`
+        + (marked ? ` — ${marked} marked archived` : ''));
+      if (marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
       // Ask now rather than at launch: there is a folder to point at and a
       // reason to care about it. Declining is remembered by not asking again
       // until they set one deliberately in Preferences.
@@ -700,6 +727,8 @@ function App() {
         onOpen={handleOpen}
         onExtractSelected={handleExtractSelected}
         onExtractSelectedAsTap={handleExtractSelectedAsTap}
+        onMarkSelected={handleMarkSelected}
+        hasCatalog={archiveStatus !== null}
         onExtractAll={handleExtractAll}
         onExtractPackage={handleExtractPackage}
         hasSelection={selectedIndices.size > 0}

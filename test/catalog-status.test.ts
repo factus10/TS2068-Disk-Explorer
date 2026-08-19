@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { archiveCount, programsAt, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv } from '../electron/catalog-status';
+import { archiveCount, programsAt, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv, compareShippedList } from '../electron/catalog-status';
 
 /**
  * The catalogue records paths relative to the collection root, which the app
@@ -244,5 +244,64 @@ describe('building the shared list', () => {
 
   it('is null when the folder holds no catalogue', () => {
     expect(buildKnownProgramsCsv(collection)).toBeNull();
+  });
+});
+
+describe('whether the shipped list has fallen behind', () => {
+  it('says so plainly when it matches', () => {
+    // The shipped list ships with the app, so the fixture cannot replace it;
+    // what matters is that a real comparison reports both sides.
+    const c = compareShippedList(cat)!;
+    expect(c.catalogPrograms).toBe(3);
+    expect(typeof c.inStep).toBe('boolean');
+  });
+
+  it('counts programs the catalogue has that the list does not', () => {
+    const c = compareShippedList(cat)!;
+    // The fixture's three programs are not in the app's shipped list, so all
+    // three read as additions.
+    expect(c.added).toBe(3);
+    expect(c.inStep).toBe(false);
+  });
+
+  it('notices an archived state that changed since the list was written', () => {
+    const before = compareShippedList(cat)!;
+    markIds(cat, ['aaa11111'], true);
+    const after = compareShippedList(cat)!;
+    // Marking does not add a program, so the difference is in state, not count.
+    expect(after.catalogPrograms).toBe(before.catalogPrograms);
+    expect(after.inStep).toBe(false);
+  });
+
+  it('is null when there is no catalogue to compare against', () => {
+    expect(compareShippedList(collection)).toBeNull();
+  });
+});
+
+describe('marking a copy the catalogue could not match', () => {
+  it('marks and unmarks by id, whatever route asked', () => {
+    // The catalogue matches on bytes, so a renamed or slightly altered copy
+    // reads as a different program. Marking by hand is the only remedy.
+    expect(markIds(cat, ['aaa11111'], true)).toEqual({ changed: 1 });
+    expect(statusForIds(cat, ['aaa11111'])).toEqual({ aaa11111: 'marked' });
+    expect(markIds(cat, ['aaa11111'], false)).toEqual({ changed: 1 });
+    expect(statusForIds(cat, ['aaa11111'])).toEqual({});
+  });
+
+  it('marks a second program without disturbing the first', () => {
+    // The reported failure: one export marked, later ones seemed not to.
+    markIds(cat, ['aaa11111'], true);
+    markIds(cat, ['bbb22222'], true);
+    markIds(cat, ['ccc33333'], true);
+    expect(statusForIds(cat, ['aaa11111', 'bbb22222', 'ccc33333'])).toEqual({
+      aaa11111: 'marked', bbb22222: 'marked', ccc33333: 'marked',
+    });
+  });
+
+  it('reports nothing changed when it was already marked', () => {
+    // Worth distinguishing: "already done" must not read as "failed".
+    markIds(cat, ['aaa11111'], true);
+    expect(markIds(cat, ['aaa11111'], true)).toEqual({ changed: 0 });
+    expect(statusForIds(cat, ['aaa11111'])).toEqual({ aaa11111: 'marked' });
   });
 });

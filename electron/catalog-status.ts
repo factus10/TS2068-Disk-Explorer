@@ -410,6 +410,75 @@ export function buildKnownProgramsCsv(dir: string): { text: string; rows: number
   return { text: out, rows: rows.length, archived, matched };
 }
 
+export interface ShippedComparison {
+  /** The shipped list already says what the catalogue would say. */
+  inStep: boolean;
+  catalogPrograms: number;
+  shippedPrograms: number;
+  /** Programs the catalogue has that the shipped list does not. */
+  added: number;
+  /** Programs the shipped list has that the catalogue no longer does. */
+  removed: number;
+  /** Programs whose archived state has changed since the list was written. */
+  statusChanged: number;
+  shippedPath: string | null;
+}
+
+/**
+ * Whether the list that travels inside the app still says what the catalogue
+ * says. It falls behind silently — the catalogue grows, marks accumulate, and
+ * nothing in the app notices — so the answer is worth stating rather than
+ * leaving to be remembered.
+ */
+export function compareShippedList(catalogDir: string): ShippedComparison | null {
+  const projected = buildKnownProgramsCsv(catalogDir);
+  if (!projected) return null;
+
+  const parse = (text: string) => {
+    const rows = new Map<string, string>();
+    for (const line of text.split('\n').slice(1)) {
+      if (!line) continue;
+      const f = splitCsvLine(line);
+      if (f[0]) rows.set(f[0], f[5] ?? '');
+    }
+    return rows;
+  };
+
+  const shippedPath = bundledKnownPath();
+  let shippedText: string | null = null;
+  if (shippedPath) {
+    try { shippedText = fs.readFileSync(shippedPath, 'utf-8'); } catch { /* absent */ }
+  }
+
+  const now = parse(projected.text);
+  if (shippedText === null) {
+    return {
+      inStep: false, catalogPrograms: now.size, shippedPrograms: 0,
+      added: now.size, removed: 0, statusChanged: 0, shippedPath,
+    };
+  }
+  if (shippedText === projected.text) {
+    return {
+      inStep: true, catalogPrograms: now.size, shippedPrograms: now.size,
+      added: 0, removed: 0, statusChanged: 0, shippedPath,
+    };
+  }
+
+  const was = parse(shippedText);
+  let added = 0; let statusChanged = 0;
+  for (const [id, state] of now) {
+    if (!was.has(id)) added++;
+    else if (was.get(id) !== state) statusChanged++;
+  }
+  let removed = 0;
+  for (const id of was.keys()) if (!now.has(id)) removed++;
+
+  return {
+    inStep: false, catalogPrograms: now.size, shippedPrograms: was.size,
+    added, removed, statusChanged, shippedPath,
+  };
+}
+
 /** A quick sanity summary for Preferences, so a wrong folder is obvious. */
 export function catalogSummary(dir: string): { images: number; folders: number; programs: number; archived: number } | null {
   const catalog = readCatalog(dir);

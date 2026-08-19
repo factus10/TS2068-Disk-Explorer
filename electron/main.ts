@@ -11,6 +11,7 @@ import {
 import { SUPPORTED_EXTENSIONS, isSupportedFile } from './parsers/supported-formats';
 import {
   archiveCount, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv,
+  compareShippedList,
 } from './catalog-status';
 import { checkForUpdate, saveUpdate, clearUpdate, countRows } from './catalog-update';
 import { surveyCollection, ingestImages } from './catalog-ingest';
@@ -411,9 +412,13 @@ function programId(data: Buffer): string {
 }
 
 /**
- * Mark what an export just wrote. Only exports that put a program into the
- * archive do this — a plain extraction to a working folder is not archiving,
- * and saying it was would make the catalogue lie.
+ * Mark what was just written out. Every route that takes a program out of an
+ * image counts: a package, an archive.org bundle, or a plain extraction.
+ *
+ * The distinction once drawn here — that extracting to a working folder is not
+ * archiving — was not one the work makes. Getting a program out is the act,
+ * and having some routes record it and others not was merely confusing.
+ * Preferences turns the whole behaviour off for anyone who disagrees.
  */
 function markExported(entries: FileEntry[], fileDataMap: Map<number, Buffer>): number {
   const { catalogDir, markArchivedOnExport } = getSettings();
@@ -425,6 +430,36 @@ function markExported(entries: FileEntry[], fileDataMap: Map<number, Buffer>): n
   }
   return markIds(catalogDir, ids, true).changed;
 }
+
+/**
+ * Mark chosen entries of an open image. The catalogue cannot always tell that
+ * two copies of a program are the same — a renamed file, a byte of padding —
+ * so there has to be a way to say so by hand.
+ */
+ipcMain.handle('mark-entries-archived', async (
+  _event, imagePath: string, entryIndices: number[], archived = true,
+): Promise<{ changed: number; total: number } | null> => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+  const parser = getParser(format);
+  const allEntries = flattenEntries(parser.readCatalog(buffer).entries);
+
+  const wanted = new Set(entryIndices);
+  const ids: string[] = [];
+  for (const entry of allEntries) {
+    if (entry.isDirectory || !wanted.has(entry.index)) continue;
+    let data: Buffer | null = null;
+    try { data = parser.readFileData(buffer, entry); } catch { /* skip */ }
+    if (data && data.length > 0) ids.push(programId(data));
+  }
+
+  const { changed } = markIds(catalogDir, ids, archived);
+  return { changed, total: ids.length };
+});
 
 ipcMain.handle('get-disk-archive-status', async (
   _event, imagePath: string,
@@ -640,6 +675,11 @@ ipcMain.handle('export-known-programs', async (): Promise<
   return { path: result.filePath, rows: built.rows, archived: built.archived, matched: built.matched };
 });
 
+ipcMain.handle('compare-shipped-list', async () => {
+  const { catalogDir } = getSettings();
+  return catalogDir ? compareShippedList(catalogDir) : null;
+});
+
 ipcMain.handle('get-catalog-summary', async (): Promise<
   { dir: string; images: number; folders: number; programs: number; archived: number } | null
 > => {
@@ -785,7 +825,12 @@ ipcMain.handle('extract-file', async (
     ? { ...entry, filename: customBaseName }
     : entry;
 
-  return writeExtractedFile(destDir, effectiveEntry, fileData, format, editedLines);
+  const result = writeExtractedFile(destDir, effectiveEntry, fileData, format, editedLines);
+  if (result) {
+    const marked = markExported([entry], new Map([[entry.index, fileData]]));
+    if (marked) result.marked = marked;
+  }
+  return result;
 });
 
 ipcMain.handle('extract-all', async (
@@ -923,6 +968,9 @@ ipcMain.handle('extract-all', async (
   // Write extraction manifest
   const { header } = parser.readCatalog(buffer);
   writeManifest(destDir, header, imagePath, results);
+
+  const marked = markExported(allEntries.filter((e) => !e.isDirectory), fileDataMap);
+  if (marked && results.length > 0) results[0].marked = marked;
 
   return results;
 });

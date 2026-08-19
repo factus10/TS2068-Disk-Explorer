@@ -44,9 +44,9 @@ export interface Settings {
   catalogDir?: string;
 
   /**
-   * Whether exporting a package or an archive.org bundle also marks those
-   * programs archived in the catalogue. On by default: an export of that kind
-   * is the act of archiving, and marking by hand afterwards gets forgotten.
+   * Whether taking a program out of an image also marks it archived —
+   * extracting, a package, or an archive.org bundle alike. On by default,
+   * because marking by hand afterwards gets forgotten.
    */
   markArchivedOnExport?: boolean;
 

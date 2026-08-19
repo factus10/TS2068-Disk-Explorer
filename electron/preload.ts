@@ -11,10 +11,13 @@ contextBridge.exposeInMainWorld('diskTools', {
   setCatalogArchived: (targetPath: string, isDirectory: boolean, archived: boolean) =>
     ipcRenderer.invoke('set-catalog-archived', targetPath, isDirectory, archived),
   getCatalogSummary: () => ipcRenderer.invoke('get-catalog-summary'),
+  compareShippedList: () => ipcRenderer.invoke('compare-shipped-list'),
   exportKnownPrograms: () => ipcRenderer.invoke('export-known-programs'),
   checkCatalogUpdate: (quiet?: boolean) => ipcRenderer.invoke('check-catalog-update', quiet ?? false),
   surveyCollection: (root?: string) => ipcRenderer.invoke('survey-collection', root),
   getCatalogInsights: () => ipcRenderer.invoke('get-catalog-insights'),
+  markEntriesArchived: (imagePath: string, entryIndices: number[], archived?: boolean) =>
+    ipcRenderer.invoke('mark-entries-archived', imagePath, entryIndices, archived ?? true),
   markProgramsArchived: (ids: string[], archived?: boolean) =>
     ipcRenderer.invoke('mark-programs-archived', ids, archived ?? true),
   onMenuCatalogInsights: (callback: () => void) => {
