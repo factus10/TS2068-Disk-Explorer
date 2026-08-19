@@ -3,3 +3,9 @@ dist/
 dist-electron/
 release/
 *.tsbuildinfo
+
+# Personal tooling for one site's WordPress and one archive.org item, kept
+# out of a disk browser deliberately — see the Collection Catalogue notes.
+scripts/export-wordpress.php
+scripts/match-wordpress.mts
+scripts/hash-archive.mts
