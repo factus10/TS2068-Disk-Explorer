@@ -1247,7 +1247,7 @@ id,title,kind,size,copies,archived
 2a0c72f6,Artificial Intel.,code,25600,1,
 2a19c5aa,MAP VARS,basic,7582,2,
 2a1d2738,Hyper,code,43046,4,
-2a288426,Piano,basic,4747,8,matched
+2a288426,Piano,basic,4747,8,yes
 2a333927,sidescroll,basic,1009,2,matched
 2a3e917e,cassverify,code,389,1,
 2a45bd37,SATURN,screen,6912,1,
@@ -1524,7 +1524,7 @@ id,title,kind,size,copies,archived
 33307eab,DEM69,code,4137,1,
 3333da8a,BORDR1,basic,330,2,
 333c1b30,Tasl51,code,4525,1,
-334b4a74,PEEK VARS,basic,1111,8,
+334b4a74,PEEK VARS,basic,1111,8,yes
 334c21ac,cclear,screen,6912,1,
 3384654b,Ibm,code,1190,3,
 338afa7e,C. break C,code,1500,3,
@@ -1567,7 +1567,7 @@ id,title,kind,size,copies,archived
 3500d8a8,Scanner,basic,1164,3,
 351bde13,RESISTOR,basic,6810,3,matched
 3520de29,G,screen,6912,1,
-354763d7,concentrat,basic,1704,8,
+354763d7,concentrat,basic,1704,8,yes
 354f1970,DOURTY,screen,6912,1,
 354f79bd,TLTIME,code,27010,1,
 3555f7b0,028401,code,6788,4,
@@ -4799,7 +4799,7 @@ a5f53444,Stock Market Simulation,basic,2802,1,matched
 a5fe6ae0,MCUtil,basic,9455,2,
 a5ff415e,mscript5.5,code,10000,2,
 a60152ba,GOLF,basic,16351,3,
-a6020c05,False Echo,basic,1797,2,
+a6020c05,False Echo,basic,1797,2,yes
 a602cfcd,13378,code,13403,1,
 a609bf2c,F16,screen,6912,1,
 a60aef69,FONTED_zip,data,24576,1,
@@ -7046,7 +7046,7 @@ f1e31ce0,DEM41,code,4112,2,
 f1f62100,AUTOSTART,code,5062,1,
 f1f96e09,mozart,loader,7623,1,matched
 f20083b2,F1,code,15404,2,
-f203d80d,kitchaos,basic,7723,8,
+f203d80d,kitchaos,basic,7723,8,yes
 f20dea4b,studio_mc1,code,30672,1,
 f219eb32,1992COVER,code,22817,1,
 f21b0d27,TEXT,basic,14288,3,
