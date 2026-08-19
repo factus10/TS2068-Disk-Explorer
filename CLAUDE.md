@@ -143,7 +143,8 @@ occurrences — and a mark against it survives a rebuild.
 
 ```bash
 npx tsx scripts/scan-collection.mts '<collection>'              # read-only survey
-npx tsx scripts/build-catalog.mts '<collection>' ~/TS-Catalog   # extract + characterise
+npx tsx scripts/build-catalog.mts '<collection>' ~/TS-Catalog   # first pass: extract + characterise
+npx tsx scripts/update-catalog.mts '<collection>' ~/TS-Catalog  # fold in newly imaged disks
 npx tsx scripts/render-catalog.mts ~/TS-Catalog                 # CSVs + index.html
 npx tsx scripts/mark-archived.mts ~/TS-Catalog <id...>          # record a decision
 npx tsx scripts/export-shared-catalog.mts ~/TS-Catalog          # refresh the shipped list
@@ -153,7 +154,16 @@ npx tsx scripts/export-shared-catalog.mts ~/TS-Catalog          # refresh the sh
   definition of program identity every script must come through.
 - **The build is separate from the render** because the build re-reads the whole
   collection — minutes of waiting on cloud storage — while the CSVs and the index
-  are what actually get iterated on.
+  are what actually get iterated on. `build-catalog` writes `catalog.json` and the
+  extracted programs and nothing else; every view is `render-catalog`'s.
+- **`update-catalog` folds in new disks without re-reading everything.** It finds
+  images the catalogue has never seen, fingerprints their contents, and merges:
+  a known program gains an occurrence, an unknown one becomes an entry. Verified
+  to land on a catalogue identical to a full rebuild. It leaves WordPress and
+  archive.org alone — those are downstream, and a disk that arrived this morning
+  cannot already have been published.
+- **Characterisation is shared** (`lib/characterize.mts`) so a program added later
+  is described by the same rules as one added on the first pass.
 - **Reads run 32 deep.** Parsing an image takes about a millisecond; fetching one
   off cloud storage takes the better part of a second, and that wait is idle.
 - **`catalog.json` is the source of truth**; every CSV and `index.html` is a
