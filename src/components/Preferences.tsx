@@ -13,10 +13,12 @@ interface Props {
  * File ▸ Preferences (Cmd/Ctrl+,).
  */
 export function Preferences({ onClose }: Props) {
+  const [catalog, setCatalog] = useState<{ dir: string; images: number; folders: number; programs: number; archived: number } | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
 
   useEffect(() => {
     api.getSettings().then(setSettings).catch(() => setSettings({}));
+    api.getCatalogSummary().then(setCatalog).catch(() => setCatalog(null));
   }, []);
 
   // Escape closes, as it does in every other dialog.
@@ -34,6 +36,19 @@ export function Preferences({ onClose }: Props) {
   const clear = async () => {
     const next = await api.updateSettings({ extractionDir: undefined });
     setSettings(next);
+  };
+
+  const chooseCatalog = async () => {
+    const dir = await api.pickCatalogDir();
+    if (!dir) return;
+    setSettings((prev) => ({ ...prev, catalogDir: dir }));
+    setCatalog(await api.getCatalogSummary());
+  };
+
+  const clearCatalog = async () => {
+    await api.clearCatalogDir();
+    setSettings((prev) => ({ ...prev, catalogDir: undefined }));
+    setCatalog(null);
   };
 
   return (
@@ -83,6 +98,66 @@ export function Preferences({ onClose }: Props) {
           <button onClick={choose} style={btn}>Choose...</button>
           {settings?.extractionDir && <button onClick={clear} style={btn}>Clear</button>}
         </div>
+
+        <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />
+
+        <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 6 }}>
+          Catalogue folder
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+          A catalogue built by <code>build-catalog</code>, holding <code>occurrences.csv</code>.
+          With one set, the file browser shows how much of each disk is already archived, and
+          you can mark a disk from there. Marks are written to <code>marks.json</code>, which is
+          shared with the catalogue scripts &mdash; the CSVs are left alone, since re-rendering
+          the catalogue rewrites them.
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+          borderRadius: 4, padding: '8px 10px',
+        }}>
+          <span style={{
+            flex: 1, fontSize: 11, fontFamily: 'var(--mono, monospace)',
+            color: settings?.catalogDir ? 'var(--text-primary)' : 'var(--text-muted)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            direction: 'rtl', textAlign: 'left',
+          }}>
+            {settings === null ? 'Loading...' : settings.catalogDir ?? 'Not set'}
+          </span>
+          <button onClick={chooseCatalog} style={btn}>Choose...</button>
+          {settings?.catalogDir && <button onClick={clearCatalog} style={btn}>Clear</button>}
+        </div>
+
+        {settings?.catalogDir && (
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10,
+            fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer',
+          }}>
+            <input
+              type="checkbox"
+              checked={settings.markArchivedOnExport !== false}
+              onChange={async (e) => {
+                const next = await api.updateSettings({ markArchivedOnExport: e.target.checked });
+                setSettings(next);
+              }}
+              style={{ marginTop: 2 }}
+            />
+            <span>
+              Mark programs archived when I export them as a package or for archive.org.
+              Plain extraction never marks anything &mdash; extracting to a working folder
+              is not archiving.
+            </span>
+          </label>
+        )}
+
+        {catalog && (
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
+            {catalog.programs.toLocaleString()} programs across {catalog.images.toLocaleString()} images
+            in {catalog.folders} folders &mdash;{' '}
+            <strong style={{ color: 'var(--badge-basic)' }}>{catalog.archived.toLocaleString()} marked archived</strong>.
+          </div>
+        )}
       </div>
     </div>
   );

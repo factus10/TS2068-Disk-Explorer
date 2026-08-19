@@ -18,6 +18,11 @@ export interface DirEntry {
   path: string;
   /** Set for folders only; null when the folder was never marked. */
   archived?: FolderArchiveState | null;
+  /**
+   * How much of this file or folder is archived, per the configured
+   * catalogue. Null when no catalogue is set or it knows nothing about this.
+   */
+  catalog?: { archived: number; total: number; marked: number; matched: number } | null;
 }
 
 export interface DiskHeader {
@@ -50,7 +55,21 @@ export interface DiskImage {
   catalog: FileEntry[];
 }
 
+export interface DiskArchiveStatus {
+  entries: Record<number, { known: boolean; archived?: 'marked' | 'matched' }>;
+  /** Programs on this disk. */
+  total: number;
+  /** How many the collection already holds. */
+  known: number;
+  /** How many are new to it. */
+  fresh: number;
+  /** Which list answered, so a stale shipped copy is not mistaken for live data. */
+  source: string;
+}
+
 export interface ExtractionResult {
+  /** Programs this export also marked archived in the catalogue, if any. */
+  marked?: number;
   filename: string;
   outputPaths: string[];
   format: string;
@@ -82,6 +101,10 @@ export type RemStyle = 'characters' | 'hex';
 export interface Settings {
   /** Where extractions go by default; also where their .dis files land. */
   extractionDir?: string;
+  /** A catalogue folder holding occurrences.csv and marks.json. */
+  catalogDir?: string;
+  /** Whether package and archive.org exports also mark those programs archived. */
+  markArchivedOnExport?: boolean;
 }
 
 /** A SCREEN$ is 6912 bytes: 6144 of pixels then 768 of attributes. */
@@ -220,6 +243,20 @@ interface DiskToolsAPI {
    */
   offerFolderArchive: (imagePath: string) =>
     Promise<{ marked: boolean; dir: string; exported: number; total: number }>;
+  /** Mark every catalogued program in a file or folder; returns what changed. */
+  setCatalogArchived: (targetPath: string, isDirectory: boolean, archived: boolean)
+    => Promise<{ changed: number; total: number; titles: string[] } | null>;
+  getCatalogSummary: () => Promise<{ dir: string; images: number; folders: number; programs: number; archived: number } | null>;
+  /**
+   * How the open disk stands against the collection: which of its programs are
+   * already known, and which of those are archived. Null when nothing is loaded.
+   */
+  getDiskArchiveStatus: (imagePath: string) => Promise<DiskArchiveStatus | null>;
+  /** Rebuild the shared list of known programs from the catalogue. */
+  exportKnownPrograms: () => Promise<{ path: string; rows: number; archived: number; matched: number } | null>;
+  onMenuExportKnown: (callback: () => void) => () => void;
+  pickCatalogDir: () => Promise<string | null>;
+  clearCatalogDir: () => Promise<boolean>;
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
   selectDirectory: () => Promise<string | null>;

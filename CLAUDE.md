@@ -128,6 +128,45 @@ LOAD references and `buildTapPackages` matches them to catalog entries, so a pro
 the CODE/SCREEN$/DATA it loads export as one multi-file TAP. The plan is kept for the
 record of how the format works.
 
+## Collection Catalogue (`scripts/`)
+
+A toolchain for cataloguing a whole collection of disks and tapes, separate from
+the app but built on its parsers. A program's identity is the head of the SHA-256
+of its bytes, so the same program on twelve disks is one entry with twelve
+occurrences — and a mark against it survives a rebuild.
+
+```bash
+npx tsx scripts/scan-collection.mts '<collection>'              # read-only survey
+npx tsx scripts/build-catalog.mts '<collection>' ~/TS-Catalog   # extract + characterise
+npx tsx scripts/render-catalog.mts ~/TS-Catalog                 # CSVs + index.html
+npx tsx scripts/mark-archived.mts ~/TS-Catalog <id...>          # record a decision
+npx tsx scripts/export-shared-catalog.mts ~/TS-Catalog          # refresh the shipped list
+```
+
+- **`lib/collection.mts`** holds the parser dispatch and `hashPrograms`, the one
+  definition of program identity every script must come through.
+- **The build is separate from the render** because the build re-reads the whole
+  collection — minutes of waiting on cloud storage — while the CSVs and the index
+  are what actually get iterated on.
+- **Reads run 32 deep.** Parsing an image takes about a millisecond; fetching one
+  off cloud storage takes the better part of a second, and that wait is idle.
+- **`catalog.json` is the source of truth**; every CSV and `index.html` is a
+  generated view of it. Nothing writes back into them.
+- **`marks.json` is the exception** — hand-made decisions, keyed by content hash,
+  written by `mark-archived.mts` and by the app alike, and never overwritten by a
+  rebuild.
+- **Titles are guesses, and `title_from` says how good a guess.** Filenames in a
+  real collection are conventions — 148 different programs called `AUTOSTART` —
+  so a title mined from a REM or a `PRINT` often beats the name on the disk.
+- **`electron/data/known-programs.csv`** is the shareable projection: which
+  programs exist and which are published, with nothing about where they live. It
+  ships inside the app so someone imaging disks is told what is new without
+  needing a catalogue of their own. Refresh it from File → Update Shared Program
+  List, or with `export-shared-catalog.mts`.
+
+`match-wordpress.mts` and `export-wordpress.php` are not committed: they are
+specific to one site's `computer_media` post type.
+
 ## GitHub
 
 Repo: https://github.com/factus10/TS2068-Disk-Explorer

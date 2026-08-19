@@ -30,6 +30,12 @@ export function visibleAfterHide(entries: DirEntry[], hideArchived: boolean): Di
   return entries.filter((e) => !e.archived || e.archived.stale);
 }
 
+/** How a catalogue count reads at a glance: all done, part done, or none. */
+function catalogTone(c: { archived: number; total: number }): 'done' | 'part' | 'none' {
+  if (c.archived >= c.total) return 'done';
+  return c.archived > 0 ? 'part' : 'none';
+}
+
 /** "Archived 4 Mar 2026" — the date a mark was made, for its tooltip. */
 function formatMarkedAt(iso: string): string {
   const date = new Date(iso);
@@ -47,6 +53,7 @@ export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props
     typeof localStorage !== 'undefined' && localStorage.getItem('hideArchived') === 'true',
   );
   const [menu, setMenu] = useState<{ x: number; y: number; entry: DirEntry } | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
   const dragging = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
@@ -71,7 +78,7 @@ export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props
       }
     });
     return () => { cancelled = true; };
-  }, [currentPath, refreshToken]);
+  }, [currentPath, refreshToken, refreshTick]);
 
   const navigateTo = useCallback((dirPath: string) => {
     setCurrentPath(dirPath);
@@ -121,9 +128,30 @@ export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props
   }, [menu]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, entry: DirEntry) => {
-    if (!entry.isDirectory) return;
+    // A folder can be flagged as processed; anything the catalogue knows
+    // about can be marked archived. Everything else has no menu.
+    if (!entry.isDirectory && !entry.catalog) return;
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, entry });
+  }, []);
+
+  /**
+   * Mark everything the catalogue knows about here. A program lives on more
+   * than one disk, so this reaches every copy — which is the point, but worth
+   * saying out loud before it happens.
+   */
+  const setCatalogArchived = useCallback(async (entry: DirEntry, archived: boolean) => {
+    setMenu(null);
+    const result = await api.setCatalogArchived(entry.path, entry.isDirectory, archived);
+    if (!result) return;
+    setEntries((prev) => prev.map((e) => (
+      e.path === entry.path && e.catalog
+        ? { ...e, catalog: { ...e.catalog, archived: archived ? e.catalog.total : 0 } }
+        : e
+    )));
+    // Other rows can share programs with this one, so re-list rather than
+    // guess which of them just changed.
+    setRefreshTick((n) => n + 1);
   }, []);
 
   const toggleArchived = useCallback(async (entry: DirEntry) => {
@@ -359,6 +387,27 @@ export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props
                   </span>
                 )}
 
+                {/* How much of this is already archived */}
+                {entry.catalog && (
+                  <span
+                    title={`${entry.catalog.archived} of ${entry.catalog.total} program(s) here are archived`
+                      + `\n  ${entry.catalog.marked} marked by you`
+                      + `\n  ${entry.catalog.matched} matched to the archive by name (a guess)`}
+                    style={{
+                      fontSize: 10,
+                      marginLeft: 6,
+                      flexShrink: 0,
+                      fontFamily: 'monospace',
+                      color: isCurrentDisk ? 'rgba(255,255,255,0.9)'
+                        : catalogTone(entry.catalog) === 'done' ? 'var(--badge-basic)'
+                          : catalogTone(entry.catalog) === 'part' ? 'var(--badge-dir)'
+                            : 'var(--text-muted)',
+                    }}
+                  >
+                    {entry.catalog.archived}/{entry.catalog.total}
+                  </span>
+                )}
+
                 {/* Size */}
                 {!entry.isDirectory && (
                   <span style={{
@@ -402,6 +451,37 @@ export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props
             boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
           }}
         >
+          {menu.entry.catalog && (
+            <>
+              <button
+                onClick={() => setCatalogArchived(menu.entry, true)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left', background: 'transparent',
+                  color: 'var(--text-primary)', fontSize: 11, padding: '5px 10px',
+                }}
+              >
+                Mark {menu.entry.catalog.total} program(s) archived
+              </button>
+              {menu.entry.catalog.archived > 0 && (
+                <button
+                  onClick={() => setCatalogArchived(menu.entry, false)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left', background: 'transparent',
+                    color: 'var(--text-secondary)', fontSize: 11, padding: '5px 10px',
+                  }}
+                >
+                  Unmark them
+                </button>
+              )}
+              <div style={{ padding: '2px 10px 5px', fontSize: 10, color: 'var(--text-muted)' }}>
+                Reaches every copy, on every disk
+              </div>
+              {menu.entry.isDirectory && (
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+              )}
+            </>
+          )}
+          {menu.entry.isDirectory && (
           <button
             onClick={() => toggleArchived(menu.entry)}
             style={{
@@ -414,8 +494,9 @@ export function FileBrowser({ onOpenFile, currentDiskPath, refreshToken }: Props
               padding: '5px 10px',
             }}
           >
-            {menu.entry.archived ? 'Unmark as archived' : 'Mark as archived'}
+            {menu.entry.archived ? 'Unmark folder as done' : 'Mark folder as done'}
           </button>
+          )}
           {menu.entry.archived?.stale && (
             <div style={{ padding: '2px 10px 5px', fontSize: 10, color: 'var(--badge-dir)' }}>
               {menu.entry.archived.currentCount - menu.entry.archived.imageCount} new image(s) since

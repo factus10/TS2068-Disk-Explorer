@@ -86,6 +86,8 @@ export interface DiskImage {
 }
 
 export interface ExtractionResult {
+  /** Programs this export also marked archived in the catalogue, if any. */
+  marked?: number;
   filename: string;
   outputPaths: string[];
   format: 'tap' | 'raw' | 'dump+tap' | 'zip';

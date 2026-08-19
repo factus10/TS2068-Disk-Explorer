@@ -8,6 +8,18 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('set-folder-archived', dirPath, archived),
   offerFolderArchive: (imagePath: string) =>
     ipcRenderer.invoke('offer-folder-archive', imagePath),
+  setCatalogArchived: (targetPath: string, isDirectory: boolean, archived: boolean) =>
+    ipcRenderer.invoke('set-catalog-archived', targetPath, isDirectory, archived),
+  getCatalogSummary: () => ipcRenderer.invoke('get-catalog-summary'),
+  exportKnownPrograms: () => ipcRenderer.invoke('export-known-programs'),
+  onMenuExportKnown: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-export-known', handler);
+    return () => ipcRenderer.removeListener('menu-export-known', handler);
+  },
+  getDiskArchiveStatus: (imagePath: string) => ipcRenderer.invoke('get-disk-archive-status', imagePath),
+  pickCatalogDir: () => ipcRenderer.invoke('pick-catalog-dir'),
+  clearCatalogDir: () => ipcRenderer.invoke('clear-catalog-dir'),
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
   openPath: (filePath: string) => ipcRenderer.invoke('open-path', filePath),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
