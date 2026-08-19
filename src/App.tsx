@@ -45,6 +45,15 @@ function App() {
   // Bumped when something outside the browser changes a folder's state, so it
   // re-lists rather than showing a mark that is one export out of date.
   const [browserRefresh, setBrowserRefresh] = useState(0);
+  // Per-entry archive status for the open disk, from the configured catalogue.
+  const [archiveStatus, setArchiveStatus] = useState<Record<number, 'marked' | 'matched'> | null>(null);
+
+  /** Ask the catalogue how the open disk stands. Silent when none is set. */
+  const refreshArchiveStatus = useCallback(async (imagePath?: string) => {
+    if (!imagePath) { setArchiveStatus(null); return; }
+    try { setArchiveStatus(await api.getDiskArchiveStatus(imagePath)); }
+    catch { setArchiveStatus(null); }
+  }, []);
   const [showTapCreator, setShowTapCreator] = useState(false);
   const [showArchiveExport, setShowArchiveExport] = useState(false);
   const [renamePrompt, setRenamePrompt] = useState<{
@@ -118,6 +127,7 @@ function App() {
         setStatus(`Loaded ${result.catalog.length} files`);
         const pkgs = await api.analyzePackages(result.path);
         setAutoPackages(pkgs);
+        refreshArchiveStatus(result.path);
       }
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
@@ -139,6 +149,7 @@ function App() {
       setStatus(`Loaded ${result.catalog.length} files`);
       const pkgs = await api.analyzePackages(result.path);
       setAutoPackages(pkgs);
+      refreshArchiveStatus(result.path);
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
@@ -330,7 +341,7 @@ function App() {
 
     setExtracting(false);
     setStatus(`Extracted ${results.length} file(s)`);
-  }, [disk, selectedIndices, editState, askForRename]);
+  }, [disk, selectedIndices, editState, askForRename, refreshArchiveStatus]);
 
   /**
    * Bundle the selected entries into one multi-file TAP — the loader is the
@@ -362,12 +373,14 @@ function App() {
       const written = result?.outputPaths[0]?.split(/[/\\]/).pop();
       setStatus(result
         ? `Wrote ${chosen.length} file(s) to ${written}`
+          + (result.marked ? ` — ${result.marked} marked archived` : '')
         : 'TAP build failed');
+      if (result?.marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk, selectedIndices, editState, askForRename]);
+  }, [disk, selectedIndices, editState, askForRename, refreshArchiveStatus]);
 
   const handleExtractPackage = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
@@ -389,12 +402,16 @@ function App() {
     try {
       const depIndices = pkg.dependencies.map((d) => d.index);
       const result = await api.extractPackage(disk.path, pkg.loader.index, depIndices, destDir, editState, customName);
-      setStatus(result ? `Extracted package: ${result.filename.trim()}` : 'Package extraction failed');
+      setStatus(result
+        ? `Extracted package: ${result.filename.trim()}`
+          + (result.marked ? ` — ${result.marked} marked archived` : '')
+        : 'Package extraction failed');
+      if (result?.marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk, selectedIndices, packages, editState, askForRename]);
+  }, [disk, selectedIndices, packages, editState, askForRename, refreshArchiveStatus]);
 
   /**
    * After a whole-disk export, let the main process record it and offer to
@@ -456,9 +473,12 @@ function App() {
       setStatus('Exporting archive ZIP...');
       try {
         const results = await api.exportArchive(disk.path, zipPath, metadata, editState, disasmState, entryIndices);
-        setStatus(metadata.format === 'image-zip'
+        const marked = results[0]?.marked ?? 0;
+        setStatus((metadata.format === 'image-zip'
           ? 'Exported disk image to ZIP'
-          : `Exported ${results.length} file(s) to ZIP`);
+          : `Exported ${results.length} file(s) to ZIP`)
+          + (marked ? ` — ${marked} marked archived` : ''));
+        if (marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
         // Only a whole-disk export means this image is done with.
         if (metadata.scope === 'disk') await offerFolderMark(disk.path);
       } catch (err: any) {
@@ -472,14 +492,17 @@ function App() {
       setStatus('Exporting for archive.org...');
       try {
         const results = await api.exportArchive(disk.path, destDir, metadata, editState, disasmState, entryIndices);
-        setStatus(`Exported ${results.length} file(s) for archive.org`);
+        const marked = results[0]?.marked ?? 0;
+        setStatus(`Exported ${results.length} file(s) for archive.org`
+          + (marked ? ` — ${marked} marked archived` : ''));
+        if (marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
         if (metadata.scope === 'disk') await offerFolderMark(disk.path);
       } catch (err: any) {
         setStatus(`Error: ${err.message}`);
       }
       setExtracting(false);
     }
-  }, [disk, selectedIndices, editState, disasmState, offerFolderMark]);
+  }, [disk, selectedIndices, editState, disasmState, offerFolderMark, refreshArchiveStatus]);
 
   const handleExportAllFonts = useCallback(async () => {
     if (!disk) return;
@@ -702,6 +725,7 @@ function App() {
                 onRemoveFromPackage={handleRemoveFromPackage}
                 editedIndices={editState}
                 searchQuery={searchQuery}
+                archiveStatus={archiveStatus}
               />
             ) : (
               <DropZone onDrop={handleDrop} />

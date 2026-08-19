@@ -20,6 +20,8 @@ interface Props {
   onRemoveFromPackage: (loaderIndex: number, entryIndex: number) => void;
   editedIndices: EditState;
   searchQuery: string;
+  /** Per entry index: archived by your mark, or matched to the archive by name. */
+  archiveStatus?: Record<number, 'marked' | 'matched'> | null;
 }
 
 type SortKey = 'index' | 'filename' | 'typeName' | 'size';
@@ -44,6 +46,7 @@ function formatSize(bytes: number): string {
 export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
   entries, selectedIndices, onSelect, onViewHex, packages,
   manualLoaderIndices, onCreatePackage, onAddToPackage, onReorderInPackage, onRemoveFromPackage,
+  archiveStatus,
   editedIndices, searchQuery,
 }, ref) {
   const [sortKey, setSortKey] = useState<SortKey>('index');
@@ -399,6 +402,16 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
               ? `[${entry.blocks.slice(0, 6).join(', ')}, ...]`
               : `[${entry.blocks.join(', ')}]`}
           </td>
+          <td style={{ textAlign: 'center', fontSize: 12 }}>
+            {archiveStatus?.[entry.index] === 'marked' ? (
+              <span title="You marked this archived" style={{ color: 'var(--badge-basic)' }}>{'\u2714'}</span>
+            ) : archiveStatus?.[entry.index] === 'matched' ? (
+              // Hollow, because a name match is a guess and should not read
+              // like a decision you made.
+              <span title="Matched to the archive by name — a guess, not your decision"
+                style={{ color: 'var(--badge-dir)', opacity: 0.85 }}>{'\u2713'}</span>
+            ) : null}
+          </td>
         </tr>
         {hasChildren && isExpanded && entry.children!.map((child) => renderRow(child, depth + 1))}
         {hasPackage && isExpanded && pkg!.dependencies.map((dep) => renderRow(dep, depth + 1, true, entry.index))}
@@ -446,6 +459,9 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
             Size{sortArrow('size')}
           </th>
           <th style={headerStyle}>Blocks</th>
+          <th style={{ ...headerStyle, textAlign: 'center' }} title="Archived: a solid tick is your own mark, a hollow one a name match">
+            Arch
+          </th>
         </tr>
       </thead>
       <tbody>

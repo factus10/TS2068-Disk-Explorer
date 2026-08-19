@@ -2,12 +2,14 @@ import { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeImage } from 'e
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import { getRecent, addRecent, clearRecent } from './recent-files';
 import { getSettings, updateSettings } from './settings';
 import {
   getFolderState, markFolder, unmarkFolder, recordImageExported, declineFolderOffer,
 } from './archive-marker';
-import { SUPPORTED_EXTENSIONS } from './parsers/supported-formats';
+import { SUPPORTED_EXTENSIONS, isSupportedFile } from './parsers/supported-formats';
+import { archiveCount, setArchived, catalogSummary, statusForIds, markIds } from './catalog-status';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -324,7 +326,9 @@ ipcMain.handle('list-directory', async (_event, dirPath: string) => {
     const results: {
       name: string; isDirectory: boolean; size: number; path: string;
       archived?: FolderArchiveState | null;
+      catalog?: { archived: number; total: number; marked: number; matched: number } | null;
     }[] = [];
+    const { catalogDir } = getSettings();
 
     for (const item of items) {
       if (item.name.startsWith('.')) continue; // skip hidden files
@@ -337,7 +341,12 @@ ipcMain.handle('list-directory', async (_event, dirPath: string) => {
       // Folders carry their archived state with the listing so the browser can
       // badge them without a round trip each.
       const archived = isDir ? getFolderState(fullPath) : null;
-      results.push({ name: item.name, isDirectory: isDir, size, path: fullPath, archived });
+      // How much of this disk is already in the archive, when a catalogue is
+      // configured. Folders and images alike, so a folder reads as a whole.
+      const catalog = catalogDir && (isDir || isSupportedFile(item.name))
+        ? archiveCount(catalogDir, fullPath, isDir)
+        : null;
+      results.push({ name: item.name, isDirectory: isDir, size, path: fullPath, archived, catalog });
     }
 
     // Sort: folders first, then files, alphabetical within each
@@ -361,6 +370,100 @@ ipcMain.handle('set-folder-archived', async (
   }
   return markFolder(dirPath, new Date().toISOString());
 });
+
+
+/**
+ * The catalogue id of a program is the head of the SHA-256 of its bytes — the
+ * same rule build-catalog.mts uses, so the two agree without either knowing
+ * about the other.
+ */
+function programId(data: Buffer): string {
+  return crypto.createHash('sha256').update(data).digest('hex').slice(0, 8);
+}
+
+/**
+ * Mark what an export just wrote. Only exports that put a program into the
+ * archive do this — a plain extraction to a working folder is not archiving,
+ * and saying it was would make the catalogue lie.
+ */
+function markExported(entries: FileEntry[], fileDataMap: Map<number, Buffer>): number {
+  const { catalogDir, markArchivedOnExport } = getSettings();
+  if (!catalogDir || markArchivedOnExport === false) return 0;
+  const ids: string[] = [];
+  for (const entry of entries) {
+    const data = fileDataMap.get(entry.index);
+    if (data) ids.push(programId(data));
+  }
+  return markIds(catalogDir, ids, true).changed;
+}
+
+ipcMain.handle('get-disk-archive-status', async (
+  _event, imagePath: string,
+): Promise<Record<number, 'marked' | 'matched'> | null> => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+  const parser = getParser(format);
+  const allEntries = flattenEntries(parser.readCatalog(buffer).entries);
+
+  // Hashed rather than looked up by catalogue position: the position would
+  // drift the moment an image changed, and a wrong answer here is worse than
+  // none at all.
+  const idByIndex = new Map<number, string>();
+  for (const entry of allEntries) {
+    if (entry.isDirectory) continue;
+    let data: Buffer | null = null;
+    try { data = parser.readFileData(buffer, entry); } catch { /* skip */ }
+    if (data && data.length > 0) idByIndex.set(entry.index, programId(data));
+  }
+
+  const status = statusForIds(catalogDir, [...idByIndex.values()]);
+  const out: Record<number, 'marked' | 'matched'> = {};
+  for (const [index, id] of idByIndex) if (status[id]) out[index] = status[id];
+  return out;
+});
+
+ipcMain.handle('set-catalog-archived', async (
+  _event, targetPath: string, isDirectory: boolean, archived: boolean,
+): Promise<{ changed: number; total: number; titles: string[] } | null> => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+  return setArchived(catalogDir, targetPath, isDirectory, archived);
+});
+
+ipcMain.handle('get-catalog-summary', async (): Promise<
+  { dir: string; images: number; folders: number; programs: number; archived: number } | null
+> => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+  const summary = catalogSummary(catalogDir);
+  return summary ? { dir: catalogDir, ...summary } : null;
+});
+
+ipcMain.handle('pick-catalog-dir', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openDirectory'],
+    title: 'Choose the catalogue folder (the one holding occurrences.csv)',
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const dir = result.filePaths[0];
+  if (!catalogSummary(dir)) {
+    await dialog.showMessageBox(mainWindow!, {
+      type: 'warning',
+      title: 'Not a catalogue',
+      message: 'That folder has no occurrences.csv in it.',
+      detail: 'Choose the folder a catalogue was built into — it holds occurrences.csv, catalog.csv and marks.json.',
+    });
+    return null;
+  }
+  updateSettings({ catalogDir: dir });
+  return dir;
+});
+
+ipcMain.handle('clear-catalog-dir', async () => { updateSettings({ catalogDir: undefined }); return true; });
 
 ipcMain.handle('select-directory', async () => {
   // Open where the reader last chose to extract. The dialog is still shown --
@@ -676,10 +779,10 @@ function buildArchiveFiles(
   allEdits?: Record<number, Record<number, string>>,
   allDisasm?: DisasmSettingsMap,
   selection?: number[],
-): { name: string; data: Buffer; entry: FileEntry }[] {
+): { files: { name: string; data: Buffer; entry: FileEntry }[]; programIds: string[] } {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
-  if (!format) return [];
+  if (!format) return { files: [], programIds: [] };
 
   const parser = getParser(format);
   const { entries } = parser.readCatalog(buffer);
@@ -757,7 +860,13 @@ function buildArchiveFiles(
     });
   }
 
-  return files;
+  // Identity comes from the program's own bytes, not from what was written:
+  // a TAP wrapper would hash to something the catalogue has never seen.
+  const programIds = [...new Set(
+    plan.covered.map((e) => fileDataMap.get(e.index)).filter(Boolean).map((d) => programId(d as Buffer)),
+  )];
+
+  return { files, programIds };
 }
 
 ipcMain.handle('export-archive', async (
@@ -789,8 +898,18 @@ ipcMain.handle('export-archive', async (
     }];
   }
 
-  const archiveFiles = buildArchiveFiles(imagePath, metadata, allEdits, allDisasm, selection);
+  const { files: archiveFiles, programIds } = buildArchiveFiles(imagePath, metadata, allEdits, allDisasm, selection);
   if (archiveFiles.length === 0) return [];
+
+  // An archive.org export is the act of archiving, so what it covers is
+  // recorded as archived.
+  let markedCount = 0;
+  {
+    const { catalogDir, markArchivedOnExport } = getSettings();
+    if (catalogDir && markArchivedOnExport !== false) {
+      markedCount = markIds(catalogDir, programIds, true).changed;
+    }
+  }
 
   // ZIP mode: the archive-named files, packed instead of written loose.
   if (metadata.format === 'zip') {
@@ -800,11 +919,12 @@ ipcMain.handle('export-archive', async (
     const zipData = buildZipArchive(archiveFiles.map((f, i) => ({ name: names[i], data: f.data })));
     fs.writeFileSync(destOrZipPath, zipData);
 
-    return archiveFiles.map((f) => ({
+    return archiveFiles.map((f, i) => ({
       filename: f.entry.filename,
       outputPaths: [destOrZipPath],
       format: 'zip',
       size: f.data.length,
+      ...(i === 0 ? { marked: markedCount } : {}),
     }));
   }
 
@@ -819,6 +939,7 @@ ipcMain.handle('export-archive', async (
       outputPaths: [outPath],
       format: 'tap',
       size: f.data.length,
+      ...(results.length === 0 ? { marked: markedCount } : {}),
     });
   }
   return results;
@@ -899,11 +1020,14 @@ ipcMain.handle('extract-package', async (
   const tapPath = uniquePath(path.join(destDir, (safeName || 'package') + '.tap'));
   fs.writeFileSync(tapPath, tapData);
 
+  const marked = markExported([loader, ...deps], fileDataMap);
+
   return {
     filename: loader.filename,
     outputPaths: [tapPath],
     format: 'tap',
     size: tapData.length,
+    marked,
   };
 });
 

@@ -36,6 +36,19 @@ export interface Settings {
    * declined to mark, which are remembered so the offer does not nag.
    */
   exportProgress?: Record<string, { exported: string[]; declined?: boolean }>;
+
+  /**
+   * A catalogue built by scripts/build-catalog.mts. When set, the file browser
+   * shows how much of each disk is already archived, and can mark it.
+   */
+  catalogDir?: string;
+
+  /**
+   * Whether exporting a package or an archive.org bundle also marks those
+   * programs archived in the catalogue. On by default: an export of that kind
+   * is the act of archiving, and marking by hand afterwards gets forgotten.
+   */
+  markArchivedOnExport?: boolean;
 }
 
 function getFilePath(): string {
@@ -73,6 +86,14 @@ export function getSettings(): Settings {
       }
       if (Object.keys(marks).length > 0) out.archivedFolders = marks;
     }
+    // Like extractionDir, a catalogue that has gone is dropped: showing
+    // archive counts from a folder that is no longer there would be a lie.
+    if (typeof raw.catalogDir === 'string' && raw.catalogDir) {
+      try {
+        if (fs.statSync(path.join(raw.catalogDir, 'occurrences.csv')).isFile()) out.catalogDir = raw.catalogDir;
+      } catch { /* gone, or not a catalogue; leave it unset */ }
+    }
+    if (typeof raw.markArchivedOnExport === 'boolean') out.markArchivedOnExport = raw.markArchivedOnExport;
     if (raw.exportProgress && typeof raw.exportProgress === 'object') {
       const progress: Record<string, { exported: string[]; declined?: boolean }> = {};
       for (const [dir, value] of Object.entries(raw.exportProgress as Record<string, unknown>)) {

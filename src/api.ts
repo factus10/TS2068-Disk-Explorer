@@ -18,6 +18,11 @@ export interface DirEntry {
   path: string;
   /** Set for folders only; null when the folder was never marked. */
   archived?: FolderArchiveState | null;
+  /**
+   * How much of this file or folder is archived, per the configured
+   * catalogue. Null when no catalogue is set or it knows nothing about this.
+   */
+  catalog?: { archived: number; total: number; marked: number; matched: number } | null;
 }
 
 export interface DiskHeader {
@@ -51,6 +56,8 @@ export interface DiskImage {
 }
 
 export interface ExtractionResult {
+  /** Programs this export also marked archived in the catalogue, if any. */
+  marked?: number;
   filename: string;
   outputPaths: string[];
   format: string;
@@ -82,6 +89,10 @@ export type RemStyle = 'characters' | 'hex';
 export interface Settings {
   /** Where extractions go by default; also where their .dis files land. */
   extractionDir?: string;
+  /** A catalogue folder holding occurrences.csv and marks.json. */
+  catalogDir?: string;
+  /** Whether package and archive.org exports also mark those programs archived. */
+  markArchivedOnExport?: boolean;
 }
 
 /** A SCREEN$ is 6912 bytes: 6144 of pixels then 768 of attributes. */
@@ -220,6 +231,14 @@ interface DiskToolsAPI {
    */
   offerFolderArchive: (imagePath: string) =>
     Promise<{ marked: boolean; dir: string; exported: number; total: number }>;
+  /** Mark every catalogued program in a file or folder; returns what changed. */
+  setCatalogArchived: (targetPath: string, isDirectory: boolean, archived: boolean)
+    => Promise<{ changed: number; total: number; titles: string[] } | null>;
+  getCatalogSummary: () => Promise<{ dir: string; images: number; folders: number; programs: number; archived: number } | null>;
+  /** Per catalogue entry index: your mark, or a name match. Null when no catalogue. */
+  getDiskArchiveStatus: (imagePath: string) => Promise<Record<number, 'marked' | 'matched'> | null>;
+  pickCatalogDir: () => Promise<string | null>;
+  clearCatalogDir: () => Promise<boolean>;
   openFileDialog: () => Promise<DiskImage | null>;
   openPath: (filePath: string) => Promise<DiskImage>;
   selectDirectory: () => Promise<string | null>;
