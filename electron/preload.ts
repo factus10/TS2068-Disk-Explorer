@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('diskTools', {
   checkCatalogUpdate: (quiet?: boolean) => ipcRenderer.invoke('check-catalog-update', quiet ?? false),
   surveyCollection: (root?: string) => ipcRenderer.invoke('survey-collection', root),
   getCatalogInsights: () => ipcRenderer.invoke('get-catalog-insights'),
+  markEntriesArchived: (imagePath: string, entryIndices: number[], archived?: boolean) =>
+    ipcRenderer.invoke('mark-entries-archived', imagePath, entryIndices, archived ?? true),
   markProgramsArchived: (ids: string[], archived?: boolean) =>
     ipcRenderer.invoke('mark-programs-archived', ids, archived ?? true),
   onMenuCatalogInsights: (callback: () => void) => {

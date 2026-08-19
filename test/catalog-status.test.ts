@@ -277,3 +277,31 @@ describe('whether the shipped list has fallen behind', () => {
     expect(compareShippedList(collection)).toBeNull();
   });
 });
+
+describe('marking a copy the catalogue could not match', () => {
+  it('marks and unmarks by id, whatever route asked', () => {
+    // The catalogue matches on bytes, so a renamed or slightly altered copy
+    // reads as a different program. Marking by hand is the only remedy.
+    expect(markIds(cat, ['aaa11111'], true)).toEqual({ changed: 1 });
+    expect(statusForIds(cat, ['aaa11111'])).toEqual({ aaa11111: 'marked' });
+    expect(markIds(cat, ['aaa11111'], false)).toEqual({ changed: 1 });
+    expect(statusForIds(cat, ['aaa11111'])).toEqual({});
+  });
+
+  it('marks a second program without disturbing the first', () => {
+    // The reported failure: one export marked, later ones seemed not to.
+    markIds(cat, ['aaa11111'], true);
+    markIds(cat, ['bbb22222'], true);
+    markIds(cat, ['ccc33333'], true);
+    expect(statusForIds(cat, ['aaa11111', 'bbb22222', 'ccc33333'])).toEqual({
+      aaa11111: 'marked', bbb22222: 'marked', ccc33333: 'marked',
+    });
+  });
+
+  it('reports nothing changed when it was already marked', () => {
+    // Worth distinguishing: "already done" must not read as "failed".
+    markIds(cat, ['aaa11111'], true);
+    expect(markIds(cat, ['aaa11111'], true)).toEqual({ changed: 0 });
+    expect(statusForIds(cat, ['aaa11111'])).toEqual({ aaa11111: 'marked' });
+  });
+});

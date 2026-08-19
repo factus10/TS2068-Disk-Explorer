@@ -162,9 +162,10 @@ export function Preferences({ onClose }: Props) {
               style={{ marginTop: 2 }}
             />
             <span>
-              Mark programs archived when I export them as a package or for archive.org.
-              Plain extraction never marks anything &mdash; extracting to a working folder
-              is not archiving.
+              Mark programs archived when I get them out of an image &mdash; extracting,
+              a package, or an archive.org bundle. You can always mark a program by hand
+              from the toolbar, which is how to record a copy the catalogue could not
+              match on its own.
             </span>
           </label>
         )}

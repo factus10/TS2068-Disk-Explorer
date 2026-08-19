@@ -326,6 +326,9 @@ interface DiskToolsAPI {
   onMenuIngestCatalog: (callback: () => void) => () => void;
   /** What is rarest and unarchived, and which folders hold unique material. */
   getCatalogInsights: () => Promise<Insights | null>;
+  /** Mark chosen entries of an open image, for what the catalogue could not match. */
+  markEntriesArchived: (imagePath: string, entryIndices: number[], archived?: boolean)
+    => Promise<{ changed: number; total: number } | null>;
   markProgramsArchived: (ids: string[], archived?: boolean) => Promise<{ changed: number } | null>;
   onMenuCatalogInsights: (callback: () => void) => () => void;
   pickCatalogDir: () => Promise<string | null>;

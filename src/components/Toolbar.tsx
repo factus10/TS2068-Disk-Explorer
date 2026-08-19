@@ -4,6 +4,9 @@ interface Props {
   onOpen: () => void;
   onExtractSelected: () => void;
   onExtractSelectedAsTap: () => void;
+  onMarkSelected: (archived: boolean) => void;
+  /** Whether a catalogue is loaded, so marking means anything. */
+  hasCatalog: boolean;
   onExtractAll: () => void;
   onExtractPackage: () => void;
   hasSelection: boolean;
@@ -28,7 +31,7 @@ interface Props {
 }
 
 export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
-  onOpen, onExtractSelected, onExtractSelectedAsTap, onExtractAll, onExtractPackage,
+  onOpen, onExtractSelected, onExtractSelectedAsTap, onMarkSelected, hasCatalog, onExtractAll, onExtractPackage,
   hasSelection, canBundleTap, hasPackageSelected, hasDisk, extracting,
   autoPackagesEnabled, onToggleAutoPackages,
   searchQuery, onSearchChange,
@@ -94,6 +97,26 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
           >
             Selected as TAP
           </button>
+        )}
+        {hasCatalog && hasSelection && (
+          <>
+            <button
+              onClick={() => onMarkSelected(true)}
+              disabled={extracting}
+              style={{ background: 'var(--bg-tertiary)', color: 'var(--badge-basic)' }}
+              title="Mark the selected programs archived — reaches every copy, on every disk"
+            >
+              {'\u2714'} Archived
+            </button>
+            <button
+              onClick={() => onMarkSelected(false)}
+              disabled={extracting}
+              style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: 11 }}
+              title="Unmark the selected programs"
+            >
+              Unmark
+            </button>
+          </>
         )}
         {hasPackageSelected && (
           <button
