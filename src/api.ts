@@ -55,6 +55,25 @@ export interface DiskImage {
   catalog: FileEntry[];
 }
 
+export interface CollectionSurvey {
+  root: string;
+  /** Images on disk the catalogue has never seen. */
+  fresh: string[];
+  /** Images the catalogue records that are no longer on disk. */
+  gone: string[];
+  imagesOnDisk: number;
+  imagesKnown: number;
+}
+
+export interface IngestResult {
+  newPrograms: number;
+  newOccurrences: number;
+  imagesAdded: number;
+  unreadable: { file: string; reason: string }[];
+  uniqueCount: number;
+  imageCount: number;
+}
+
 export interface DiskArchiveStatus {
   entries: Record<number, { known: boolean; archived?: 'marked' | 'matched' }>;
   /** Programs on this disk. */
@@ -263,6 +282,11 @@ interface DiskToolsAPI {
   checkCatalogUpdate: (quiet?: boolean) => Promise<{ updated: boolean; message: string }>;
   clearCatalogUpdate: () => Promise<boolean>;
   onMenuCheckCatalogUpdate: (callback: () => void) => () => void;
+  /** What adding new disks would do, without doing it. */
+  surveyCollection: (root?: string) => Promise<CollectionSurvey | null>;
+  ingestImages: (root: string, relPaths: string[]) => Promise<IngestResult | null>;
+  onIngestProgress: (callback: (p: { done: number; total: number; current: string }) => void) => () => void;
+  onMenuIngestCatalog: (callback: () => void) => () => void;
   pickCatalogDir: () => Promise<string | null>;
   clearCatalogDir: () => Promise<boolean>;
   openFileDialog: () => Promise<DiskImage | null>;

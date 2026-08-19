@@ -28,7 +28,7 @@ import { SCREEN_SIZE } from '../electron/parsers/screen-decoder';
 import { getParser, flattenEntries, type Parser } from './lib/collection.mts';
 import {
   cluesFor, guessTitle, writeProgramFiles, PROGRAM_DIRS, type BasicClues,
-} from './lib/characterize.mts';
+} from '../electron/catalog-characterize';
 import type { DiskFormat, FileEntry } from '../electron/parsers/types';
 
 function walk(dir: string, out: string[] = []): string[] {

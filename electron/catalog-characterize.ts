@@ -10,14 +10,14 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { BasicListing } from '../../electron/parsers/basic-detokenizer';
-import { detokenize } from '../../electron/parsers/basic-detokenizer';
-import { readBasicListing as readZX81Listing } from '../../electron/parsers/zx81-aerco';
-import { decodeScreen, SCREEN_SIZE } from '../../electron/parsers/screen-decoder';
-import { encodePng } from '../../electron/parsers/png-export';
-import { buildTapFile } from '../../electron/parsers/tap';
-import { makeSafeFilename } from '../../electron/parsers/utils';
-import type { DiskFormat, FileEntry } from '../../electron/parsers/types';
+import { detokenize } from './parsers/basic-detokenizer';
+import type { BasicListing } from './parsers/basic-detokenizer';
+import { readBasicListing as readZX81Listing } from './parsers/zx81-aerco';
+import { decodeScreen, SCREEN_SIZE } from './parsers/screen-decoder';
+import { encodePng } from './parsers/png-export';
+import { buildTapFile } from './parsers/tap';
+import { makeSafeFilename } from './parsers/utils';
+import type { DiskFormat, FileEntry } from './parsers/types';
 
 // ---------------------------------------------------------------- naming ----
 

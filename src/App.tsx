@@ -13,6 +13,7 @@ import { Preferences } from './components/Preferences';
 import { FileBrowser } from './components/FileBrowser';
 import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './components/ArchiveExportDialog';
 import { RenamePrompt } from './components/RenamePrompt';
+import { CatalogIngest } from './components/CatalogIngest';
 
 function buildArchiveZipName(diskBase: string, meta: ArchiveMetadata): string {
   const clean = diskBase.replace(/[<>:"/\\|?*]/g, '-').replace(/\s+/g, ' ').trim() || 'archive';
@@ -56,6 +57,7 @@ function App() {
   }, []);
   const [showTapCreator, setShowTapCreator] = useState(false);
   const [showArchiveExport, setShowArchiveExport] = useState(false);
+  const [showIngest, setShowIngest] = useState(false);
   const [renamePrompt, setRenamePrompt] = useState<{
     title: string;
     defaultValue: string;
@@ -591,10 +593,11 @@ function App() {
     if (!api) return;
     const unsub = api.onMenuCreateTap(() => setShowTapCreator(true));
     const unsubKnown = api.onMenuExportKnown(() => { handleExportKnown(); });
+    const unsubIngest = api.onMenuIngestCatalog(() => setShowIngest(true));
     const unsubCheck = api.onMenuCheckCatalogUpdate(() => {
       api.checkCatalogUpdate(false).then((r) => setStatus(r.message)).catch(() => {});
     });
-    return () => { unsub(); unsubKnown(); unsubCheck(); };
+    return () => { unsub(); unsubKnown(); unsubCheck(); unsubIngest(); };
   }, [handleExportKnown]);
 
   // Keyboard shortcuts
@@ -806,6 +809,17 @@ function App() {
             : 0}
           onExport={handleExportArchive}
           onCancel={() => setShowArchiveExport(false)}
+        />
+      )}
+
+      {showIngest && (
+        <CatalogIngest
+          onClose={() => setShowIngest(false)}
+          onStatus={setStatus}
+          onIngested={() => {
+            setBrowserRefresh((n) => n + 1);
+            if (disk) refreshArchiveStatus(disk.path);
+          }}
         />
       )}
 

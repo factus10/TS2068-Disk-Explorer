@@ -13,6 +13,7 @@ import {
   archiveCount, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv,
 } from './catalog-status';
 import { checkForUpdate, saveUpdate, clearUpdate, countRows } from './catalog-update';
+import { surveyCollection, ingestImages } from './catalog-ingest';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -157,6 +158,10 @@ function buildMenu() {
           label: 'Create TAP...',
           accelerator: 'CmdOrCtrl+Shift+A',
           click: () => mainWindow?.webContents.send('menu-create-tap'),
+        },
+        {
+          label: 'Add New Disks to Catalogue...',
+          click: () => mainWindow?.webContents.send('menu-ingest-catalog'),
         },
         {
           label: 'Check for Program List Update...',
@@ -556,6 +561,25 @@ async function runCatalogUpdateCheck(quiet: boolean): Promise<{ updated: boolean
 }
 
 ipcMain.handle('check-catalog-update', async (_event, quiet = false) => runCatalogUpdateCheck(quiet));
+
+ipcMain.handle('survey-collection', async (_event, root?: string) => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+  return surveyCollection(catalogDir, root);
+});
+
+/**
+ * Add newly imaged disks to the catalogue. Progress goes back to the window as
+ * it runs: reading a few hundred images off cloud storage takes long enough
+ * that a frozen window would look like a hang.
+ */
+ipcMain.handle('ingest-images', async (event, root: string, relPaths: string[]) => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+  return ingestImages(catalogDir, root, relPaths, (done, total, current) => {
+    event.sender.send('ingest-progress', { done, total, current });
+  });
+});
 
 ipcMain.handle('clear-catalog-update', async () => {
   clearUpdate(app.getPath('userData'));
