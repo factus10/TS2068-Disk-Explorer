@@ -9,7 +9,7 @@ import {
   getFolderState, markFolder, unmarkFolder, recordImageExported, declineFolderOffer,
 } from './archive-marker';
 import { SUPPORTED_EXTENSIONS, isSupportedFile } from './parsers/supported-formats';
-import { archiveCount, setArchived, catalogSummary, statusForIds, markIds } from './catalog-status';
+import { archiveCount, setArchived, catalogSummary, statusForIds, markIds, loadKnown } from './catalog-status';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -399,9 +399,15 @@ function markExported(entries: FileEntry[], fileDataMap: Map<number, Buffer>): n
 
 ipcMain.handle('get-disk-archive-status', async (
   _event, imagePath: string,
-): Promise<Record<number, 'marked' | 'matched'> | null> => {
+): Promise<{
+  entries: Record<number, { known: boolean; archived?: 'marked' | 'matched' }>;
+  total: number; known: number; fresh: number; source: string;
+} | null> => {
   const { catalogDir } = getSettings();
-  if (!catalogDir) return null;
+  // Answering "is this new?" only needs the shipped list, so this works for
+  // someone imaging disks who has no catalogue of their own.
+  const known = loadKnown(catalogDir);
+  if (!known) return null;
 
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -420,10 +426,26 @@ ipcMain.handle('get-disk-archive-status', async (
     if (data && data.length > 0) idByIndex.set(entry.index, programId(data));
   }
 
-  const status = statusForIds(catalogDir, [...idByIndex.values()]);
-  const out: Record<number, 'marked' | 'matched'> = {};
-  for (const [index, id] of idByIndex) if (status[id]) out[index] = status[id];
-  return out;
+  const status = catalogDir ? statusForIds(catalogDir, [...idByIndex.values()]) : {};
+  const entries: Record<number, { known: boolean; archived?: 'marked' | 'matched' }> = {};
+  let knownCount = 0;
+  for (const [index, id] of idByIndex) {
+    const isKnown = known.ids.has(id);
+    if (isKnown) knownCount++;
+    // The shipped list records an archived flag too, so a reader without a
+    // live catalogue still sees what has been published.
+    const shipped = known.ids.get(id)?.archived;
+    const archived = status[id]
+      ?? (shipped === 'yes' ? 'marked' : shipped === 'matched' ? 'matched' : undefined);
+    entries[index] = { known: isKnown, ...(archived ? { archived } : {}) };
+  }
+  return {
+    entries,
+    total: idByIndex.size,
+    known: knownCount,
+    fresh: idByIndex.size - knownCount,
+    source: known.source,
+  };
 });
 
 ipcMain.handle('set-catalog-archived', async (

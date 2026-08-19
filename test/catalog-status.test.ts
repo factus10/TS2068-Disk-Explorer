@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { archiveCount, programsAt, setArchived, catalogSummary, statusForIds, markIds } from '../electron/catalog-status';
+import { archiveCount, programsAt, setArchived, catalogSummary, statusForIds, markIds, loadKnown } from '../electron/catalog-status';
 
 /**
  * The catalogue records paths relative to the collection root, which the app
@@ -166,5 +166,33 @@ describe('marking specific programs, as an export does', () => {
     markIds(cat, ['aaa11111'], true);
     expect(statusForIds(cat, ['aaa11111', 'bbb22222', 'ccc33333']))
       .toEqual({ aaa11111: 'marked', bbb22222: 'matched' });
+  });
+});
+
+describe('the shipped list of known programs', () => {
+  it('answers "is this new?" without any catalogue configured', () => {
+    // Joe's case: he images a disk and has no catalogue folder of his own,
+    // only the copy that ships inside the app.
+    const known = loadKnown(undefined);
+    expect(known).not.toBeNull();
+    expect(known!.ids.size).toBeGreaterThan(0);
+  });
+
+  it('prefers a live catalogue over the shipped copy', () => {
+    // Whoever built the catalogue has the newest answer; the shipped file is
+    // a snapshot of some earlier release.
+    fs.writeFileSync(path.join(cat, 'catalog.csv'),
+      'id,title,kind,size,copies,archived\nzzz99999,Only Here,basic,10,1,yes\n');
+    const known = loadKnown(cat);
+    expect(known!.ids.has('zzz99999')).toBe(true);
+    expect(known!.source).toContain(cat);
+  });
+
+  it('carries the archived flag, so a reader with no catalogue still sees it', () => {
+    fs.writeFileSync(path.join(cat, 'catalog.csv'),
+      'id,title,kind,size,copies,archived\naaa11111,Chess,basic,10,2,yes\nbbb22222,Banner,code,10,1,matched\n');
+    const known = loadKnown(cat)!;
+    expect(known.ids.get('aaa11111')?.archived).toBe('yes');
+    expect(known.ids.get('bbb22222')?.archived).toBe('matched');
   });
 });

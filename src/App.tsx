@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { api, DiskImage, FileEntry, ExtractionResult, TapPackage, ManualPackage, EditState, DisasmSettingsMap } from './api';
+import { api, DiskImage, FileEntry, ExtractionResult, TapPackage, ManualPackage, EditState, DisasmSettingsMap, DiskArchiveStatus } from './api';
 import { Toolbar } from './components/Toolbar';
 import { DiskInfo } from './components/DiskInfo';
 import { FileTable, FileTableHandle } from './components/FileTable';
@@ -46,7 +46,7 @@ function App() {
   // re-lists rather than showing a mark that is one export out of date.
   const [browserRefresh, setBrowserRefresh] = useState(0);
   // Per-entry archive status for the open disk, from the configured catalogue.
-  const [archiveStatus, setArchiveStatus] = useState<Record<number, 'marked' | 'matched'> | null>(null);
+  const [archiveStatus, setArchiveStatus] = useState<DiskArchiveStatus | null>(null);
 
   /** Ask the catalogue how the open disk stands. Silent when none is set. */
   const refreshArchiveStatus = useCallback(async (imagePath?: string) => {
@@ -725,7 +725,7 @@ function App() {
                 onRemoveFromPackage={handleRemoveFromPackage}
                 editedIndices={editState}
                 searchQuery={searchQuery}
-                archiveStatus={archiveStatus}
+                archiveStatus={archiveStatus?.entries ?? null}
               />
             ) : (
               <DropZone onDrop={handleDrop} />
@@ -759,7 +759,13 @@ function App() {
         )}
       </div>
 
-      <StatusBar message={status} format={disk?.format} fileCount={disk?.catalog.length} />
+      <StatusBar
+        message={archiveStatus && archiveStatus.total > 0
+          ? `${status}   ·   ${archiveStatus.fresh} of ${archiveStatus.total} program(s) new to the collection`
+          : status}
+        format={disk?.format}
+        fileCount={disk?.catalog.length}
+      />
 
       {disk && <DropZone onDrop={handleDrop} overlay />}
 

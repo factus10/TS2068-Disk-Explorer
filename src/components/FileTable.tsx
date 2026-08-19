@@ -20,8 +20,8 @@ interface Props {
   onRemoveFromPackage: (loaderIndex: number, entryIndex: number) => void;
   editedIndices: EditState;
   searchQuery: string;
-  /** Per entry index: archived by your mark, or matched to the archive by name. */
-  archiveStatus?: Record<number, 'marked' | 'matched'> | null;
+  /** Per entry index: whether the collection already holds it, and its archive state. */
+  archiveStatus?: Record<number, { known: boolean; archived?: 'marked' | 'matched' }> | null;
 }
 
 type SortKey = 'index' | 'filename' | 'typeName' | 'size';
@@ -403,14 +403,38 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
               : `[${entry.blocks.join(', ')}]`}
           </td>
           <td style={{ textAlign: 'center', fontSize: 12 }}>
-            {archiveStatus?.[entry.index] === 'marked' ? (
-              <span title="You marked this archived" style={{ color: 'var(--badge-basic)' }}>{'\u2714'}</span>
-            ) : archiveStatus?.[entry.index] === 'matched' ? (
-              // Hollow, because a name match is a guess and should not read
-              // like a decision you made.
-              <span title="Matched to the archive by name — a guess, not your decision"
-                style={{ color: 'var(--badge-dir)', opacity: 0.85 }}>{'\u2713'}</span>
-            ) : null}
+            {(() => {
+              const st = archiveStatus?.[entry.index];
+              if (!st) return null;
+              // Nothing else matters about a program the collection has never
+              // seen: whether it is archived is not yet a question.
+              if (!st.known) {
+                return (
+                  <span
+                    title="New — the collection does not hold this program yet"
+                    style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+                      color: 'var(--accent)', border: '1px solid var(--accent)',
+                      borderRadius: 3, padding: '0 3px',
+                    }}
+                  >
+                    NEW
+                  </span>
+                );
+              }
+              if (st.archived === 'marked') {
+                return <span title="You marked this archived" style={{ color: 'var(--badge-basic)' }}>{'\u2714'}</span>;
+              }
+              if (st.archived === 'matched') {
+                // Hollow, because a name match is a guess and should not read
+                // like a decision you made.
+                return (
+                  <span title="Matched to the archive by name — a guess, not your decision"
+                    style={{ color: 'var(--badge-dir)', opacity: 0.85 }}>{'\u2713'}</span>
+                );
+              }
+              return <span title="Already in the collection, not archived" style={{ color: 'var(--text-muted)' }}>·</span>;
+            })()}
           </td>
         </tr>
         {hasChildren && isExpanded && entry.children!.map((child) => renderRow(child, depth + 1))}
@@ -459,8 +483,13 @@ export const FileTable = forwardRef<FileTableHandle, Props>(function FileTable({
             Size{sortArrow('size')}
           </th>
           <th style={headerStyle}>Blocks</th>
-          <th style={{ ...headerStyle, textAlign: 'center' }} title="Archived: a solid tick is your own mark, a hollow one a name match">
-            Arch
+          <th
+            style={{ ...headerStyle, textAlign: 'center' }}
+            title={'NEW — the collection does not hold this yet\n'
+              + '\u2714 — you marked it archived\n'
+              + '\u2713 — matched to the archive by name (a guess)'}
+          >
+            Status
           </th>
         </tr>
       </thead>

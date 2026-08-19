@@ -55,6 +55,18 @@ export interface DiskImage {
   catalog: FileEntry[];
 }
 
+export interface DiskArchiveStatus {
+  entries: Record<number, { known: boolean; archived?: 'marked' | 'matched' }>;
+  /** Programs on this disk. */
+  total: number;
+  /** How many the collection already holds. */
+  known: number;
+  /** How many are new to it. */
+  fresh: number;
+  /** Which list answered, so a stale shipped copy is not mistaken for live data. */
+  source: string;
+}
+
 export interface ExtractionResult {
   /** Programs this export also marked archived in the catalogue, if any. */
   marked?: number;
@@ -235,8 +247,11 @@ interface DiskToolsAPI {
   setCatalogArchived: (targetPath: string, isDirectory: boolean, archived: boolean)
     => Promise<{ changed: number; total: number; titles: string[] } | null>;
   getCatalogSummary: () => Promise<{ dir: string; images: number; folders: number; programs: number; archived: number } | null>;
-  /** Per catalogue entry index: your mark, or a name match. Null when no catalogue. */
-  getDiskArchiveStatus: (imagePath: string) => Promise<Record<number, 'marked' | 'matched'> | null>;
+  /**
+   * How the open disk stands against the collection: which of its programs are
+   * already known, and which of those are archived. Null when nothing is loaded.
+   */
+  getDiskArchiveStatus: (imagePath: string) => Promise<DiskArchiveStatus | null>;
   pickCatalogDir: () => Promise<string | null>;
   clearCatalogDir: () => Promise<boolean>;
   openFileDialog: () => Promise<DiskImage | null>;

@@ -234,6 +234,74 @@ export function setArchived(
   };
 }
 
+/**
+ * Every program the collection is known to hold, from the copy that ships
+ * with the app or from a live catalogue if one is configured.
+ *
+ * This is what answers "is this disk new?", which is a different question
+ * from "is this path archived?" and needs a different key: a program's own
+ * bytes, not where anybody happens to keep it.
+ */
+interface Known { ids: Map<string, { title: string; archived: string }>; mtimeMs: number; source: string }
+let knownCache: { key: string; known: Known } | null = null;
+
+/** Where the shipped copy lives, whether running from source or packaged. */
+function bundledKnownPath(): string | null {
+  for (const candidate of [
+    path.join(__dirname, 'data', 'known-programs.csv'),
+    path.join(__dirname, '..', 'electron', 'data', 'known-programs.csv'),
+    path.join(__dirname, '..', '..', 'electron', 'data', 'known-programs.csv'),
+  ]) {
+    try { if (fs.statSync(candidate).isFile()) return candidate; } catch { /* next */ }
+  }
+  return null;
+}
+
+/**
+ * A live catalogue wins over the shipped copy: whoever built it has the
+ * newest answer, and the shipped one is a snapshot of some earlier release.
+ */
+export function loadKnown(catalogDir?: string): Known | null {
+  const live = catalogDir ? path.join(catalogDir, 'catalog.csv') : null;
+  let file: string | null = null;
+  try { if (live && fs.statSync(live).isFile()) file = live; } catch { /* fall through */ }
+  if (!file) file = bundledKnownPath();
+  if (!file) return null;
+
+  let stat: fs.Stats;
+  try { stat = fs.statSync(file); } catch { return null; }
+  const key = file;
+  if (knownCache && knownCache.key === key && knownCache.known.mtimeMs === stat.mtimeMs) {
+    return knownCache.known;
+  }
+
+  let text: string;
+  try { text = fs.readFileSync(file, 'utf-8'); } catch { return null; }
+  const lines = text.split('\n');
+  const header = splitCsvLine(lines[0] ?? '');
+  const iId = header.indexOf('id');
+  const iTitle = header.indexOf('title');
+  const iArchived = header.indexOf('archived');
+  if (iId < 0) return null;
+
+  const ids = new Map<string, { title: string; archived: string }>();
+  for (let n = 1; n < lines.length; n++) {
+    if (!lines[n]) continue;
+    const f = splitCsvLine(lines[n]);
+    if (!f[iId]) continue;
+    if (!ids.has(f[iId])) {
+      ids.set(f[iId], {
+        title: iTitle >= 0 ? f[iTitle] ?? '' : '',
+        archived: iArchived >= 0 ? f[iArchived] ?? '' : '',
+      });
+    }
+  }
+
+  const known: Known = { ids, mtimeMs: stat.mtimeMs, source: file };
+  knownCache = { key, known };
+  return known;
+}
+
 /** How each of these programs stands: your decision, a guess, or neither. */
 export function statusForIds(dir: string, ids: string[]): Record<string, 'marked' | 'matched'> {
   const { marks } = readMarks(dir);
