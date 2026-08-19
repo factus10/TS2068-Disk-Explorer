@@ -55,6 +55,50 @@ export interface DiskImage {
   catalog: FileEntry[];
 }
 
+export interface TodoEntry {
+  id: string; title: string; kind: string; size: number;
+  /** Copies across the whole collection. */
+  copies: number;
+  /** Distinct folders holding it — the real measure of how rare it is. */
+  folders: number;
+  foundIn: string[];
+  clue: string;
+}
+
+export interface FolderStat {
+  folder: string; entries: number; programs: number;
+  /** Programs that exist in no other folder — what would be lost with it. */
+  onlyHere: number;
+  archived: number;
+}
+
+export interface Insights {
+  root: string;
+  todo: TodoEntry[];
+  folders: FolderStat[];
+  archived: number;
+  programs: number;
+}
+
+export interface CollectionSurvey {
+  root: string;
+  /** Images on disk the catalogue has never seen. */
+  fresh: string[];
+  /** Images the catalogue records that are no longer on disk. */
+  gone: string[];
+  imagesOnDisk: number;
+  imagesKnown: number;
+}
+
+export interface IngestResult {
+  newPrograms: number;
+  newOccurrences: number;
+  imagesAdded: number;
+  unreadable: { file: string; reason: string }[];
+  uniqueCount: number;
+  imageCount: number;
+}
+
 export interface DiskArchiveStatus {
   entries: Record<number, { known: boolean; archived?: 'marked' | 'matched' }>;
   /** Programs on this disk. */
@@ -103,6 +147,10 @@ export interface Settings {
   extractionDir?: string;
   /** A catalogue folder holding occurrences.csv and marks.json. */
   catalogDir?: string;
+  /** What the last check of the published program list saw. */
+  catalogUpdate?: { etag?: string; checkedAt?: string; rows?: number };
+  /** Check for a newer published program list on launch. */
+  autoCheckCatalogUpdate?: boolean;
   /** Whether package and archive.org exports also mark those programs archived. */
   markArchivedOnExport?: boolean;
 }
@@ -255,6 +303,19 @@ interface DiskToolsAPI {
   /** Rebuild the shared list of known programs from the catalogue. */
   exportKnownPrograms: () => Promise<{ path: string; rows: number; archived: number; matched: number } | null>;
   onMenuExportKnown: (callback: () => void) => () => void;
+  /** Compare the published program list against the one in use, and offer it. */
+  checkCatalogUpdate: (quiet?: boolean) => Promise<{ updated: boolean; message: string }>;
+  clearCatalogUpdate: () => Promise<boolean>;
+  onMenuCheckCatalogUpdate: (callback: () => void) => () => void;
+  /** What adding new disks would do, without doing it. */
+  surveyCollection: (root?: string) => Promise<CollectionSurvey | null>;
+  ingestImages: (root: string, relPaths: string[]) => Promise<IngestResult | null>;
+  onIngestProgress: (callback: (p: { done: number; total: number; current: string }) => void) => () => void;
+  onMenuIngestCatalog: (callback: () => void) => () => void;
+  /** What is rarest and unarchived, and which folders hold unique material. */
+  getCatalogInsights: () => Promise<Insights | null>;
+  markProgramsArchived: (ids: string[], archived?: boolean) => Promise<{ changed: number } | null>;
+  onMenuCatalogInsights: (callback: () => void) => () => void;
   pickCatalogDir: () => Promise<string | null>;
   clearCatalogDir: () => Promise<boolean>;
   openFileDialog: () => Promise<DiskImage | null>;

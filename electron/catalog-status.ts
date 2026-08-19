@@ -4,14 +4,14 @@
  *
  * Two files are read, and they have different jobs:
  *
- *   occurrences.csv  the stable map from an image to the programs inside it.
- *                    Regenerated only when the collection itself changes.
- *   marks.json       the live record of what has been archived, written by
- *                    this app and by scripts/mark-archived.mts alike.
+ *   catalog.json  the catalogue itself: which programs exist and which images
+ *                 hold them. Rewritten only when the collection changes.
+ *   marks.json    the live record of what has been archived, written by this
+ *                 app and by scripts/mark-archived.mts alike.
  *
  * Status is the join of the two, computed on demand. Nothing is written back
- * into the CSVs: they are generated views, and render-catalog.mts rewrites
- * them wholesale, so a mark stored there would vanish without warning.
+ * into catalog.json: a mark is a decision about a program, not a fact about
+ * the collection, and rebuilding the one must never destroy the other.
  *
  * Paths in the CSV are relative to the collection root, which this app has no
  * reason to know. An image is matched by asking whether its absolute path ends
@@ -66,50 +66,47 @@ function splitCsvLine(line: string): string[] {
   return out;
 }
 
+interface CatalogFile {
+  programs: {
+    id: string; sha256: string; title: string;
+    occurrences: { image: string; folder: string }[];
+  }[];
+}
+
 function readCatalog(dir: string): Catalog | null {
-  const csvPath = path.join(dir, 'occurrences.csv');
+  const jsonPath = path.join(dir, 'catalog.json');
   let stat: fs.Stats;
-  try { stat = fs.statSync(csvPath); } catch { return null; }
+  try { stat = fs.statSync(jsonPath); } catch { return null; }
 
   if (cached && cached.dir === dir && cached.catalog.mtimeMs === stat.mtimeMs) {
     return cached.catalog;
   }
 
-  let text: string;
-  try { text = fs.readFileSync(csvPath, 'utf-8'); } catch { return null; }
-
-  const lines = text.split('\n');
-  const header = splitCsvLine(lines[0] ?? '');
-  const col = (name: string) => header.indexOf(name);
-  const iId = col('id'); const iTitle = col('title');
-  const iImage = col('image'); const iFolder = col('folder');
-  if (iId < 0 || iImage < 0 || iFolder < 0) return null;
+  let data: CatalogFile;
+  try { data = JSON.parse(fs.readFileSync(jsonPath, 'utf-8')); } catch { return null; }
+  if (!Array.isArray(data.programs)) return null;
 
   const byImage = new Map<string, Set<string>>();
   const byFolder = new Map<string, Set<string>>();
   const byBasename = new Map<string, string[]>();
   const titles = new Map<string, string>();
 
-  for (let n = 1; n < lines.length; n++) {
-    const line = lines[n];
-    if (!line) continue;
-    const f = splitCsvLine(line);
-    const id = f[iId]; const image = f[iImage]; const folder = f[iFolder];
-    if (!id || !image) continue;
+  for (const p of data.programs) {
+    titles.set(p.id, p.title);
+    for (const o of p.occurrences ?? []) {
+      if (!byImage.has(o.image)) {
+        byImage.set(o.image, new Set());
+        const base = path.basename(o.image);
+        if (!byBasename.has(base)) byBasename.set(base, []);
+        byBasename.get(base)!.push(o.image);
+      }
+      byImage.get(o.image)!.add(p.id);
 
-    if (!byImage.has(image)) {
-      byImage.set(image, new Set());
-      const base = path.basename(image);
-      if (!byBasename.has(base)) byBasename.set(base, []);
-      byBasename.get(base)!.push(image);
+      if (o.folder) {
+        if (!byFolder.has(o.folder)) byFolder.set(o.folder, new Set());
+        byFolder.get(o.folder)!.add(p.id);
+      }
     }
-    byImage.get(image)!.add(id);
-
-    if (folder) {
-      if (!byFolder.has(folder)) byFolder.set(folder, new Set());
-      byFolder.get(folder)!.add(id);
-    }
-    if (iTitle >= 0 && f[iTitle] && !titles.has(id)) titles.set(id, f[iTitle]);
   }
 
   const catalog: Catalog = {
@@ -261,10 +258,28 @@ function bundledKnownPath(): string | null {
  * A live catalogue wins over the shipped copy: whoever built it has the
  * newest answer, and the shipped one is a snapshot of some earlier release.
  */
-export function loadKnown(catalogDir?: string): Known | null {
-  const live = catalogDir ? path.join(catalogDir, 'catalog.csv') : null;
+export function loadKnown(catalogDir?: string, downloadedPath?: string): Known | null {
   let file: string | null = null;
-  try { if (live && fs.statSync(live).isFile()) file = live; } catch { /* fall through */ }
+  // A live catalogue answers from itself; the projection is only for shipping.
+  if (catalogDir) {
+    const built = buildKnownProgramsCsv(catalogDir);
+    if (built) {
+      let mtimeMs = 0;
+      try { mtimeMs = fs.statSync(path.join(catalogDir, 'catalog.json')).mtimeMs; } catch { /* ignore */ }
+      const ids = new Map<string, { title: string; archived: string }>();
+      for (const line of built.text.split('\n').slice(1)) {
+        if (!line) continue;
+        const f = splitCsvLine(line);
+        if (f[0]) ids.set(f[0], { title: f[1] ?? '', archived: f[5] ?? '' });
+      }
+      return { ids, mtimeMs, source: path.join(catalogDir, 'catalog.json') };
+    }
+  }
+  // Then a list downloaded since the app was built, then the one it shipped
+  // with. Each is newer than the one after it.
+  if (!file && downloadedPath) {
+    try { if (fs.statSync(downloadedPath).isFile()) file = downloadedPath; } catch { /* fall through */ }
+  }
   if (!file) file = bundledKnownPath();
   if (!file) return null;
 
@@ -347,44 +362,39 @@ export function markIds(dir: string, ids: string[], archived: boolean): { change
  * as fresh as the last render.
  */
 export function buildKnownProgramsCsv(dir: string): { text: string; rows: number; archived: number; matched: number } | null {
-  let text: string;
-  try { text = fs.readFileSync(path.join(dir, 'catalog.csv'), 'utf-8'); } catch { return null; }
-
-  const lines = text.split('\n');
-  const header = splitCsvLine(lines[0] ?? '');
-  const col = (n: string) => header.indexOf(n);
-  const iId = col('id'); const iTitle = col('title'); const iKind = col('kind');
-  const iSize = col('size'); const iCopies = col('copies');
-  if (iId < 0) return null;
+  let data: {
+    programs: {
+      id: string; title: string; type: string; size: number;
+      isScreen: boolean; isFont: boolean; isUdg: boolean;
+      basic: { loads: string[] } | null;
+      occurrences: unknown[];
+    }[];
+  };
+  try { data = JSON.parse(fs.readFileSync(path.join(dir, 'catalog.json'), 'utf-8')); } catch { return null; }
+  if (!Array.isArray(data.programs)) return null;
 
   const { marks } = readMarks(dir);
   const exact = readExactMatches(dir);
+
+  const kindOf = (p: typeof data.programs[number]) =>
+    p.isScreen ? 'screen' : p.isFont ? 'font' : p.isUdg ? 'UDG'
+      : p.basic?.loads.length ? 'loader' : p.type;
 
   const seen = new Set<string>();
   const rows: { id: string; cells: string[] }[] = [];
   let archived = 0; let matched = 0;
 
-  for (let n = 1; n < lines.length; n++) {
-    if (!lines[n]) continue;
-    const f = splitCsvLine(lines[n]);
-    const id = f[iId];
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
+  for (const p of data.programs) {
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
 
     let state = '';
-    if (marks[id]?.status === 'archived') { state = 'yes'; archived++; }
-    else if (exact.has(id)) { state = 'matched'; matched++; }
+    if (marks[p.id]?.status === 'archived') { state = 'yes'; archived++; }
+    else if (exact.has(p.id)) { state = 'matched'; matched++; }
 
     rows.push({
-      id,
-      cells: [
-        id,
-        iTitle >= 0 ? f[iTitle] ?? '' : '',
-        iKind >= 0 ? f[iKind] ?? '' : '',
-        iSize >= 0 ? f[iSize] ?? '' : '',
-        iCopies >= 0 ? f[iCopies] ?? '' : '',
-        state,
-      ],
+      id: p.id,
+      cells: [p.id, p.title, kindOf(p), String(p.size), String(p.occurrences.length), state],
     });
   }
 

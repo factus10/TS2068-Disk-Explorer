@@ -12,6 +12,9 @@ import { SUPPORTED_EXTENSIONS, isSupportedFile } from './parsers/supported-forma
 import {
   archiveCount, setArchived, catalogSummary, statusForIds, markIds, loadKnown, buildKnownProgramsCsv,
 } from './catalog-status';
+import { checkForUpdate, saveUpdate, clearUpdate, countRows } from './catalog-update';
+import { surveyCollection, ingestImages } from './catalog-ingest';
+import { buildInsights } from './catalog-insights';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -99,6 +102,14 @@ function createWindow() {
     }
   });
 
+  // Only when asked for: an unsolicited request on launch is not something
+  // to do by default.
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (getSettings().autoCheckCatalogUpdate) {
+      runCatalogUpdateCheck(true).catch(() => { /* a failed check must not disturb launch */ });
+    }
+  });
+
   buildMenu();
 }
 
@@ -148,6 +159,18 @@ function buildMenu() {
           label: 'Create TAP...',
           accelerator: 'CmdOrCtrl+Shift+A',
           click: () => mainWindow?.webContents.send('menu-create-tap'),
+        },
+        {
+          label: 'Catalogue Insights...',
+          click: () => mainWindow?.webContents.send('menu-catalog-insights'),
+        },
+        {
+          label: 'Add New Disks to Catalogue...',
+          click: () => mainWindow?.webContents.send('menu-ingest-catalog'),
+        },
+        {
+          label: 'Check for Program List Update...',
+          click: () => mainWindow?.webContents.send('menu-check-catalog-update'),
         },
         {
           label: 'Update Shared Program List...',
@@ -412,7 +435,7 @@ ipcMain.handle('get-disk-archive-status', async (
   const { catalogDir } = getSettings();
   // Answering "is this new?" only needs the shipped list, so this works for
   // someone imaging disks who has no catalogue of their own.
-  const known = loadKnown(catalogDir);
+  const known = loadKnown(catalogDir, downloadedListPath());
   if (!known) return null;
 
   const buffer = fs.readFileSync(imagePath);
@@ -476,6 +499,109 @@ function knownProgramsTarget(catalogDir: string): string {
     return path.join(catalogDir, 'known-programs.csv');
   }
 }
+
+/** Where a list fetched from the repository is kept. */
+function downloadedListPath(): string {
+  return path.join(app.getPath('userData'), 'known-programs.csv');
+}
+
+/**
+ * Compare the published list against the one in use and, if it differs, offer
+ * to take it. Answering no is remembered only in the sense that nothing is
+ * written; the next check will ask again.
+ */
+async function runCatalogUpdateCheck(quiet: boolean): Promise<{ updated: boolean; message: string }> {
+  const settings = getSettings();
+  const inUse = loadKnown(settings.catalogDir, downloadedListPath());
+  const currentText = inUse ? (() => {
+    try { return fs.readFileSync(inUse.source, 'utf-8'); } catch { return null; }
+  })() : null;
+
+  const result = await checkForUpdate(currentText, settings.catalogUpdate?.etag);
+  updateSettings({
+    catalogUpdate: {
+      ...(result.etag ? { etag: result.etag } : {}),
+      checkedAt: new Date().toISOString(),
+      ...(result.rows ? { rows: result.rows } : {}),
+    },
+  });
+
+  if (result.error) {
+    const message = `Could not check for a newer program list: ${result.error}`;
+    if (!quiet) {
+      await dialog.showMessageBox(mainWindow!, {
+        type: 'warning', title: 'Check failed', message: 'Could not check for a newer program list.',
+        detail: result.error,
+      });
+    }
+    return { updated: false, message };
+  }
+
+  if (!result.available) {
+    const message = `The program list is up to date (${result.currentRows ?? 0} programs).`;
+    if (!quiet) {
+      await dialog.showMessageBox(mainWindow!, {
+        type: 'info', title: 'Up to date', message,
+      });
+    }
+    return { updated: false, message };
+  }
+
+  const delta = (result.rows ?? 0) - (result.currentRows ?? 0);
+  const { response } = await dialog.showMessageBox(mainWindow!, {
+    type: 'question',
+    buttons: ['Download', 'Not Now'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'A newer program list is available',
+    message: `The published list has ${result.rows} programs; yours has ${result.currentRows}.`,
+    detail: (delta > 0 ? `${delta} more than you have. ` : delta < 0 ? `${-delta} fewer than you have. ` : '')
+      + 'Taking it changes only what the app calls new — nothing in your collection or your catalogue is touched.',
+  });
+
+  if (response !== 0) return { updated: false, message: 'Left the program list as it was.' };
+
+  const target = saveUpdate(app.getPath('userData'), result.text!);
+  return { updated: true, message: `Program list updated to ${countRows(result.text!)} programs (${path.basename(target)}).` };
+}
+
+ipcMain.handle('check-catalog-update', async (_event, quiet = false) => runCatalogUpdateCheck(quiet));
+
+ipcMain.handle('get-catalog-insights', async () => {
+  const { catalogDir } = getSettings();
+  return catalogDir ? buildInsights(catalogDir) : null;
+});
+
+ipcMain.handle('mark-programs-archived', async (_event, ids: string[], archived = true) => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+  return markIds(catalogDir, ids, archived);
+});
+
+ipcMain.handle('survey-collection', async (_event, root?: string) => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+  return surveyCollection(catalogDir, root);
+});
+
+/**
+ * Add newly imaged disks to the catalogue. Progress goes back to the window as
+ * it runs: reading a few hundred images off cloud storage takes long enough
+ * that a frozen window would look like a hang.
+ */
+ipcMain.handle('ingest-images', async (event, root: string, relPaths: string[]) => {
+  const { catalogDir } = getSettings();
+  if (!catalogDir) return null;
+  return ingestImages(catalogDir, root, relPaths, (done, total, current) => {
+    event.sender.send('ingest-progress', { done, total, current });
+  });
+});
+
+ipcMain.handle('clear-catalog-update', async () => {
+  clearUpdate(app.getPath('userData'));
+  updateSettings({ catalogUpdate: undefined });
+  return true;
+});
 
 ipcMain.handle('export-known-programs', async (): Promise<
   { path: string; rows: number; archived: number; matched: number } | null
