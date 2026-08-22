@@ -127,6 +127,48 @@ Outstanding: Layer 2, and `dos-zebra`/`dos-fdd3000`, whose listings carry
 symbolic labels with no addresses and so cannot be built soundly. See
 `.claude/plans/smart-disassembler.md`.
 
+## Running a Program (ZEsarUX)
+
+Run (toolbar, File ▸ Run in ZEsarUX, Cmd/Ctrl+R) hands the selected program to
+ZEsarUX. It is not a new kind of export: `programPayload` in `main.ts` makes the
+bytes — a TAP for the Spectrum-family disks, a `.p` for the ZX81, hand-edited
+BASIC lines folded in — and those same bytes are what an archive gets, so a
+program checked in the emulator is the program that ships, not a second build
+of it.
+
+- **ZEsarUX rather than Fuse.** Fuse has no ZX81 and no QL, and on macOS it is a
+  Cocoa app that ignores command-line options entirely — a TS2068 tape would
+  load into whatever machine it was last left set to. ZEsarUX takes
+  `--machine`, autoloads by default, and covers TS2068, TS1000/ZX81 and QL.
+- **`--noconfigfile`** means the reader's own `~/.zesaruxrc` is neither read nor
+  at risk, so a launch behaves the same way every time whatever they have since
+  changed in the emulator.
+- **`machineForFormat`** in `electron/emulator.ts` decides what can run. CP/M
+  (Aerco RP/M, Zebra) and QL files return null: they are data for an operating
+  system, not a tape a machine can be handed at boot. `RUNNABLE_FORMATS` in
+  `App.tsx` mirrors it for the button's enablement.
+- **ZX81 memory.** A `.p` over 16K came out of a 64K Aerco page, so the upper
+  banks (`--zx8081ram16K8000`, `--zx8081ram16KC000`) go on only when the image
+  proves it needs them; a stock 16K machine is the more faithful default.
+- **Run follows the same reading of the selection the extract buttons do** — a
+  detected package, several files as one tape, or a single file — so the thing
+  you watch load is the thing the button beside it would write out.
+
+## Exporting One Program
+
+`ExportPrompt` replaced the old rename dialog: every extract button now asks
+both what to call the thing and what shape it should take. A bare TAP in a
+folder is the old behaviour; the other choice packs it as a ZIP named
+`Title (Year)(Publisher)(System)(Country)(Type).zip` holding one file of the
+same name, which is the shape a submission wants. The year, publisher and
+machine are remembered between exports, because cataloguing a disk means
+answering them once per program and they never change within a disk.
+
+`buildArchiveName` in `main.ts` does the real naming for both this and the
+whole-disk archive.org export; `previewArchiveName` in `ExportPrompt.tsx`
+mirrors it so the reader sees the answer before committing, and the two have to
+agree.
+
 ## Delivered: TAP Package Bundling
 
 `.claude/plans/tap-package-bundling.md` is done — `basic-analyzer.ts` scans BASIC for

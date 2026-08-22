@@ -26,20 +26,20 @@ interface Props {
   onCancel: () => void;
 }
 
-const SYSTEMS = ['TS2068', 'TS1000', 'ZX Spectrum', 'ZX81', 'Sinclair QL'];
-const COUNTRIES = ['US', 'UK', 'CA', 'BR', 'Pt', 'SP'];
+export const SYSTEMS = ['TS2068', 'TS1000', 'ZX Spectrum', 'ZX81', 'Sinclair QL'];
+export const COUNTRIES = ['US', 'UK', 'CA', 'BR', 'Pt', 'SP'];
 
 const PUBLISHER_HISTORY_KEY = 'archivePublisherHistory';
 const MAX_PUBLISHER_HISTORY = 50;
 
-function loadPublisherHistory(): string[] {
+export function loadPublisherHistory(): string[] {
   try {
     const raw = localStorage.getItem(PUBLISHER_HISTORY_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
 
-function savePublisherToHistory(value: string) {
+export function savePublisherToHistory(value: string) {
   if (!value || value === '-') return;
   const history = loadPublisherHistory().filter((h) => h !== value);
   history.unshift(value);

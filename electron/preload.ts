@@ -69,6 +69,23 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('analyze-packages', imagePath),
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) =>
     ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir, allEdits, customBaseName),
+  runInEmulator: (
+    imagePath: string,
+    target: { kind: 'file' | 'package'; entryIndex?: number; loaderIndex?: number; depIndices?: number[] },
+    allEdits?: Record<number, Record<number, string>>,
+    customTitle?: string,
+  ) => ipcRenderer.invoke('run-in-emulator', imagePath, target, allEdits, customTitle),
+  getEmulatorStatus: () => ipcRenderer.invoke('get-emulator-status'),
+  pickEmulator: () => ipcRenderer.invoke('pick-emulator'),
+  clearEmulator: () => ipcRenderer.invoke('clear-emulator'),
+  exportTosec: (
+    imagePath: string,
+    target: { kind: 'file' | 'package'; entryIndex?: number; loaderIndex?: number; depIndices?: number[] },
+    destDir: string,
+    metadata: any,
+    allEdits?: Record<number, Record<number, string>>,
+    customTitle?: string,
+  ) => ipcRenderer.invoke('export-tosec', imagePath, target, destDir, metadata, allEdits, customTitle),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   updateSettings: (patch: Record<string, unknown>) => ipcRenderer.invoke('update-settings', patch),
   offerDefaultExtractionDir: (dir: string) => ipcRenderer.invoke('offer-default-extraction-dir', dir),
@@ -101,6 +118,11 @@ contextBridge.exposeInMainWorld('diskTools', {
   onMenuOpenRecent: (callback: (_event: any, filePath: string) => void) => {
     ipcRenderer.on('menu-open-recent', callback);
     return () => ipcRenderer.removeListener('menu-open-recent', callback);
+  },
+  onMenuRunEmulator: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-run-emulator', handler);
+    return () => ipcRenderer.removeListener('menu-run-emulator', handler);
   },
   onMenuCreateTap: (callback: () => void) => {
     ipcRenderer.on('menu-create-tap', callback);

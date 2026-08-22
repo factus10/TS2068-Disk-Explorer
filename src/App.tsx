@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { api, DiskImage, FileEntry, ExtractionResult, TapPackage, ManualPackage, EditState, DisasmSettingsMap, DiskArchiveStatus } from './api';
+import {
+  api, DiskImage, FileEntry, ExtractionResult, TapPackage, ManualPackage, EditState,
+  DisasmSettingsMap, DiskArchiveStatus, ProgramTarget, archiveTypeSuffix,
+} from './api';
 import { Toolbar } from './components/Toolbar';
 import { DiskInfo } from './components/DiskInfo';
 import { FileTable, FileTableHandle } from './components/FileTable';
@@ -12,7 +15,7 @@ import { TapCreator } from './components/TapCreator';
 import { Preferences } from './components/Preferences';
 import { FileBrowser } from './components/FileBrowser';
 import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './components/ArchiveExportDialog';
-import { RenamePrompt } from './components/RenamePrompt';
+import { ExportPrompt, ExportChoice } from './components/ExportPrompt';
 import { CatalogIngest } from './components/CatalogIngest';
 import { CatalogInsights } from './components/CatalogInsights';
 
@@ -23,6 +26,26 @@ function buildArchiveZipName(diskBase: string, meta: ArchiveMetadata): string {
 
 /** Formats whose files are exported as ZX Spectrum tape blocks. */
 const TAP_FORMATS = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64', 'tap'];
+
+/** ZX81 disks and tapes, whatever they arrived in. */
+const ZX81_FORMATS = ['zx81-aerco', 'zx81-tzx'];
+
+/**
+ * Formats whose programs an emulator can be handed. Mirrors machineForFormat
+ * in electron/emulator.ts, which makes the real decision — this one only
+ * decides whether the Run button is worth offering.
+ */
+const RUNNABLE_FORMATS = [...TAP_FORMATS, 'tzx', ...ZX81_FORMATS];
+
+/**
+ * What a program's own file is called. Mirrors programPayload in main.ts;
+ * used here only to keep the export dialog's preview honest.
+ */
+function payloadExtension(format: string, entry?: FileEntry): string {
+  if (ZX81_FORMATS.includes(format)) return '.p';
+  if (entry && TAP_FORMATS.includes(format) && entry.type !== 'module') return '.tap';
+  return entry?.type === 'module' ? '.bin' : '';
+}
 
 function App() {
   const [disk, setDisk] = useState<DiskImage | null>(null);
@@ -62,16 +85,25 @@ function App() {
   const [showInsights, setShowInsights] = useState(false);
   // Set when a finding should take the browser somewhere.
   const [browseTo, setBrowseTo] = useState<string | null>(null);
-  const [renamePrompt, setRenamePrompt] = useState<{
+  const [exportPrompt, setExportPrompt] = useState<{
     title: string;
-    defaultValue: string;
-    resolve: (value: string | null) => void;
+    defaultValue?: string;
+    summary?: string;
+    payloadExt?: string;
+    typeSuffix?: string;
+    resolve: (choice: ExportChoice | null) => void;
   } | null>(null);
 
-  const askForRename = useCallback((title: string, defaultValue: string): Promise<string | null> => {
-    return new Promise((resolve) => {
-      setRenamePrompt({ title, defaultValue, resolve });
-    });
+  /**
+   * Ask what shape an export should take, and under what name. Every extract
+   * button comes through here, so a program can go out as a bare TAP or as an
+   * archive-named ZIP without either being a separate command to remember.
+   */
+  const askForExport = useCallback((opts: {
+    title: string; defaultValue?: string; summary?: string;
+    payloadExt?: string; typeSuffix?: string;
+  }): Promise<ExportChoice | null> => {
+    return new Promise((resolve) => setExportPrompt({ ...opts, resolve }));
   }, []);
   const [showBrowser, setShowBrowser] = useState(() =>
     typeof localStorage !== 'undefined' ? localStorage.getItem('showBrowser') !== 'false' : true,
@@ -79,6 +111,12 @@ function App() {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const fileTableRef = useRef<FileTableHandle>(null);
+  /**
+   * What Cmd+R should do right now. Held in a ref so the menu listener is
+   * installed once, rather than being torn down and rebuilt on every change
+   * of selection.
+   */
+  const runRef = useRef<() => void>(() => {});
 
   // Apply theme
   useEffect(() => {
@@ -308,37 +346,47 @@ function App() {
   const handleExtractSelected = useCallback(async () => {
     if (!disk || selectedIndices.size === 0) return;
 
-    // Single-file extracts: prompt for a custom filename so users can fix
-    // mismatched directory/block names or disambiguate same-named programs.
+    // Single-file extracts are named by hand, so users can fix mismatched
+    // directory/block names or disambiguate same-named programs. A batch has
+    // no one name to give, and each file keeps its own.
     const all = flattenEntries(disk.catalog);
     const isSingle = selectedIndices.size === 1;
-    let customNames: Map<number, string> | null = null;
+    const soleEntry = isSingle
+      ? all.find((e) => e.index === [...selectedIndices][0])
+      : undefined;
+    const suggested = soleEntry?.filename.trim();
 
-    if (isSingle) {
-      const idx = [...selectedIndices][0];
-      const entry = all.find((e) => e.index === idx);
-      if (entry) {
-        const suggested = entry.filename.trim();
-        const newName = await askForRename('Save file as', suggested);
-        if (newName === null) return; // cancelled
-        const trimmed = newName.trim();
-        if (trimmed && trimmed !== suggested) {
-          customNames = new Map([[idx, trimmed]]);
-        }
-      }
-    }
+    const choice = await askForExport({
+      title: isSingle ? 'Save file as' : `Save ${selectedIndices.size} files`,
+      ...(suggested !== undefined ? { defaultValue: suggested } : {}),
+      ...(isSingle ? {} : { summary: `${selectedIndices.size} selected files` }),
+      payloadExt: payloadExtension(disk.format, soleEntry),
+      typeSuffix: soleEntry ? archiveTypeSuffix(soleEntry) : 'Program',
+    });
+    if (!choice) return;
+
+    const customName = suggested !== undefined && choice.name.trim() && choice.name.trim() !== suggested
+      ? choice.name.trim()
+      : undefined;
 
     const destDir = await api.selectDirectory();
     if (!destDir) return;
 
     setExtracting(true);
-    setStatus('Extracting...');
+    setStatus(choice.shape === 'tosec-zip' ? 'Packing...' : 'Extracting...');
     const results: ExtractionResult[] = [];
 
     for (const idx of selectedIndices) {
+      // Only the sole entry can wear a hand-given name; in a batch each file
+      // is named for itself, or several would collide on one filename.
+      const nameFor = isSingle ? customName : undefined;
       try {
-        const customName = customNames?.get(idx);
-        const result = await api.extractFile(disk.path, idx, destDir, editState[idx], customName);
+        const result = choice.shape === 'tosec-zip' && choice.metadata
+          ? await api.exportTosec(
+              disk.path, { kind: 'file', entryIndex: idx }, destDir,
+              choice.metadata, editState, nameFor,
+            )
+          : await api.extractFile(disk.path, idx, destDir, editState[idx], nameFor);
         if (result) results.push(result);
       } catch {
         // continue
@@ -347,10 +395,10 @@ function App() {
 
     setExtracting(false);
     const marked = results.reduce((n, r) => n + (r.marked ?? 0), 0);
-    setStatus(`Extracted ${results.length} file(s)`
+    setStatus(`${choice.shape === 'tosec-zip' ? 'Packed' : 'Extracted'} ${results.length} file(s)`
       + (marked ? ` — ${marked} marked archived` : ''));
     if (marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
-  }, [disk, selectedIndices, editState, askForRename, refreshArchiveStatus]);
+  }, [disk, selectedIndices, editState, askForExport, refreshArchiveStatus]);
 
   /**
    * Bundle the selected entries into one multi-file TAP — the loader is the
@@ -365,9 +413,15 @@ function App() {
     if (chosen.length < 2) return;
 
     const suggested = chosen[0].filename.trim();
-    const newName = await askForRename('Save combined TAP as', suggested);
-    if (newName === null) return;
-    const customName = newName.trim() && newName.trim() !== suggested ? newName.trim() : undefined;
+    const choice = await askForExport({
+      title: 'Save combined TAP as',
+      defaultValue: suggested,
+      payloadExt: '.tap',
+    });
+    if (!choice) return;
+    const customName = choice.name.trim() && choice.name.trim() !== suggested
+      ? choice.name.trim()
+      : undefined;
 
     const destDir = await api.selectDirectory();
     if (!destDir) return;
@@ -375,10 +429,17 @@ function App() {
     setExtracting(true);
     setStatus('Building TAP...');
     try {
-      const result = await api.extractPackage(
-        disk.path, chosen[0].index, chosen.slice(1).map((e) => e.index),
-        destDir, editState, customName,
-      );
+      const target: ProgramTarget = {
+        kind: 'package',
+        loaderIndex: chosen[0].index,
+        depIndices: chosen.slice(1).map((e) => e.index),
+      };
+      const result = choice.shape === 'tosec-zip' && choice.metadata
+        ? await api.exportTosec(disk.path, target, destDir, choice.metadata, editState, customName)
+        : await api.extractPackage(
+            disk.path, chosen[0].index, chosen.slice(1).map((e) => e.index),
+            destDir, editState, customName,
+          );
       const written = result?.outputPaths[0]?.split(/[/\\]/).pop();
       setStatus(result
         ? `Wrote ${chosen.length} file(s) to ${written}`
@@ -389,7 +450,7 @@ function App() {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk, selectedIndices, editState, askForRename, refreshArchiveStatus]);
+  }, [disk, selectedIndices, editState, askForExport, refreshArchiveStatus]);
 
   /**
    * Mark the selected programs by hand. The catalogue matches on bytes, so two
@@ -418,11 +479,17 @@ function App() {
     const pkg = packages.find((p) => selectedIndices.has(p.loader.index));
     if (!pkg) return;
 
-    // Prompt for a custom filename for the .tap package
+    // Name the package, and decide whether it goes out loose or archived.
     const suggested = pkg.loader.filename.trim();
-    const newName = await askForRename('Save package as', suggested);
-    if (newName === null) return; // cancelled
-    const customName = newName.trim() && newName.trim() !== suggested ? newName.trim() : undefined;
+    const choice = await askForExport({
+      title: 'Save package as',
+      defaultValue: suggested,
+      payloadExt: '.tap',
+    });
+    if (!choice) return;
+    const customName = choice.name.trim() && choice.name.trim() !== suggested
+      ? choice.name.trim()
+      : undefined;
 
     const destDir = await api.selectDirectory();
     if (!destDir) return;
@@ -431,7 +498,12 @@ function App() {
     setStatus('Extracting package...');
     try {
       const depIndices = pkg.dependencies.map((d) => d.index);
-      const result = await api.extractPackage(disk.path, pkg.loader.index, depIndices, destDir, editState, customName);
+      const result = choice.shape === 'tosec-zip' && choice.metadata
+        ? await api.exportTosec(
+            disk.path, { kind: 'package', loaderIndex: pkg.loader.index, depIndices },
+            destDir, choice.metadata, editState, customName,
+          )
+        : await api.extractPackage(disk.path, pkg.loader.index, depIndices, destDir, editState, customName);
       setStatus(result
         ? `Extracted package: ${result.filename.trim()}`
           + (result.marked ? ` — ${result.marked} marked archived` : '')
@@ -441,7 +513,7 @@ function App() {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk, selectedIndices, packages, editState, askForRename, refreshArchiveStatus]);
+  }, [disk, selectedIndices, packages, editState, askForExport, refreshArchiveStatus]);
 
   /**
    * After a whole-disk export, let the main process record it and offer to
@@ -623,13 +695,14 @@ function App() {
   useEffect(() => {
     if (!api) return;
     const unsub = api.onMenuCreateTap(() => setShowTapCreator(true));
+    const unsubRun = api.onMenuRunEmulator(() => runRef.current());
     const unsubKnown = api.onMenuExportKnown(() => { handleExportKnown(); });
     const unsubIngest = api.onMenuIngestCatalog(() => setShowIngest(true));
     const unsubInsights = api.onMenuCatalogInsights(() => setShowInsights(true));
     const unsubCheck = api.onMenuCheckCatalogUpdate(() => {
       api.checkCatalogUpdate(false).then((r) => setStatus(r.message)).catch(() => {});
     });
-    return () => { unsub(); unsubKnown(); unsubCheck(); unsubIngest(); unsubInsights(); };
+    return () => { unsub(); unsubKnown(); unsubCheck(); unsubIngest(); unsubInsights(); unsubRun(); };
   }, [handleExportKnown]);
 
   // Keyboard shortcuts
@@ -714,6 +787,54 @@ function App() {
     ? packages.find((p) => p.loader.index === selectedEntry.index) ?? null
     : null;
 
+  /**
+   * What Run would launch. It follows the same reading of the selection the
+   * extract buttons do — a detected package, several files as one tape, or a
+   * single file — so that the thing you watch load is the thing the button
+   * beside it would write out.
+   */
+  const runTarget = useMemo((): ProgramTarget | null => {
+    if (!disk || !RUNNABLE_FORMATS.includes(disk.format)) return null;
+
+    if (selectedIndices.size === 1 && selectedPackage) {
+      return {
+        kind: 'package',
+        loaderIndex: selectedPackage.loader.index,
+        depIndices: selectedPackage.dependencies.map((d) => d.index),
+      };
+    }
+
+    const chosen = flattenEntries(disk.catalog)
+      .filter((e) => !e.isDirectory && selectedIndices.has(e.index));
+    if (chosen.length === 0) return null;
+    if (chosen.length === 1) return { kind: 'file', entryIndex: chosen[0].index };
+
+    // Several at once only means a tape where the files are tape blocks. On a
+    // ZX81 disk each file is a whole memory image, so the first one goes and
+    // the rest are ignored rather than silently glued together.
+    if (!TAP_FORMATS.includes(disk.format)) {
+      return { kind: 'file', entryIndex: chosen[0].index };
+    }
+    return {
+      kind: 'package',
+      loaderIndex: chosen[0].index,
+      depIndices: chosen.slice(1).map((e) => e.index),
+    };
+  }, [disk, selectedIndices, selectedPackage]);
+
+  const handleRun = useCallback(async () => {
+    if (!disk || !runTarget) return;
+    setStatus('Starting ZEsarUX...');
+    try {
+      const result = await api.runInEmulator(disk.path, runTarget, editState);
+      setStatus(result.message);
+    } catch (err: any) {
+      setStatus(`Error: ${err.message}`);
+    }
+  }, [disk, runTarget, editState]);
+
+  useEffect(() => { runRef.current = handleRun; }, [handleRun]);
+
   // Bundling is only meaningful where the files are tape blocks to begin with.
   const canBundleTap = disk !== null
     && TAP_FORMATS.includes(disk.format)
@@ -733,6 +854,8 @@ function App() {
         onExtractPackage={handleExtractPackage}
         hasSelection={selectedIndices.size > 0}
         canBundleTap={canBundleTap}
+        canRun={runTarget !== null}
+        onRun={handleRun}
         hasPackageSelected={selectedPackage !== null}
         hasDisk={disk !== null}
         extracting={extracting}
@@ -871,18 +994,20 @@ function App() {
         />
       )}
 
-      {renamePrompt && (
-        <RenamePrompt
-          title={renamePrompt.title}
-          message="Filename without extension. Tap will add .tap automatically."
-          defaultValue={renamePrompt.defaultValue}
-          onConfirm={(value) => {
-            renamePrompt.resolve(value);
-            setRenamePrompt(null);
+      {exportPrompt && (
+        <ExportPrompt
+          title={exportPrompt.title}
+          defaultValue={exportPrompt.defaultValue}
+          summary={exportPrompt.summary}
+          payloadExt={exportPrompt.payloadExt}
+          typeSuffix={exportPrompt.typeSuffix}
+          onConfirm={(choice) => {
+            exportPrompt.resolve(choice);
+            setExportPrompt(null);
           }}
           onCancel={() => {
-            renamePrompt.resolve(null);
-            setRenamePrompt(null);
+            exportPrompt.resolve(null);
+            setExportPrompt(null);
           }}
         />
       )}
