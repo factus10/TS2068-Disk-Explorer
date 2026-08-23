@@ -165,7 +165,7 @@ id,title,kind,size,copies,archived
 05c363ce,ghw-1,code,3904,1,
 05cdaf5e,MC-MOVE,basic,2721,3,matched
 05e3afc6,ZX DRIVER,code,320,6,
-05f5990c,clock,basic,1414,2,matched
+05f5990c,clock,basic,1414,2,yes
 05feb0bc,exit,code,1822,1,
 060ea3d9,TS2068SCRN,screen,6912,8,
 06199176,LabelMkr,basic,2348,3,
@@ -214,7 +214,7 @@ id,title,kind,size,copies,archived
 0782722a,DEM122,code,4112,2,
 07878c9a,tapsav,basic,5940,2,
 078d27f2,CopyCat,basic,533,3,matched
-07946fbd,rocketman,code,8500,2,
+07946fbd,rocketman,code,8500,2,yes
 079512a5,Spin T Bot,basic,2527,2,
 079ffcb4,Sound Pro,basic,11943,4,matched
 07a27679,COPY 3,code,4703,2,
@@ -322,7 +322,7 @@ id,title,kind,size,copies,archived
 0b851d8c,npt,screen,6912,4,
 0b899984,feng1,code,16000,1,
 0ba4a96d,eeeeeeeee,code,25,2,
-0ba550e4,SUB,basic,4835,2,
+0ba550e4,SUB,basic,4835,2,yes
 0bbc497f,PS/GE 1/2,loader,15002,2,
 0bccedbb,m,code,6342,2,
 0bd465b7,Cdesig,loader,18924,1,
@@ -422,7 +422,7 @@ id,title,kind,size,copies,archived
 0edbeec8,GREP,data,11648,1,
 0edfcdaf,SPECTRALWR,state,49664,1,
 0ef2a9af,Taswor,code,10751,11,
-0f0262bc,MedExpert,basic,28195,2,
+0f0262bc,MedExpert,basic,28195,2,yes
 0f04cab2,CALNDR,code,13668,1,
 0f096ee1,CHING,basic,5090,1,
 0f0d812a,ch14-2,code,2368,1,
@@ -452,7 +452,7 @@ id,title,kind,size,copies,archived
 0fecea9c,ed,code,3644,1,
 0ff18602,mgt,screen,6912,4,
 0ff6afaf,Ccode,code,19606,5,
-0ff870fe,LAZER,basic,4144,2,
+0ff870fe,LAZER,basic,4144,2,yes
 0ffc17c0,COLIST,code,10668,1,
 1009a708,DEM42,code,4096,2,
 1040d658,DERBY,loader,161,1,matched
@@ -522,7 +522,7 @@ id,title,kind,size,copies,archived
 126c5415,BLUMAX,loader,148,1,
 126fcc7b,DRIVE?,loader,3545,1,
 12732968,CALNDR,basic,3463,1,
-12738f81,WORD PRO,basic,7858,2,matched
+12738f81,WORD PRO,basic,7858,2,yes
 12743ff4,banner3,basic,705,11,yes
 12781af0,MOVE,code,4874,6,
 1279f0e0,MSCRIP,basic,3258,4,
@@ -548,7 +548,7 @@ id,title,kind,size,copies,archived
 13038cf1,cclear,code,33367,4,
 131c8c2e,Thinchars,basic,1853,2,
 13204107,Balloons,basic,5028,1,
-13219310,Btls,basic,14780,2,
+13219310,Btls,basic,14780,2,yes
 1328d96e,Submarine,basic,5755,4,matched
 133532f2,mc0191,code,8473,1,
 133677a3,readme,code,4224,1,
@@ -597,7 +597,7 @@ id,title,kind,size,copies,archived
 14bb369b,nws3n5,code,4224,1,
 14c2686a,USERS FILE,basic,8531,1,
 14cbcf26,usa,screen,6912,1,
-14cf0789,PONG,basic,2884,2,
+14cf0789,PONG,basic,2884,2,yes
 14d96c79,chrlib,code,452,1,
 14e62d2e,Reader 1,basic,273,2,
 14f0b5bb,LPLN1,code,234,2,
@@ -617,7 +617,7 @@ id,title,kind,size,copies,archived
 1569f101,fomat,loader,1959,5,
 15728a57,DEMO,code,5533,1,
 1575757c,ja8703,code,10512,8,
-1580f5d8,SNICKERS,basic,9608,2,
+1580f5d8,SNICKERS,basic,9608,2,yes
 1583a79c,TWII.BT,loader,1692,1,
 158526ea,nws2n4,code,4224,1,
 158d81ed,DEM2,code,4096,2,
@@ -660,7 +660,7 @@ id,title,kind,size,copies,archived
 16ef7fb3,MINOTR,screen,6912,1,
 16f96670,HR,screen,6912,1,
 1707ddb7,Language Usage II,basic,5017,1,
-170cdd87,STAR,basic,1142,2,
+170cdd87,STAR,basic,1142,2,yes
 17227428,QUIZ,code,3836,2,
 17269d7a,cd7,screen,6912,4,
 17276dbc,MAP,loader,18271,1,
@@ -961,7 +961,7 @@ id,title,kind,size,copies,archived
 2067e5a8,FONTS,loader,762,1,
 206e01e1,EB,basic,11663,4,
 208d866c,calendrFSP,basic,1531,4,
-208db847,FIRE,basic,2211,2,
+208db847,FIRE,basic,2211,2,yes
 2092a2c4,Color LIST,basic,13095,1,
 20a23979,uql/bk,code,4224,1,
 20a8bd40,JUMPER,basic,1641,4,matched
@@ -1584,7 +1584,7 @@ id,title,kind,size,copies,archived
 35b750bf,AUTOSTART,code,5114,1,
 35b956fa,e3,font,768,1,
 35bd3cc6,DFM ABC,basic,6009,6,
-35bfd42b,GPIX,basic,1020,4,
+35bfd42b,GPIX,basic,1020,4,yes
 35c38677,mterm2,code,9900,2,
 35dea9c2,DEM84,code,4096,4,
 35ed3933,mis33,code,7449,1,
@@ -1714,7 +1714,7 @@ id,title,kind,size,copies,archived
 3a98e8a3,mis29,code,7577,2,
 3a9bb955,RDade,code,7998,1,
 3a9f9fa7,nws52,code,4249,1,
-3aaad6ac,bas2txt,loader,3204,2,
+3aaad6ac,bas2txt,loader,3204,2,yes
 3ab2eb92,bedit,code,2009,1,
 3adb2166,otl,screen,6912,4,
 3add9fe1,starma,code,24,1,
@@ -1796,7 +1796,7 @@ id,title,kind,size,copies,archived
 3da16276,SOUNDS,loader,2649,1,
 3daf458f,HEX TO DEC,basic,349,2,
 3dc504d9,058904,code,3727,4,
-3dd0523a,mem test,basic,432,2,
+3dd0523a,mem test,basic,432,2,yes
 3dde6054,flash,code,4249,1,matched
 3de5010a,DUCK SHOOT,basic,1823,3,
 3df4ed2d,DEM53,code,4137,1,
@@ -1931,7 +1931,7 @@ id,title,kind,size,copies,archived
 425c78f4,mis30+,code,8280,6,
 42612ef3,HELICO,loader,298,1,
 42745919,RESTOR.DOC,data,1122,1,
-4275e8f7,DIS-ED,basic,7274,2,
+4275e8f7,DIS-ED,basic,7274,2,yes
 427b8c4e,HOT Z2,code,24600,1,
 427c48cc,quake,basic,4475,4,
 4289c8dc,DFM-ABC,basic,9972,1,
@@ -2029,7 +2029,7 @@ id,title,kind,size,copies,archived
 45ac68ff,AUTOSTART,basic,7469,1,yes
 45ae2bee,art 2.27 C,screen,6912,5,
 45b4c019,PP-FONT#1,basic,751,3,
-45cf4dab,HexCon,basic,732,2,
+45cf4dab,HexCon,basic,732,2,yes
 45d2fcb4,LOTERY,loader,2250,1,
 45d74db2,GRAPH,basic,1458,2,matched
 45d9ac84,cpytapes2C,code,919,3,
@@ -2238,7 +2238,7 @@ id,title,kind,size,copies,archived
 4c7a1438,Iching,loader,38011,1,
 4c81c1f0,secrpt,code,7936,1,
 4c82f318,gazete,code,9967,1,
-4c859f25,codem,code,1024,4,
+4c859f25,codem,code,1024,4,yes
 4c8641e0,DEM19,code,4112,1,
 4c8edbdd,DEM62,code,4112,2,
 4c966b41,cnsn1,code,4224,1,
@@ -2280,7 +2280,7 @@ id,title,kind,size,copies,archived
 4db7167d,manual 1C,code,3000,3,
 4db96961,RECCAT,code,3923,2,
 4dbf9985,GRAPH SHOW,state,49664,2,
-4dca76fc,CODEMASTER,basic,29740,3,
+4dca76fc,CODEMASTER,basic,29740,3,yes
 4dd40d2b,footba,code,49153,1,
 4ddc7131,FRAME 3,code,1814,1,
 4ddd072b,IM2 utils,basic,4636,3,
@@ -2399,7 +2399,7 @@ id,title,kind,size,copies,archived
 51eb16fb,AUTOSTART,code,4937,1,
 51f2b660,HINGE2,code,6144,1,
 51f867d1,cd2,code,6937,1,
-51fb431f,Hansan,basic,2892,2,
+51fb431f,Hansan,basic,2892,2,yes
 520cc72e,DEM25,code,4137,1,
 520dde29,MCtips,code,4416,2,
 521ba41a,840102,code,13969,2,
@@ -2532,7 +2532,7 @@ id,title,kind,size,copies,archived
 56273794,DEM22,code,4137,1,
 564f1fb1,TRANS,code,7180,2,
 564ffb48,FCLEAN,loader,999,3,
-56562886,BOMBER,basic,6468,2,
+56562886,BOMBER,basic,6468,2,yes
 56635edf,T/SN92,loader,27934,1,
 56755399,HAMMERDIAL,loader,2809,3,matched
 567880bc,Q-BERT,basic,9893,3,
@@ -2714,7 +2714,7 @@ id,title,kind,size,copies,archived
 5d49b779,CRSTY3,code,19584,1,
 5d4b8bae,formulary,basic,7544,4,matched
 5d523459,*bldgs,code,4541,2,
-5d60fdb4,Shrink,basic,5397,2,
+5d60fdb4,Shrink,basic,5397,2,yes
 5d83a249,ztermcod,code,16384,4,
 5d858017,RLENCD,loader,2580,1,
 5d877c41,CLENUP,loader,1155,2,
@@ -2946,7 +2946,7 @@ id,title,kind,size,copies,archived
 652cf59d,clone4,code,2541,2,
 65361564,BANNER,loader,839,2,matched
 65361f1a,men3d,code,11404,1,
-6537447b,calendar C,code,2464,11,
+6537447b,calendar C,code,2464,11,yes
 653f556a,page9a,code,1600,1,
 6545a8fa,OldEng C,code,3808,7,
 654ea1f9,inc trac pos or switch sides,loader,4671,3,
@@ -3003,7 +3003,7 @@ id,title,kind,size,copies,archived
 672e3bcf,recbad,code,1625,2,
 67349c95,LOADing...,basic,879,1,
 6738ae2b,fanaly,code,1561,1,
-673c939a,GOLF,basic,1037,8,
+673c939a,GOLF,basic,1037,8,yes
 6744f61d,SuperBowl,state,49664,1,
 6757f9d0,mscript503,code,10025,2,
 6759e7ca,funy6,code,25,1,
@@ -3126,7 +3126,7 @@ id,title,kind,size,copies,archived
 6b11c24e,file3,code,3203,1,
 6b174cfc,TASWOR,loader,5841,1,
 6b1eef87,QRL,loader,2728,1,
-6b2441d8,Type Style,basic,2055,8,
+6b2441d8,Type Style,basic,2055,8,yes
 6b25250c,DEM69,code,4112,1,
 6b4c7512,budget,basic,24554,2,
 6b50f32e,PROFILE,loader,8542,4,matched
@@ -3217,7 +3217,7 @@ id,title,kind,size,copies,archived
 6e6f8d28,SF-COBRA,screen,6912,1,
 6e70f1ba,PCICONS1,code,30959,6,
 6e76d670,S,screen,6912,1,
-6e8e5f30,MIRROR,basic,584,2,
+6e8e5f30,MIRROR,basic,584,2,yes
 6e911f3a,cnsn3,code,4224,1,
 6eb27664,NUMBER,basic,1925,3,matched
 6eb5996e,FALLOUT,basic,2570,4,
@@ -3286,8 +3286,8 @@ id,title,kind,size,copies,archived
 7124cdb5,xx,screen,6912,8,
 712a0e03,ql-1*,code,3456,2,
 7134cc00,RECCAT,code,1184,1,
-713a6534,ArtIntel,basic,15322,2,
-713ecd20,64column C,code,306,3,
+713a6534,ArtIntel,basic,15322,2,yes
+713ecd20,64column C,code,306,3,yes
 7141085d,tss-12,code,3904,1,
 714b770b,AUTOSTART,code,5089,1,
 71589154,BORDR3,code,354,1,
@@ -3591,7 +3591,7 @@ id,title,kind,size,copies,archived
 7b622a32,108402,code,12355,4,
 7b62e637,tss-13,code,3712,1,
 7b63ef97,uswnov,code,4249,1,
-7b66c435,MorseCode,basic,2795,2,
+7b66c435,MorseCode,basic,2795,2,yes
 7b7390a2,longha,font,768,1,
 7b787aeb,POOL,loader,126,1,
 7b867f35,mscript5.5,code,10000,2,
@@ -3786,7 +3786,7 @@ id,title,kind,size,copies,archived
 820a2cc1,GRAVEYARD,basic,2234,3,
 8215712b,118402,code,12226,4,
 82194306,RELOAD,loader,737,2,
-821ac75e,ROLL OVER,basic,670,2,
+821ac75e,ROLL OVER,basic,670,2,yes
 82336ea2,0,basic,5235,4,yes
 8245a862,EBCODE,code,1636,2,
 8245b0fc,T/PI PADS,basic,4988,3,
@@ -3840,7 +3840,7 @@ id,title,kind,size,copies,archived
 83a969a1,DEM44,code,4112,2,
 83b7780a,B9*,basic,18496,3,
 83c03d4e,uhw010,code,3673,1,
-83c11cdf,Post Mania,basic,20384,2,
+83c11cdf,Post Mania,basic,20384,2,yes
 83c8ee3b,$demo2,code,17975,4,
 83d321a9,LOCK,loader,2041,2,
 83d343e5,robot,state,49664,2,matched
@@ -3971,7 +3971,7 @@ id,title,kind,size,copies,archived
 885e2441,tb,code,7972,1,
 88690b3c,PAGE 1,basic,7083,2,
 8869e96c,usw050,code,4249,1,
-887c9aff,bold,basic,351,2,
+887c9aff,bold,basic,351,2,yes
 88867b3a,1942,screen,6912,1,
 889ecb10,INTFC_BE,basic,12182,4,
 88a1d61a,3D TTT,basic,7458,3,yes
@@ -3982,7 +3982,7 @@ id,title,kind,size,copies,archived
 88e477ea,fshark,code,49153,1,
 88e874b2,hday5-,code,8649,1,
 88ee6bd5,casscopy,basic,647,2,
-88f8e6a5,GPIX,UDG,256,4,
+88f8e6a5,GPIX,UDG,256,4,yes
 89066c44,TAPE LABLE,basic,2701,4,
 890b4f65,miche4,code,6144,2,
 890d2b17,ADV-CREAT,state,49664,1,
@@ -4198,7 +4198,7 @@ id,title,kind,size,copies,archived
 9131ae1d,SANTA,basic,13082,3,matched
 91395a9e,omdele,code,5121,1,
 9148d285,taswordo-l,code,10751,2,
-91491f24,DODGEM,basic,1898,2,
+91491f24,DODGEM,basic,1898,2,yes
 9154a753,xmas3,code,25,1,
 9158d5ca,ml,screen,6912,4,
 915a5d03,Tunnel Run,basic,4217,3,
@@ -4336,7 +4336,7 @@ id,title,kind,size,copies,archived
 962cedd6,SOUND,loader,294,1,matched
 96358af7,2,str-array,3403,4,
 9636ae42,T V,basic,1901,3,
-9637f65e,BIGCHAR,basic,375,2,matched
+9637f65e,BIGCHAR,basic,375,2,yes
 96392d6b,Baseball,state,49664,2,
 9644a713,fac10,code,8673,2,
 964e3d57,LONG WAY 3,state,49664,1,
@@ -4355,7 +4355,7 @@ id,title,kind,size,copies,archived
 96e11076,miche2,code,6144,2,
 96efc0e1,SCREEN,code,3251,6,matched
 96f93684,nws3n7,code,4249,1,
-971884d1,RABBIT,basic,3916,2,
+971884d1,RABBIT,basic,3916,2,yes
 971ef4e5,Amortize 1,basic,8100,5,
 97208e0d,invert,basic,686,2,matched
 9722b0c1,MUSDEM,code,1595,1,
@@ -4664,7 +4664,7 @@ a180b80c,onedrv,loader,1841,1,
 a182f67e,SOLUTION,basic,435,3,
 a18d65b5,CALENDER,basic,828,3,
 a18ec389,bedit,code,1581,2,
-a194c0f3,mastermind,basic,1948,2,
+a194c0f3,mastermind,basic,1948,2,yes
 a1a31552,mike08,code,4224,2,
 a1a7423c,RedArw,code,49153,3,
 a1a7d1d8,AUTOSTART,code,5062,1,
@@ -4929,7 +4929,7 @@ a99d6caa,SCREEN,code,2048,1,matched
 a99f3458,C&M/L,code,1699,2,
 a9b66158,mscript5.5,code,10025,1,
 a9c014fa,SAM2,screen,6912,1,
-a9c9bd02,Chopin,basic,7584,2,matched
+a9c9bd02,Chopin,basic,7584,2,yes
 a9cc820f,Pinball,state,49664,1,matched
 a9d48fe4,UNLDR,loader,535,1,
 a9d96b18,PCICONS3,code,30959,4,
@@ -5563,7 +5563,7 @@ bf7b8c5e,hday1,code,8601,2,
 bf7f3936,Animal,basic,394,5,
 bf814f16,TRKSID,code,4018,2,
 bf83601e,messagebox,basic,1619,3,
-bf83f9fa,RAINBOW,basic,1311,2,
+bf83f9fa,RAINBOW,basic,1311,2,yes
 bf881326,ALGEBRA,basic,549,5,
 bfa6d493,colorbar,basic,342,2,
 bfaf6cf8,Routines*5,basic,4253,3,
@@ -5728,7 +5728,7 @@ c4b9d85a,GRAFX2,code,10134,4,
 c4c1527f,DEMO,code,2978,1,
 c4c5a611,cake.G,UDG,256,5,
 c4c77e5c,DEM79,code,4112,2,
-c4d5978b,graphics,code,136,2,matched
+c4d5978b,graphics,code,136,2,yes
 c4e843f9,8303,code,8034,2,
 c4f36b44,The End,basic,11503,2,matched
 c4f49e85,PIXMV,loader,597,2,
@@ -5889,7 +5889,7 @@ c9d27859,notes,code,281,1,matched
 c9e62408,cnsn3,code,4249,1,
 c9f01b27,GREP.DOC,data,4931,1,
 c9fcdb5e,INVERSION,basic,2647,3,
-ca15b649,SP Horsera,basic,4574,2,
+ca15b649,SP Horsera,basic,4574,2,yes
 ca18ec7a,vcT?,code,8256,5,
 ca19633c,DEM20,code,4096,2,
 ca235f29,F. Charter,basic,3049,3,
@@ -5963,7 +5963,7 @@ cc835da0,AUTOSTART,basic,5089,4,yes
 cc8facc2,dc,code,1822,1,
 cc918a35,AUTOSTART,loader,3824,1,
 cc92af09,DEM67,code,4096,2,
-cc94ca5f,Starfighte,basic,3467,2,
+cc94ca5f,Starfighte,basic,3467,2,yes
 cc963f03,help22,code,14848,2,
 cca9dd47,bopeep,basic,5227,4,
 ccaeca0e,Dta2,str-array,5090,1,
@@ -6077,7 +6077,7 @@ d07922a5,MUSICOLA,state,49664,2,matched
 d0810976,GOLF,basic,10984,6,
 d085babf,JFORM,loader,4931,2,
 d086ba73,master,loader,2757,1,
-d08c4e71,Wordpro,basic,6318,2,
+d08c4e71,Wordpro,basic,6318,2,yes
 d08c6747,$tdem1,code,17738,2,
 d08ff444,Q,screen,6912,1,
 d0913a82,invada,code,3165,1,
@@ -6092,7 +6092,7 @@ d0ecc57f,=bold,code,802,2,
 d0ef46f8,cobra,code,49153,1,
 d101532b,SECRPT,code,3074,1,
 d10bff36,Angels,basic,5768,5,
-d10c2367,BShips,basic,5885,2,
+d10c2367,BShips,basic,5885,2,yes
 d10d8381,DSKNAM,code,3391,2,
 d1186606,BANNER,basic,3764,3,matched
 d11c614f,MJ$,screen,6912,1,
@@ -6187,7 +6187,7 @@ d3fc4448,ade4,code,5533,1,
 d3fc989c,BORDR1,code,192,2,
 d407e981,empire,code,49153,1,
 d40e3028,DEM71,code,4112,2,
-d4102df2,cipher,basic,2341,4,
+d4102df2,cipher,basic,2341,4,yes
 d416b301,MOVE,loader,4816,1,
 d41d4e21,funy1+,code,8240,2,
 d421b399,FILE+,basic,5651,4,
@@ -6428,7 +6428,7 @@ dc9aefbe,rename,code,1218,1,
 dc9f71f4,exp$4,code,1121,4,
 dcb490e0,SQUAW-T,loader,4411,1,
 dcc60e68,text1 C,code,175,3,
-dcd7acf7,Hex Loader,basic,1130,2,
+dcd7acf7,Hex Loader,basic,1130,2,yes
 dcdbd04d,21,str-array,4908,4,
 dcdc9bbe,TED,data,512,1,
 dd07bdaa,JAPGRL,screen,6912,1,
@@ -6452,7 +6452,7 @@ ddb0acda,cd6,code,5090,1,
 ddb49f3a,7,str-array,4208,4,
 ddb89cda,budge,state,49664,4,
 ddc6d95a,PIXELP,code,11800,1,
-ddc9aa35,ROCKETMAN,basic,122,2,
+ddc9aa35,ROCKETMAN,basic,122,2,yes
 ddd3433c,snug2,code,3059,4,
 ddde3016,KRAK*2012,basic,14267,3,
 dde9d429,$files,code,6685,1,
@@ -6542,7 +6542,7 @@ e0c91238,README,code,4575,2,
 e0cd6a53,labels,loader,1339,2,
 e0d17394,*misc5,code,10297,2,
 e0d1fc2f,Home Base,basic,4841,3,
-e0de7a93,SuperCheck,basic,2248,2,
+e0de7a93,SuperCheck,basic,2248,2,yes
 e0fd0e3b,Easy Edit,basic,12304,7,
 e1071bf3,bio pt2 C,code,32344,3,
 e109d993,HIGH,basic,30668,4,
@@ -6836,7 +6836,7 @@ ea63b6b3,page1R,code,24064,1,
 ea684a74,DEM1,code,4112,1,
 ea686031,TED.DOC,data,7040,1,
 ea9949e5,men2,code,8241,1,
-ea9c15bf,INDEX CARD,basic,3143,2,
+ea9c15bf,INDEX CARD,basic,3143,2,yes
 ea9e40d1,advftr,code,49153,1,
 eaa0463d,+rlight,code,2091,2,
 eaa4d9dc,food1+,code,7216,5,
@@ -6846,7 +6846,7 @@ eaaf2459,file1 C,code,650,4,
 eabb5bbe,Secret Op,state,49664,1,
 eabd78d5,078507,code,14018,4,
 eac03cc2,init,code,15041,1,
-eac55ddb,RLEPro,basic,1992,2,
+eac55ddb,RLEPro,basic,1992,2,yes
 eacf9e6d,AUTOSTART,loader,3616,1,
 eaee041c,DEM27,code,4112,1,
 eaf3002a,Galactic Monsters,code,25600,1,
@@ -7251,7 +7251,7 @@ f94eff0f,"Musics, 3",basic,2773,3,
 f969a6a7,CAD#3,loader,6469,1,
 f96d7e77,earth2,code,13184,1,
 f9745bb3,CARD MAKER,basic,819,2,
-f97cb73b,ocean def,basic,6763,2,
+f97cb73b,ocean def,basic,6763,2,yes
 f98be9d6,hyperchssC,code,5535,3,
 f9908d98,*bugs,code,3863,2,
 f997eb21,tasword,code,10751,2,
@@ -7311,7 +7311,7 @@ fc0251a0,DEMO,loader,9085,1,
 fc24deb6,NMI-F,loader,833,2,
 fc2f67f6,AUTOSTART,code,4512,1,
 fc3313bd,LETTER,basic,692,2,
-fc438200,Blockbuste,basic,5746,8,
+fc438200,Blockbuste,basic,5746,8,yes
 fc46fd03,EVRGREEN,basic,7729,7,
 fc56c96f,otln,code,15463,1,
 fc5872d4,TicTacToe,basic,4287,3,
@@ -7364,7 +7364,7 @@ fdd9d3ed,b2,font,768,1,
 fddcb510,W,loader,4922,1,
 fdf0d79a,anim2+,code,9080,2,
 fdf52895,gauntl,code,43046,1,
-fe06bd6a,CONTOUR,basic,2900,2,
+fe06bd6a,CONTOUR,basic,2900,2,yes
 fe220b5c,Xpr210_zip,data,72192,1,
 fe23fade,Language Usage III,code,25600,1,
 fe3723d2,DEM85,code,4112,2,
