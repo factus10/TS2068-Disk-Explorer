@@ -58,6 +58,13 @@ export interface Settings {
    * asked for: it is a network request the reader did not initiate.
    */
   autoCheckCatalogUpdate?: boolean;
+
+  /**
+   * The emulator binary used by Run. Only worth storing when ZEsarUX is
+   * somewhere unusual: with nothing set the app looks in the places it
+   * installs itself, so most readers never see this setting.
+   */
+  emulatorPath?: string;
 }
 
 function getFilePath(): string {
@@ -103,6 +110,15 @@ export function getSettings(): Settings {
       } catch { /* gone, or not a catalogue; leave it unset */ }
     }
     if (typeof raw.markArchivedOnExport === 'boolean') out.markArchivedOnExport = raw.markArchivedOnExport;
+    // An emulator that has been uninstalled is dropped rather than kept, so
+    // the app falls back to looking for one instead of reporting a path that
+    // cannot run.
+    if (typeof raw.emulatorPath === 'string' && raw.emulatorPath) {
+      try {
+        fs.accessSync(raw.emulatorPath, fs.constants.X_OK);
+        out.emulatorPath = raw.emulatorPath;
+      } catch { /* gone; leave it unset */ }
+    }
     if (typeof raw.autoCheckCatalogUpdate === 'boolean') out.autoCheckCatalogUpdate = raw.autoCheckCatalogUpdate;
     if (raw.catalogUpdate && typeof raw.catalogUpdate === 'object') {
       const u = raw.catalogUpdate as Record<string, unknown>;

@@ -11,6 +11,9 @@ interface Props {
   onExtractPackage: () => void;
   hasSelection: boolean;
   canBundleTap: boolean;
+  /** Whether the selection is something ZEsarUX could be handed. */
+  canRun: boolean;
+  onRun: () => void;
   hasPackageSelected: boolean;
   hasDisk: boolean;
   extracting: boolean;
@@ -32,7 +35,7 @@ interface Props {
 
 export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
   onOpen, onExtractSelected, onExtractSelectedAsTap, onMarkSelected, hasCatalog, onExtractAll, onExtractPackage,
-  hasSelection, canBundleTap, hasPackageSelected, hasDisk, extracting,
+  hasSelection, canBundleTap, canRun, onRun, hasPackageSelected, hasDisk, extracting,
   autoPackagesEnabled, onToggleAutoPackages,
   searchQuery, onSearchChange,
   theme, onToggleTheme,
@@ -80,6 +83,19 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
           style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
         >
           Open
+        </button>
+        <button
+          onClick={onRun}
+          disabled={!canRun || extracting}
+          style={{
+            background: canRun ? 'var(--accent)' : 'var(--bg-tertiary)',
+            color: canRun ? '#fff' : 'var(--text-muted)',
+          }}
+          title={canRun
+            ? 'Run the selection in ZEsarUX, edits and all (Cmd/Ctrl+R)'
+            : 'Select a program on a TS2068 or ZX81 disk to run it'}
+        >
+          {'\u25B6'} Run
         </button>
         <button
           onClick={onExtractSelected}

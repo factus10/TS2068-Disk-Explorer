@@ -53,6 +53,7 @@ import { buildTtfFont, isFontFile } from './parsers/font-export';
 import { encodePng } from './parsers/png-export';
 import { makeSafeFilename, uniquePath, uniqueNames } from './parsers/utils';
 import { isZX81Format } from './parsers/types';
+import { machineForFormat, emulatorArgs, findEmulator, launchEmulator } from './emulator';
 import type { DiskImage, DiskFormat, FileEntry, ExtractionResult, TapPackage, DiskHeader, DisasmSettings, DisasmSettingsMap } from './parsers/types';
 import type { BasicListing, Ts2068Mode } from './parsers/basic-detokenizer';
 import type { ScreenData } from './parsers/screen-decoder';
@@ -161,6 +162,13 @@ function buildMenu() {
           accelerator: 'CmdOrCtrl+Shift+A',
           click: () => mainWindow?.webContents.send('menu-create-tap'),
         },
+        { type: 'separator' },
+        {
+          label: 'Run in ZEsarUX',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => mainWindow?.webContents.send('menu-run-emulator'),
+        },
+        { type: 'separator' },
         {
           label: 'Catalogue Insights...',
           click: () => mainWindow?.webContents.send('menu-catalog-insights'),
@@ -201,7 +209,9 @@ function buildMenu() {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
+        // Cmd+R belongs to Run — reloading the renderer is a developer's
+        // errand, and running the selected program is the daily one.
+        { role: 'reload', accelerator: 'CmdOrCtrl+Shift+R' },
         { role: 'toggleDevTools' },
         { type: 'separator' },
         { role: 'zoomIn' },
@@ -1011,6 +1021,112 @@ function rawFileExtension(format: DiskFormat, entry: FileEntry): string {
   return entry.type === 'module' ? '.bin' : '';
 }
 
+/**
+ * Formats whose catalog entries are Spectrum-family blocks, so a program comes
+ * out of them as a TAP rather than as raw bytes. Matches the rule
+ * writeExtractedFile has always applied.
+ */
+const TAP_FORMATS: DiskFormat[] = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64', 'tap'];
+
+/**
+ * The bytes a program is handed to the world as, whether the world is an
+ * emulator or an archive: a TAP for the tape-based formats, the raw memory
+ * image otherwise, with any hand-edited BASIC lines already folded in.
+ *
+ * One definition, so that the file that runs is byte-for-byte the file that
+ * gets archived. A program checked in the emulator and then exported is
+ * therefore the same program, not a second build of it.
+ */
+function programPayload(
+  format: DiskFormat, entry: FileEntry, fileData: Buffer,
+  edits?: Record<number, string>,
+): { data: Buffer; ext: string } | null {
+  if (TAP_FORMATS.includes(format) && entry.type !== 'module') {
+    if (edits && entry.type === 'basic' && Object.keys(edits).length > 0) {
+      const rebuilt = rebuildBasicProgram(fileData, edits, entry);
+      if (!rebuilt) return null;
+      return { data: rebuilt, ext: '.tap' };
+    }
+    return { data: buildTapFile(entry, fileData), ext: '.tap' };
+  }
+  return { data: fileData, ext: rawFileExtension(format, entry) };
+}
+
+/**
+ * What a Run or a single-program export is aimed at: one catalog entry, or a
+ * loader together with the files it loads. The extract buttons already draw
+ * exactly this distinction, so the newer paths take the same shape rather
+ * than inventing a second one.
+ */
+interface ProgramTarget {
+  kind: 'file' | 'package';
+  /** kind: 'file' */
+  entryIndex?: number;
+  /** kind: 'package' */
+  loaderIndex?: number;
+  depIndices?: number[];
+}
+
+/**
+ * Turn a target into the bytes it stands for, plus enough of its surroundings
+ * to name it and to record it as archived. Returns null when the image will
+ * not parse, the entry has gone, or a package refuses to build.
+ */
+function resolveProgram(
+  imagePath: string, target: ProgramTarget,
+  allEdits?: Record<number, Record<number, string>>,
+): {
+  format: DiskFormat; title: string; entry: FileEntry;
+  data: Buffer; ext: string;
+  members: FileEntry[]; fileDataMap: Map<number, Buffer>;
+} | null {
+  const buffer = fs.readFileSync(imagePath);
+  const format = detectFormat(buffer, imagePath);
+  if (!format) return null;
+
+  const parser = getParser(format);
+  const { entries } = parser.readCatalog(buffer);
+  const allEntries = flattenEntries(entries);
+
+  if (target.kind === 'package') {
+    const loader = allEntries.find((e) => e.index === target.loaderIndex);
+    if (!loader) return null;
+    const deps = (target.depIndices ?? [])
+      .map((i) => allEntries.find((e) => e.index === i))
+      .filter(Boolean) as FileEntry[];
+
+    const fileDataMap = new Map<number, Buffer>();
+    for (const member of [loader, ...deps]) {
+      const data = parser.readFileData(buffer, member);
+      if (data) fileDataMap.set(member.index, data);
+    }
+
+    const pkg: TapPackage = { loader, dependencies: deps, unresolved: [] };
+    const tapData = buildMultiFileTap(pkg, fileDataMap, allEdits);
+    if (!tapData) return null;
+
+    return {
+      format, title: loader.filename, entry: loader,
+      data: tapData, ext: '.tap',
+      members: [loader, ...deps], fileDataMap,
+    };
+  }
+
+  const entry = allEntries.find((e) => e.index === target.entryIndex);
+  if (!entry || entry.isDirectory) return null;
+  const fileData = parser.readFileData(buffer, entry);
+  if (!fileData) return null;
+
+  const payload = programPayload(format, entry, fileData, allEdits?.[entry.index]);
+  if (!payload) return null;
+
+  return {
+    format, title: entry.filename, entry,
+    data: payload.data, ext: payload.ext,
+    members: [entry], fileDataMap: new Map([[entry.index, fileData]]),
+  };
+}
+
 function fileTypeToArchiveSuffix(entry: FileEntry): string {
   switch (entry.type) {
     case 'basic': return 'Program';
@@ -1282,6 +1398,143 @@ ipcMain.handle('extract-package', async (
     format: 'tap',
     size: tapData.length,
     marked,
+  };
+});
+
+/**
+ * Where a program goes on its way to the emulator. Its own folder under the
+ * system temp directory, so nothing here writes near the reader's files, and
+ * a stable name per program so relaunching the same one reuses a file rather
+ * than leaving a trail of them.
+ */
+function runScratchDir(): string {
+  const dir = path.join(app.getPath('temp'), 'ts2068-disk-browser');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+interface EmulatorStatus {
+  /** The binary that would be used, or null when none was found. */
+  path: string | null;
+  /** Whether that path came from the reader's own setting. */
+  configured: boolean;
+}
+
+ipcMain.handle('get-emulator-status', async (): Promise<EmulatorStatus> => {
+  const { emulatorPath } = getSettings();
+  const found = findEmulator(emulatorPath);
+  return { path: found, configured: Boolean(emulatorPath && found === emulatorPath) };
+});
+
+ipcMain.handle('pick-emulator', async (): Promise<EmulatorStatus> => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    title: 'Choose the ZEsarUX program',
+    // The macOS binary lives inside the bundle, so the dialog has to be able
+    // to walk into one rather than treat it as a single file.
+    properties: process.platform === 'darwin'
+      ? ['openFile', 'treatPackageAsDirectory']
+      : ['openFile'],
+    ...(process.platform === 'darwin' ? { defaultPath: '/Applications' } : {}),
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    const { emulatorPath } = getSettings();
+    const found = findEmulator(emulatorPath);
+    return { path: found, configured: Boolean(emulatorPath && found === emulatorPath) };
+  }
+  updateSettings({ emulatorPath: result.filePaths[0] });
+  return { path: result.filePaths[0], configured: true };
+});
+
+ipcMain.handle('clear-emulator', async (): Promise<EmulatorStatus> => {
+  updateSettings({ emulatorPath: undefined });
+  const found = findEmulator();
+  return { path: found, configured: false };
+});
+
+interface RunResult {
+  ok: boolean;
+  message: string;
+  /** Which machine ZEsarUX was told to be, for the status line to report. */
+  machine?: string;
+}
+
+/**
+ * Hand one program to the emulator. Deliberately the same bytes an export
+ * would produce, hand-edited BASIC lines included, so what the reader watches
+ * load is what they are about to archive.
+ */
+ipcMain.handle('run-in-emulator', async (
+  _event, imagePath: string, target: ProgramTarget,
+  allEdits?: Record<number, Record<number, string>>,
+  customTitle?: string,
+): Promise<RunResult> => {
+  const { emulatorPath } = getSettings();
+  const exe = findEmulator(emulatorPath);
+  if (!exe) {
+    return {
+      ok: false,
+      message: 'ZEsarUX was not found — install it, or point at it in Preferences',
+    };
+  }
+
+  const program = resolveProgram(imagePath, target, allEdits);
+  if (!program) return { ok: false, message: 'Could not build that program' };
+
+  const machine = machineForFormat(program.format);
+  if (!machine) {
+    return {
+      ok: false,
+      message: `Nothing to run: ${program.format} files are not a tape a machine can be handed`,
+    };
+  }
+
+  const safeName = makeSafeFilename((customTitle ?? program.title).trim()) || 'program';
+  const outPath = path.join(runScratchDir(), safeName + program.ext);
+  try {
+    fs.writeFileSync(outPath, program.data);
+    launchEmulator(exe, emulatorArgs(machine, outPath, program.data.length));
+  } catch (err: any) {
+    return { ok: false, message: `Could not start ZEsarUX: ${err.message}` };
+  }
+
+  return { ok: true, message: `Running ${safeName} as ${machine}`, machine };
+});
+
+/**
+ * One program, named the archive's way and packed on its own.
+ *
+ * The whole-disk archive.org export writes a whole disk at once; this is the
+ * same naming applied to a single program, which is the shape a submission
+ * wants — one archive, one program, named so the file says what it is without
+ * the folder it sits in having to.
+ */
+ipcMain.handle('export-tosec', async (
+  _event, imagePath: string, target: ProgramTarget, destDir: string,
+  metadata: ArchiveMetadata,
+  allEdits?: Record<number, Record<number, string>>,
+  customTitle?: string,
+): Promise<ExtractionResult | null> => {
+  const program = resolveProgram(imagePath, target, allEdits);
+  if (!program) return null;
+
+  // A package is named for its loader and is a Program whatever its parts
+  // are; a lone file is named for whatever it turned out to be.
+  const typeSuffix = target.kind === 'package'
+    ? 'Program'
+    : fileTypeToArchiveSuffix(program.entry);
+  const archiveName = buildArchiveName(customTitle ?? program.title, metadata, typeSuffix);
+
+  fs.mkdirSync(destDir, { recursive: true });
+  const zipPath = uniquePath(path.join(destDir, archiveName + '.zip'));
+  const zipData = buildZipArchive([{ name: archiveName + program.ext, data: program.data }]);
+  fs.writeFileSync(zipPath, zipData);
+
+  return {
+    filename: program.title,
+    outputPaths: [zipPath],
+    format: 'zip',
+    size: program.data.length,
+    marked: markExported(program.members, program.fileDataMap),
   };
 });
 

@@ -163,6 +163,41 @@ export interface Settings {
   autoCheckCatalogUpdate?: boolean;
   /** Whether package and archive.org exports also mark those programs archived. */
   markArchivedOnExport?: boolean;
+  /** The ZEsarUX binary Run uses, when it is somewhere the app cannot find on its own. */
+  emulatorPath?: string;
+}
+
+/**
+ * What a Run or a single-program export is aimed at: one catalog entry, or a
+ * loader together with the files it loads. Mirrors ProgramTarget in main.ts —
+ * the renderer does not import across that boundary, so the two have to agree.
+ */
+export interface ProgramTarget {
+  kind: 'file' | 'package';
+  entryIndex?: number;
+  loaderIndex?: number;
+  depIndices?: number[];
+}
+
+/** Metadata the archive naming needs, whether for a whole disk or one program. */
+export interface TosecMetadata {
+  year: string;
+  publisher: string;
+  system: string;
+  country: string;
+}
+
+export interface EmulatorStatus {
+  /** The binary Run would use, or null when none was found. */
+  path: string | null;
+  /** Whether that path came from the reader's own setting rather than a search. */
+  configured: boolean;
+}
+
+export interface RunResult {
+  ok: boolean;
+  message: string;
+  machine?: string;
 }
 
 /** A SCREEN$ is 6912 bytes: 6144 of pixels then 768 of attributes. */
@@ -177,6 +212,27 @@ export const SCREEN_SIZE = 6912;
  */
 export function isScreenEntry(entry: { type: string; size: number }): boolean {
   return entry.type === 'code' && entry.size === SCREEN_SIZE;
+}
+
+/**
+ * The archive's word for what an entry is. The main process decides this too,
+ * in fileTypeToArchiveSuffix — the renderer does not import across that
+ * boundary, so the two definitions have to agree. Here it only feeds the
+ * filename shown in the export dialog before the reader commits.
+ */
+export function archiveTypeSuffix(entry: { type: string; size: number }): string {
+  switch (entry.type) {
+    case 'basic': return 'Program';
+    case 'code':
+      if (entry.size === SCREEN_SIZE) return 'Screen';
+      if (entry.size === 256) return 'Icon';
+      if (entry.size === 768) return 'Font';
+      return 'Code';
+    case 'num-array':
+    case 'str-array': return 'Data';
+    case 'state': return 'Snapshot';
+    default: return 'Program';
+  }
 }
 
 /** A file is called text when this fraction of its bytes are printable. */
@@ -342,6 +398,11 @@ interface DiskToolsAPI {
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
   extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) => Promise<ExtractionResult | null>;
+  runInEmulator: (imagePath: string, target: ProgramTarget, allEdits?: Record<number, Record<number, string>>, customTitle?: string) => Promise<RunResult>;
+  getEmulatorStatus: () => Promise<EmulatorStatus>;
+  pickEmulator: () => Promise<EmulatorStatus>;
+  clearEmulator: () => Promise<EmulatorStatus>;
+  exportTosec: (imagePath: string, target: ProgramTarget, destDir: string, metadata: TosecMetadata, allEdits?: Record<number, Record<number, string>>, customTitle?: string) => Promise<ExtractionResult | null>;
   getSettings: () => Promise<Settings>;
   updateSettings: (patch: Partial<Settings>) => Promise<Settings>;
   /** Offer to remember a folder after the first extraction; true if accepted. */
@@ -360,6 +421,7 @@ interface DiskToolsAPI {
   getArrayData: (imagePath: string, entryIndex: number) => Promise<ArrayData | null>;
   onMenuOpenFile: (callback: () => void) => () => void;
   onMenuOpenRecent: (callback: (_event: any, filePath: string) => void) => () => void;
+  onMenuRunEmulator: (callback: () => void) => () => void;
   onMenuCreateTap: (callback: () => void) => () => void;
   exportAllFonts: (imagePath: string, destDir: string) => Promise<number>;
   exportAllScreens: (imagePath: string, destDir: string) => Promise<number>;

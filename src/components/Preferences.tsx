@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, Settings } from '../api';
+import { api, Settings, EmulatorStatus } from '../api';
 
 interface Props {
   onClose: () => void;
@@ -8,7 +8,7 @@ interface Props {
 /**
  * Settings, in a modal over the browser rather than a second window.
  *
- * There is one setting and it is a folder, so a separate BrowserWindow would
+ * The settings are few and mostly paths, so a separate BrowserWindow would
  * cost its own IPC channel and lifecycle for no gain. Opened from
  * File ▸ Preferences (Cmd/Ctrl+,).
  */
@@ -18,11 +18,13 @@ export function Preferences({ onClose }: Props) {
   const [checkMessage, setCheckMessage] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<{ dir: string; images: number; folders: number; programs: number; archived: number } | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [emulator, setEmulator] = useState<EmulatorStatus | null>(null);
 
   useEffect(() => {
     api.getSettings().then(setSettings).catch(() => setSettings({}));
     api.getCatalogSummary().then(setCatalog).catch(() => setCatalog(null));
     api.compareShippedList().then(setShipped).catch(() => setShipped(null));
+    api.getEmulatorStatus().then(setEmulator).catch(() => setEmulator({ path: null, configured: false }));
   }, []);
 
   // Escape closes, as it does in every other dialog.
@@ -61,6 +63,14 @@ export function Preferences({ onClose }: Props) {
     setSettings((prev) => ({ ...prev, catalogDir: dir }));
     setCatalog(await api.getCatalogSummary());
     setShipped(await api.compareShippedList());
+  };
+
+  const chooseEmulator = async () => {
+    setEmulator(await api.pickEmulator());
+  };
+
+  const clearEmulator = async () => {
+    setEmulator(await api.clearEmulator());
   };
 
   const clearCatalog = async () => {
@@ -116,6 +126,43 @@ export function Preferences({ onClose }: Props) {
           <button onClick={choose} style={btn}>Choose...</button>
           {settings?.extractionDir && <button onClick={clear} style={btn}>Clear</button>}
         </div>
+
+        <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />
+
+        <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 6 }}>
+          Emulator
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+          Run hands the selected program to <strong>ZEsarUX</strong>, which is the
+          emulator that covers every machine these disks came from and the only
+          one that can be told which machine to be from the command line. It
+          launches with your own emulator settings left untouched, so nothing
+          here changes how ZEsarUX behaves when you start it yourself. Only
+          worth setting when it lives somewhere the app does not think to look.
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+          borderRadius: 4, padding: '8px 10px',
+        }}>
+          <span style={{
+            flex: 1, fontSize: 11, fontFamily: 'var(--mono, monospace)',
+            color: emulator?.path ? 'var(--text-primary)' : 'var(--text-muted)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            direction: 'rtl', textAlign: 'left',
+          }}>
+            {emulator === null ? 'Looking...'
+              : emulator.path ?? 'Not found — install ZEsarUX, or point at it here'}
+          </span>
+          <button onClick={chooseEmulator} style={btn}>Choose...</button>
+          {emulator?.configured && <button onClick={clearEmulator} style={btn}>Clear</button>}
+        </div>
+        {emulator?.path && !emulator.configured && (
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+            Found on its own — nothing to set.
+          </div>
+        )}
 
         <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />
 
