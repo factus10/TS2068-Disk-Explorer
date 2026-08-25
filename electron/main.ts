@@ -837,6 +837,11 @@ ipcMain.handle('extract-file', async (
 
   const result = writeExtractedFile(destDir, effectiveEntry, fileData, format, editedLines);
   if (result) {
+    const listingPath = writeListingSidecar(
+      destDir, makeSafeFilename(effectiveEntry.filename.trim()),
+      format, entry, fileData, editedLines,
+    );
+    if (listingPath) result.outputPaths.push(listingPath);
     const marked = markExported([entry], new Map([[entry.index, fileData]]));
     if (marked) result.marked = marked;
   }
@@ -943,29 +948,8 @@ ipcMain.handle('extract-all', async (
       fs.writeFileSync(pngPath, pngData);
     }
 
-    // BASIC programs → .txt listing
-    if (entry.type === 'basic') {
-      const listing = detokenizeEntry(format, fileData, entry);
-      if (listing.lines.length > 0) {
-        const txt = listingToText(listing);
-        const txtPath = uniquePath(path.join(destDir, safeName + '.txt'));
-        fs.writeFileSync(txtPath, txt);
-      }
-    }
-
-    // State captures → .txt extracted BASIC listing
-    if (entry.type === 'state' || entry.isMemoryDump) {
-      const origin = format.startsWith('oliger') ? 0x3E00 : 0x4000;
-      const stateInfo = extractBasicFromState(fileData, origin);
-      if (stateInfo) {
-        const listing = detokenize(stateInfo.basicData);
-        if (listing.lines.length > 0) {
-          const txt = listingToText(listing);
-          const txtPath = uniquePath(path.join(destDir, safeName + '.txt'));
-          fs.writeFileSync(txtPath, txt);
-        }
-      }
-    }
+    // BASIC programs, and the BASIC inside a state capture → .txt listing
+    writeListingSidecar(destDir, safeName, format, entry, fileData, allEdits?.[entry.index]);
 
     // Text/word processor files → .txt
     if (isTextContent(fileData)) {
@@ -1390,11 +1374,19 @@ ipcMain.handle('extract-package', async (
   const tapPath = uniquePath(path.join(destDir, (safeName || 'package') + '.tap'));
   fs.writeFileSync(tapPath, tapData);
 
+  // The loader is the program; its source goes out beside the tape.
+  const loaderData = fileDataMap.get(loader.index);
+  const listingPath = loaderData
+    ? writeListingSidecar(
+        destDir, safeName || 'package', format, loader, loaderData, allEdits?.[loader.index],
+      )
+    : null;
+
   const marked = markExported([loader, ...deps], fileDataMap);
 
   return {
     filename: loader.filename,
-    outputPaths: [tapPath],
+    outputPaths: listingPath ? [tapPath, listingPath] : [tapPath],
     format: 'tap',
     size: tapData.length,
     marked,
@@ -1529,9 +1521,19 @@ ipcMain.handle('export-tosec', async (
   const zipData = buildZipArchive([{ name: archiveName + program.ext, data: program.data }]);
   fs.writeFileSync(zipPath, zipData);
 
+  // The source sits beside the archive rather than inside it: a submission is
+  // the program, and the listing is for whoever wants to read it.
+  const entryData = program.fileDataMap.get(program.entry.index);
+  const listingPath = entryData
+    ? writeListingSidecar(
+        destDir, archiveName, program.format, program.entry, entryData,
+        allEdits?.[program.entry.index],
+      )
+    : null;
+
   return {
     filename: program.title,
-    outputPaths: [zipPath],
+    outputPaths: listingPath ? [zipPath, listingPath] : [zipPath],
     format: 'zip',
     size: program.data.length,
     marked: markExported(program.members, program.fileDataMap),
@@ -1864,7 +1866,7 @@ ipcMain.handle('print-listing-pdf', async (
   const tokenColors: Record<string, string> = {
     statement: '#4ecdc4', function: '#fce38a', operator: '#f0a050',
     'disk-cmd': '#ff6b6b', 'ts2068-kw': '#c084fc', udg: '#ff6b6b',
-    graphic: '#a0a0b0', text: '#e0e0e0',
+    graphic: '#a0a0b0', control: '#6f7a8a', text: '#e0e0e0',
   };
 
   const linesHtml = listing.lines.map((line) => {
@@ -2005,16 +2007,59 @@ function decodeTextContent(data: Buffer): string {
   return text;
 }
 
-/** Convert a BASIC listing to plain text with line numbers. */
-function listingToText(listing: BasicListing): string {
+/**
+ * A BASIC listing as zmakebas source.
+ *
+ * Every line is indented by one space before its number. zmakebas ignores
+ * leading whitespace, and the space keeps a line number from being read as
+ * markup by whatever the text is pasted into next.
+ */
+function listingToText(listing: BasicListing, edits?: Record<number, string>): string {
   const maxLn = listing.lines.length > 0
     ? Math.max(...listing.lines.map((l) => l.lineNumber))
     : 0;
   const width = String(maxLn).length;
   return listing.lines.map((line) => {
-    const text = line.tokens.map((t) => t.text).join('');
-    return `${String(line.lineNumber).padStart(width, ' ')} ${text}`;
+    const text = edits?.[line.lineNumber] ?? line.tokens.map((t) => t.text).join('');
+    return ` ${String(line.lineNumber).padStart(width, ' ')} ${text}`;
   }).join('\n') + '\n';
+}
+
+/**
+ * The BASIC a file holds, if it holds any — a program, or the program still
+ * standing in a memory image. One reading, so that the listing beside an
+ * exported program is the listing the app was showing.
+ */
+function basicListingOf(
+  format: DiskFormat, entry: FileEntry, fileData: Buffer,
+): BasicListing | null {
+  let listing: BasicListing | null = null;
+  if (entry.type === 'basic') {
+    listing = detokenizeEntry(format, fileData, entry);
+  } else if (entry.type === 'state' || entry.isMemoryDump) {
+    const origin = format.startsWith('oliger') ? 0x3E00 : 0x4000;
+    const stateInfo = extractBasicFromState(fileData, origin);
+    if (stateInfo) listing = detokenize(stateInfo.basicData);
+  }
+  return listing && listing.lines.length > 0 ? listing : null;
+}
+
+/**
+ * Write the program's source beside whatever binary shape it went out as.
+ *
+ * A TAP or a ZIP is for a machine; the `.txt` is for a reader, and it is
+ * zmakebas source, so it is also how the program gets rebuilt or corrected
+ * without an emulator. It takes the same name as the file it accompanies.
+ */
+function writeListingSidecar(
+  destDir: string, baseName: string, format: DiskFormat, entry: FileEntry,
+  fileData: Buffer, edits?: Record<number, string>,
+): string | null {
+  const listing = basicListingOf(format, entry, fileData);
+  if (!listing) return null;
+  const txtPath = uniquePath(path.join(destDir, baseName + '.txt'));
+  fs.writeFileSync(txtPath, listingToText(listing, edits));
+  return txtPath;
 }
 
 function flattenEntries(entries: FileEntry[]): FileEntry[] {

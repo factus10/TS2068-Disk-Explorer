@@ -270,7 +270,8 @@ export interface DisasmSettings {
 export type DisasmSettingsMap = Record<number, DisasmSettings>;
 
 export interface BasicToken {
-  type: 'statement' | 'function' | 'operator' | 'text' | 'udg' | 'graphic' | 'disk-cmd' | 'ts2068-kw';
+  type: 'statement' | 'function' | 'operator' | 'text' | 'udg' | 'graphic'
+    | 'disk-cmd' | 'ts2068-kw' | 'control';
   text: string;
 }
 

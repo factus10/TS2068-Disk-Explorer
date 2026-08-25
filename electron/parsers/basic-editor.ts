@@ -11,6 +11,7 @@
  */
 
 import { tokenizeLine } from './basic-tokenizer';
+import { spectrumEscape, decimalEscape } from './zmakebas';
 import { readUint16BE, readUint16LE } from './utils';
 import { buildTapFile } from './tap';
 import type { FileEntry } from './types';
@@ -47,11 +48,17 @@ const TOKENS: Record<number, string> = {
   0xfd: 'CLEAR ', 0xfe: 'RETURN ', 0xff: 'COPY ',
 };
 
+/**
+ * How a byte reads in the listing. Anything with no ASCII spelling — the
+ * graphics, the UDGs, ©, £, ↑, the backslash itself — goes through
+ * `spectrumEscape`, so that the text this builds its map over is character
+ * for character the text the listing shows and the reader edits.
+ */
 function mapCharacter(byte: number): string {
-  if (byte === 0x60) return '\u00A3';
-  if (byte === 0x7f) return '\u00A9';
-  if (byte === 0x5e) return '\u2191';
+  const escape = spectrumEscape(byte);
+  if (escape) return escape;
   if (byte >= 0x20 && byte <= 0x7a) return String.fromCharCode(byte);
+  if (byte >= 0x7b && byte <= 0x7e) return String.fromCharCode(byte);
   return '';
 }
 
@@ -66,17 +73,26 @@ function decodeLineWithMap(data: Buffer, start: number, end: number): CharByteMa
   let inRem = false;
   let prevText = '';
 
+  /** A control code and its parameters, each character mapped to its own byte. */
+  const pushControl = (count: number) => {
+    for (let n = 0; n < count && i + n < end; n++) {
+      const escape = decimalEscape(data[i + n]);
+      for (const _c of escape) map.push({ start: i + n, end: i + n + 1 });
+      text += escape;
+    }
+    i += count;
+  };
+
   while (i < end) {
     const byte = data[i];
     if (byte === 0x0d) break;
 
     if (inRem) {
-      if (byte === 0x0e) { i += 6; continue; }
       let ch = '';
       if (byte >= 0xa5 && TOKENS[byte]) {
         ch = TOKENS[byte];
-      } else if (byte >= 0x90 && byte <= 0xa4) {
-        ch = `[UDG-${String.fromCharCode(0x41 + (byte - 0x90))}]`;
+      } else if (byte < 0x20) {
+        ch = decimalEscape(byte);
       } else {
         ch = mapCharacter(byte);
       }
@@ -88,13 +104,13 @@ function decodeLineWithMap(data: Buffer, start: number, end: number): CharByteMa
       continue;
     }
 
-    // Embedded float: skip silently (no output characters)
+    // Embedded float: the only byte run with no characters of its own
     if (byte === 0x0e) { i += 6; continue; }
 
-    // Control codes: skip silently
-    if (byte >= 0x10 && byte <= 0x15) { i += 2; continue; }
-    if (byte === 0x16 || byte === 0x17) { i += 3; continue; }
-    if (byte < 0x20) { i++; continue; }
+    // Control codes, each with its parameter bytes, written in decimal
+    if (byte >= 0x10 && byte <= 0x15) { pushControl(2); continue; }
+    if (byte === 0x16 || byte === 0x17) { pushControl(3); continue; }
+    if (byte < 0x20) { pushControl(1); continue; }
 
     // Keyword token
     if (byte >= 0xa5) {
@@ -113,42 +129,11 @@ function decodeLineWithMap(data: Buffer, start: number, end: number): CharByteMa
       continue;
     }
 
-    // UDG
-    if (byte >= 0x90 && byte <= 0xa4) {
-      const letter = String.fromCharCode(0x41 + (byte - 0x90));
-      const udgText = `[UDG-${letter}]`;
-      for (const c of udgText) map.push({ start: i, end: i + 1 });
-      text += udgText;
-      i++;
-      continue;
-    }
-
-    // Block graphics
-    if (byte >= 0x80 && byte <= 0x8f) {
-      const BLOCK_CHARS = [
-        ' ', '\u2598', '\u259D', '\u2580', '\u2596', '\u258C', '\u259E', '\u259B',
-        '\u2597', '\u259A', '\u2590', '\u259C', '\u2584', '\u2599', '\u259F', '\u2588',
-      ];
-      const ch = BLOCK_CHARS[byte - 0x80];
-      map.push({ start: i, end: i + 1 });
-      text += ch;
-      i++;
-      continue;
-    }
-
-    // ZX Spectrum chars 0x7B-0x7F
-    if (byte >= 0x7b && byte <= 0x7f) {
-      const ch = mapCharacter(byte) || String.fromCharCode(byte);
-      map.push({ start: i, end: i + 1 });
-      text += ch;
-      i++;
-      continue;
-    }
-
-    // Regular character
+    // Everything else is one byte's worth of text, however many characters
+    // its escape takes.
     const ch = mapCharacter(byte);
     if (ch) {
-      map.push({ start: i, end: i + 1 });
+      for (const _c of ch) map.push({ start: i, end: i + 1 });
       text += ch;
     }
     i++;
