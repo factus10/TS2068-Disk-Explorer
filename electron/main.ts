@@ -530,18 +530,27 @@ ipcMain.handle('set-catalog-archived', async (
   return setArchived(catalogDir, targetPath, isDirectory, archived);
 });
 
+/** The path of the copy that ships inside the app. */
+function shippedListPath(): string {
+  return path.join(app.getAppPath(), 'electron', 'data', 'known-programs.csv');
+}
+
 /**
  * Where a refreshed known-programs.csv should go. Running from source that is
  * the copy the app ships, so it can be committed; a packaged app cannot write
  * inside its own bundle, so it falls back to the catalogue folder.
+ *
+ * Which of the two it turned out to be matters to whoever asked for the
+ * refresh: one is a file already in its place, the other is a file they have
+ * to carry into the repository themselves before anyone else sees it.
  */
-function knownProgramsTarget(catalogDir: string): string {
-  const inRepo = path.join(app.getAppPath(), 'electron', 'data', 'known-programs.csv');
+function knownProgramsTarget(catalogDir: string): { path: string; inRepo: boolean } {
+  const shipped = shippedListPath();
   try {
-    fs.accessSync(path.dirname(inRepo), fs.constants.W_OK);
-    return inRepo;
+    fs.accessSync(path.dirname(shipped), fs.constants.W_OK);
+    return { path: shipped, inRepo: true };
   } catch {
-    return path.join(catalogDir, 'known-programs.csv');
+    return { path: path.join(catalogDir, 'known-programs.csv'), inRepo: false };
   }
 }
 
@@ -649,7 +658,7 @@ ipcMain.handle('clear-catalog-update', async () => {
 });
 
 ipcMain.handle('export-known-programs', async (): Promise<
-  { path: string; rows: number; archived: number; matched: number } | null
+  { path: string; rows: number; archived: number; matched: number; inRepo: boolean } | null
 > => {
   const { catalogDir } = getSettings();
   if (!catalogDir) {
@@ -676,13 +685,42 @@ ipcMain.handle('export-known-programs', async (): Promise<
   const suggested = knownProgramsTarget(catalogDir);
   const result = await dialog.showSaveDialog(mainWindow!, {
     title: 'Write the shared list of known programs',
-    defaultPath: suggested,
+    defaultPath: suggested.path,
+    // Only macOS shows this, so it is a courtesy rather than the answer; the
+    // message after the write is what every platform gets.
+    message: suggested.inRepo
+      ? 'This is the copy that ships with the app, so saving here is enough.'
+      : 'The app cannot write inside its own bundle, so this is a copy in the '
+        + 'catalogue folder. It has to be moved into electron/data/ of the '
+        + 'repository before anyone else sees it.',
     filters: [{ name: 'CSV', extensions: ['csv'] }],
   });
   if (result.canceled || !result.filePath) return null;
 
   fs.writeFileSync(result.filePath, built.text);
-  return { path: result.filePath, rows: built.rows, archived: built.archived, matched: built.matched };
+
+  // Whether it landed in its place is a fact about where it was actually
+  // saved, not about where the dialog offered to put it.
+  const inRepo = path.resolve(result.filePath) === path.resolve(shippedListPath());
+  if (!inRepo) {
+    await dialog.showMessageBox(mainWindow!, {
+      type: 'info',
+      title: 'List written',
+      message: `Wrote ${built.rows} programs to ${path.basename(result.filePath)}.`,
+      detail: `${result.filePath}\n\nThis is not the copy the app ships. Move it to `
+        + 'electron/data/known-programs.csv in the repository and commit it, or the '
+        + 'refresh reaches no one else.',
+      buttons: ['OK', 'Show in Folder'],
+      defaultId: 0,
+    }).then((answer) => {
+      if (answer.response === 1) shell.showItemInFolder(result.filePath!);
+    });
+  }
+
+  return {
+    path: result.filePath, rows: built.rows,
+    archived: built.archived, matched: built.matched, inRepo,
+  };
 });
 
 ipcMain.handle('compare-shipped-list', async () => {

@@ -618,8 +618,12 @@ function App() {
     try {
       const r = await api.exportKnownPrograms();
       if (!r) return;
-      setStatus(`Wrote ${r.rows} program(s) to ${r.path.split(/[/\\]/).pop()}`
-        + ` — ${r.archived} archived, ${r.matched} matched`);
+      // The whole path, not just the name. A packaged app cannot write inside
+      // its own bundle and quietly falls back to the catalogue folder, and a
+      // bare `known-programs.csv` gives no way to tell which happened.
+      setStatus(`Wrote ${r.rows} program(s) to ${r.path}`
+        + ` — ${r.archived} archived, ${r.matched} matched`
+        + (r.inRepo ? '' : ' — not the shipped copy; move it into electron/data/'));
     } catch (err: any) {
       setStatus(`Error: ${err.message}`);
     }
