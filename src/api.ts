@@ -370,7 +370,9 @@ interface DiskToolsAPI {
    */
   getDiskArchiveStatus: (imagePath: string) => Promise<DiskArchiveStatus | null>;
   /** Rebuild the shared list of known programs from the catalogue. */
-  exportKnownPrograms: () => Promise<{ path: string; rows: number; archived: number; matched: number } | null>;
+  exportKnownPrograms: () => Promise<
+    { path: string; rows: number; archived: number; matched: number; inRepo: boolean } | null
+  >;
   onMenuExportKnown: (callback: () => void) => () => void;
   /** Compare the published program list against the one in use, and offer it. */
   checkCatalogUpdate: (quiet?: boolean) => Promise<{ updated: boolean; message: string }>;

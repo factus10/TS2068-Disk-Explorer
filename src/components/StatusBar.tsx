@@ -29,8 +29,16 @@ export function StatusBar({ message, format, fileCount }: Props) {
       fontSize: 11,
       color: 'var(--text-muted)',
     }}>
-      <span>{message}</span>
-      <div style={{ display: 'flex', gap: 16 }}>
+      {/* The message can be a full path now, so it gets the spare room and
+          keeps the rest of it on the tooltip rather than pushing the counts
+          off the end. */}
+      <span
+        title={message}
+        style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+      >
+        {message}
+      </span>
+      <div style={{ display: 'flex', gap: 16, flexShrink: 0, paddingLeft: 16 }}>
         {format && <span>{FORMAT_LABELS[format] ?? format}</span>}
         {fileCount !== undefined && <span>{fileCount} file(s)</span>}
       </div>
