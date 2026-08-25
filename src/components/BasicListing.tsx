@@ -17,6 +17,9 @@ const TOKEN_COLORS: Record<string, string> = {
   'ts2068-kw': '#c084fc',
   udg: '#ff6b6b',
   graphic: '#a0a0b0',
+  // Embedded control codes are the program's colour and cursor moves, not its
+  // words — dim, so a PRINT full of them still reads as a PRINT.
+  control: '#6f7a8a',
   text: 'var(--text-primary)',
 };
 
@@ -33,11 +36,13 @@ export function BasicListing({ listing, fileEdits, onEditLine, onRevertLine, onR
     : 0;
   const lineNumWidth = String(maxLineNum).length;
 
+  // The same zmakebas source the export writes, down to the space in front of
+  // the line number, so a copied listing and an exported one are one text.
   const plainText = useMemo(() => {
     return listing.lines.map((line) => {
       const text = fileEdits?.[line.lineNumber]
         ?? line.tokens.map((t) => t.text).join('');
-      return `${String(line.lineNumber).padStart(lineNumWidth, ' ')} ${text}`;
+      return ` ${String(line.lineNumber).padStart(lineNumWidth, ' ')} ${text}`;
     }).join('\n');
   }, [listing, lineNumWidth, fileEdits]);
 

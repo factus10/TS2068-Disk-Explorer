@@ -20,6 +20,7 @@
 
 import type { BasicListing, BasicLine, BasicToken } from './basic-detokenizer';
 import { decodeFloat, formatNum } from './basic-variables';
+import { zx81Escape, fixLineEnd } from './zmakebas';
 import type { BasicVariable } from './basic-variables';
 
 // Block graphics for codes 0x01-0x0A. Codes 8-10 are half-tone (dithered)
@@ -91,11 +92,11 @@ export function isZX81Text(b: number): boolean {
 function charToken(code: number): BasicToken {
   const inverse = code >= 0x80 && code < 0xc0;
   const base = inverse ? code - 0x80 : code;
-  const text = base < 0x40 ? CHARS[base] : '?';
+  const glyph = base < 0x40 ? CHARS[base] : '?';
   // Graphics and inverse-video characters get their own token type so the
   // viewer can style them apart from ordinary text.
   const isGraphic = inverse || (base >= 0x01 && base <= 0x0a);
-  return { type: isGraphic ? 'graphic' : 'text', text };
+  return { type: isGraphic ? 'graphic' : 'text', text: zx81Escape(code, glyph) ?? glyph };
 }
 
 /**
@@ -137,7 +138,15 @@ export function detokenizeZX81(
     if (data[pos + 4 + lineLength - 1] !== 0x76) break;
 
     const body = data.subarray(pos + 4, pos + 4 + lineLength);
-    lines.push({ lineNumber, tokens: tokenizeLine(body, remStyle) });
+    const tokens = tokenizeLine(body, remStyle);
+    // A `\\` — the ZX81's £ — left at the end of a line would swallow the
+    // newline when the listing is fed back to zmakebas.
+    if (tokens.length > 0) {
+      const last = tokens[tokens.length - 1];
+      const fixed = fixLineEnd(last.text, 0x0c);
+      if (fixed !== last.text) tokens[tokens.length - 1] = { ...last, text: fixed };
+    }
+    lines.push({ lineNumber, tokens });
     pos += 4 + lineLength;
   }
 
@@ -175,7 +184,7 @@ function tokenizeLine(body: Buffer, remStyle: RemStyle = 'characters'): BasicTok
     if (inRem) {
       text += remStyle === 'hex'
         ? `${b.toString(16).toUpperCase().padStart(2, '0')}h `
-        : (b < 0x40 ? CHARS[b] : (b >= 0x80 && b < 0xc0 ? CHARS[b - 0x80] : (TOKENS[b] ?? '?')));
+        : (b < 0xc0 ? charToken(b).text : (TOKENS[b] ?? '?'));
       continue;
     }
 

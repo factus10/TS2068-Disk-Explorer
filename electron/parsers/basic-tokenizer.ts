@@ -7,8 +7,15 @@
  *  1. Create a lowercase copy with quoted strings blanked out
  *  2. Scan for keywords longest-first, only matching at non-alpha boundaries
  *  3. Context pass: revert keywords that are variable names
- *  4. Output pass: emit token bytes, handle numbers, UDGs, special chars
+ *  4. Output pass: emit token bytes, handle numbers, escapes, special chars
+ *
+ * Text comes in the way the listing shows it, which is zmakebas source: the
+ * graphics and UDGs are backslash escapes rather than characters. Those are
+ * blanked before keyword matching, so that `\at` is a UDG followed by a `t`
+ * and never the keyword AT.
  */
+
+import { readSpectrumEscape } from './zmakebas';
 
 // Reverse token map: keyword → byte value
 const KEYWORD_TO_BYTE: Record<string, number> = {
@@ -50,6 +57,18 @@ function isAlpha(ch: string): boolean {
 }
 
 /**
+ * One escape at `pos`, or null. `[UDG-A]` is the notation earlier versions
+ * used; edits saved against those listings are still read.
+ */
+function readEscape(text: string, pos: number): { byte: number; length: number } | null {
+  const escape = readSpectrumEscape(text, pos);
+  if (escape) return escape;
+  const legacy = text.slice(pos, pos + 8).match(/^\[UDG-([A-U])\]/);
+  if (legacy) return { byte: 0x90 + legacy[1].charCodeAt(0) - 0x41, length: legacy[0].length };
+  return null;
+}
+
+/**
  * Tokenize a single line of BASIC text (without line number).
  */
 export function tokenizeLine(text: string): Buffer {
@@ -66,6 +85,14 @@ export function tokenizeLine(text: string): Buffer {
     } else if (inStr) {
       work[i] = ' ';
     }
+  }
+
+  // Blank out escapes, so no keyword can be found inside one
+  for (let i = 1; i < work.length; i++) {
+    const escape = readEscape(padded, i);
+    if (!escape) continue;
+    for (let j = i; j < i + escape.length && j < work.length; j++) work[j] = '\x01';
+    i += escape.length - 1;
   }
 
   // Find REM and blank out everything after
@@ -199,12 +226,11 @@ export function tokenizeLine(text: string): Buffer {
   let i = 1;
 
   while (i < chars.length) {
-    // UDG notation
-    const remaining = padded.substring(i);
-    const udgMatch = remaining.match(/^\[UDG-([A-U])\]/);
-    if (udgMatch) {
-      bytes.push(0x90 + (udgMatch[1].charCodeAt(0) - 0x41));
-      i += udgMatch[0].length;
+    // Graphics, UDGs and the rest of what a backslash stands for
+    const escape = readEscape(padded, i);
+    if (escape) {
+      bytes.push(escape.byte);
+      i += escape.length;
       continue;
     }
 
@@ -227,10 +253,10 @@ export function tokenizeLine(text: string): Buffer {
       // After REM, everything is literal
       if (tokenByte === 0xea) {
         while (i < chars.length) {
-          const udgRem = padded.substring(i).match(/^\[UDG-([A-U])\]/);
-          if (udgRem) {
-            bytes.push(0x90 + (udgRem[1].charCodeAt(0) - 0x41));
-            i += udgRem[0].length;
+          const remEscape = readEscape(padded, i);
+          if (remEscape) {
+            bytes.push(remEscape.byte);
+            i += remEscape.length;
           } else {
             bytes.push(mapCharToByte(chars[i]));
             i++;
@@ -249,10 +275,10 @@ export function tokenizeLine(text: string): Buffer {
       bytes.push(0x22);
       i++;
       while (i < chars.length) {
-        const udgStr = padded.substring(i).match(/^\[UDG-([A-U])\]/);
-        if (udgStr) {
-          bytes.push(0x90 + (udgStr[1].charCodeAt(0) - 0x41));
-          i += udgStr[0].length;
+        const strEscape = readEscape(padded, i);
+        if (strEscape) {
+          bytes.push(strEscape.byte);
+          i += strEscape.length;
           continue;
         }
         bytes.push(mapCharToByte(chars[i]));
@@ -299,7 +325,9 @@ export function tokenizeLine(text: string): Buffer {
 }
 
 function mapCharToByte(ch: string): number {
-  if (ch === '\u00A3') return 0x60; // £
+  if (ch === '`') return 0x60;       // £, as zmakebas writes it
+  if (ch === '^') return 0x5e;       // ↑
+  if (ch === '\u00A3') return 0x60; // £, as older listings wrote it
   if (ch === '\u00A9') return 0x7f; // ©
   if (ch === '\u2191') return 0x5e; // ↑
   const code = ch.charCodeAt(0);

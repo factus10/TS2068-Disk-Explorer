@@ -169,6 +169,55 @@ whole-disk archive.org export; `previewArchiveName` in `ExportPrompt.tsx`
 mirrors it so the reader sees the answer before committing, and the two have to
 agree.
 
+A program's source goes out beside it. Whichever shape was chosen — a loose
+TAP, a combined TAP, a TOSEC ZIP — `writeListingSidecar` in `main.ts` writes
+`{name}.txt` next to it, named for the file it accompanies, with any
+hand-edited lines already folded in. The whole-disk extract has always written
+those listings; the single-program exports now do too.
+
+## BASIC Listings Are zmakebas Source
+
+A listing is not a picture of a program, it is the program written down:
+`electron/parsers/zmakebas.ts` holds the one table saying how each byte of a
+Sinclair character set is spelled in plain text, and the detokenizers, the
+line editor and the exported `.txt` all go through it. Paste a listing into a
+file, run zmakebas over it, and the program comes back.
+
+- **Graphics and UDGs are escapes, not glyphs.** A block graphic is `\` and two
+  characters, one per column, where `'` is that column's top half, `.` the
+  bottom, `:` both and a space neither; a UDG is `\a` to `\u`. © is `\*`, £ is
+  a backtick, ↑ is `^`, and a literal backslash is `\\`.
+- **Embedded control codes are written too.** `INK 2` inside a string is
+  `\{16}\{2}`, `AT 10,5` is `\{22}\{10}\{5}` — the code and the parameter bytes
+  it takes with it. Dropping them, as the listing used to, made a colourful
+  PRINT unrebuildable. The one byte run still left unwritten is `$0E`, the
+  binary form of a number whose digits are already in the line; put it back
+  and the number appears twice. Inside a REM there are no numbers, so there
+  `$0E` is data like any other byte and is written out.
+- **The two machines number their mosaics from opposite corners** — the ZX81
+  from the top-left, the Spectrum from the top-right — so the same escape means
+  a different code on each. Every mapping in `zmakebas.ts` was read off
+  zmakebas 1.8.6 rather than a reference sheet, for exactly that reason.
+- **Two spellings are deliberately decimal.** The ZX81's inverse `.` and `:`
+  are written `\{155}` and `\{142}`, because `\.` or `\:` followed by a space or
+  a quote-mark would be swallowed as the first half of a mosaic. And a line
+  that would end in `\\` ends in `\{92}` (or `\{12}` on the ZX81) instead,
+  because zmakebas reads past the newline looking for the escape's second
+  character and runs the next line onto this one.
+- **Round-tripped, not assumed.** Every BASIC file on the example disks
+  compiles under zmakebas, and detokenizing what comes back gives the same
+  listing apart from whitespace zmakebas normalises — no character, graphic or
+  control code differs. What does differ is a variable whose name is also a
+  keyword: `LN`, `IN`, `OR`, `ON`, `cls`, `beep` come back as tokens. That is
+  inherent to any text form of Spectrum BASIC, where the machine tells a
+  variable from a keyword by the token byte and the text cannot.
+- **The TS2068 keywords survive.** zmakebas knows `ON ERR`, `SOUND`, `STICK`,
+  `FREE` and `RESET`, so a listing that renders `$7B`-`$7F` as keywords
+  compiles back to those bytes rather than to `{|}~©`.
+- **Line numbers are indented one space.** zmakebas ignores leading
+  whitespace, and the space stops a bare line number being read as markup
+  wherever the text is pasted next.
+
 ## Delivered: TAP Package Bundling
 
 `.claude/plans/tap-package-bundling.md` is done — `basic-analyzer.ts` scans BASIC for

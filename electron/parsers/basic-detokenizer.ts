@@ -6,10 +6,13 @@
  * Ported from TAP Explorer's basic-detokenizer.js.
  */
 
+import { spectrumEscape, decimalEscape, fixLineEnd } from './zmakebas';
+
 export type Ts2068Mode = 'auto' | 'ts2068' | 'spectrum';
 
 export interface BasicToken {
-  type: 'statement' | 'function' | 'operator' | 'text' | 'udg' | 'graphic' | 'disk-cmd' | 'ts2068-kw';
+  type: 'statement' | 'function' | 'operator' | 'text' | 'udg' | 'graphic'
+    | 'disk-cmd' | 'ts2068-kw' | 'control';
   text: string;
 }
 
@@ -65,12 +68,6 @@ const FUNCTION_KEYWORDS = new Set([
   'SQR', 'STR$', 'TAN', 'USR', 'VAL', 'VAL$',
 ]);
 
-// Block graphics (0x80-0x8F) → Unicode block elements
-const BLOCK_CHARS = [
-  ' ', '\u2598', '\u259D', '\u2580', '\u2596', '\u258C', '\u259E', '\u259B',
-  '\u2597', '\u259A', '\u2590', '\u259C', '\u2584', '\u2599', '\u259F', '\u2588',
-];
-
 // TS2068 extended tokens (0x7B-0x7F)
 const TS2068_TOKENS: Record<number, { text: string; isStatement: boolean }> = {
   0x7b: { text: 'ON ERR ', isStatement: true },
@@ -80,13 +77,14 @@ const TS2068_TOKENS: Record<number, { text: string; isStatement: boolean }> = {
   0x7f: { text: 'RESET ', isStatement: true },
 };
 
-// ZX Spectrum characters for the same bytes
+// ZX Spectrum characters for the same bytes, written the way zmakebas reads
+// them: the first four are their own ASCII, © has no ASCII and is `\*`.
 const SPECTRUM_CHARS: Record<number, string> = {
   0x7b: '{',
   0x7c: '|',
   0x7d: '}',
   0x7e: '~',
-  0x7f: '\u00A9', // ©
+  0x7f: '\\*', // ©
 };
 
 // Tokens for LOAD, SAVE, VERIFY, MERGE — disk commands when followed by /
@@ -229,6 +227,13 @@ export function detokenize(data: Buffer, variablesOffset?: number, mode: Ts2068M
 
     const tokens = decodeLine(data, lineStart, lineEnd, mode);
     markLarkenDiskCmds(tokens);
+    // A `\\` left at the end of a line would swallow the newline when the
+    // listing is fed back to zmakebas, so respell that last backslash.
+    if (tokens.length > 0) {
+      const last = tokens[tokens.length - 1];
+      const fixed = fixLineEnd(last.text, 0x5c);
+      if (fixed !== last.text) tokens[tokens.length - 1] = { ...last, text: fixed };
+    }
     lines.push({ lineNumber, tokens });
 
     pos = lineStart + lineLen;
@@ -256,6 +261,14 @@ function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode):
   let inQuote = false;
   let prevByte: number | null = null;
 
+  /** A control code and the parameter bytes it takes with it, in decimal. */
+  const pushControl = (count: number) => {
+    let text = '';
+    for (let n = 0; n < count && i + n < end; n++) text += decimalEscape(data[i + n]);
+    tokens.push({ type: 'control', text });
+    i += count;
+  };
+
   while (i < end) {
     const byte = data[i];
 
@@ -266,21 +279,19 @@ function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode):
       inQuote = !inQuote;
     }
 
-    // After REM, everything is literal — but tokens still need to be rendered
+    // After REM, everything is literal — but tokens still need to be rendered.
+    // Nothing here is structure: a REM holds no numbers, so $0E is a byte like
+    // any other, and every control code is written out rather than obeyed.
     if (inRem) {
-      if (byte === 0x0e) { i += 6; continue; }
       // Render token bytes as their keyword text
       if (byte >= 0xa5 && TOKENS[byte]) {
         tokens.push({ type: 'text', text: TOKENS[byte] });
       } else if (byte >= 0x7b && byte <= 0x7f) {
         tokens.push({ type: 'text', text: SPECTRUM_CHARS[byte] ?? String.fromCharCode(byte) });
-      } else if (byte >= 0x90 && byte <= 0xa4) {
-        const letter = String.fromCharCode(0x41 + (byte - 0x90));
-        tokens.push({ type: 'text', text: `[UDG-${letter}]` });
-      } else if (byte >= 0x80 && byte <= 0x8f) {
-        tokens.push({ type: 'text', text: BLOCK_CHARS[byte - 0x80] });
+      } else if (byte < 0x20) {
+        tokens.push({ type: 'control', text: decimalEscape(byte) });
       } else {
-        const ch = mapCharacter(byte);
+        const ch = spectrumEscape(byte) ?? mapCharacter(byte);
         if (ch) tokens.push({ type: 'text', text: ch });
       }
       prevByte = byte;
@@ -288,17 +299,17 @@ function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode):
       continue;
     }
 
-    // Embedded floating-point number: 0x0E + 5 bytes
+    // Embedded floating-point number: 0x0E + 5 bytes. The digits are already
+    // in the stream, so this is the only byte run that stays unwritten — put
+    // it back and the number would appear twice.
     if (byte === 0x0e) { i += 6; continue; }
 
-    // Color control codes with 1 parameter byte
-    if (byte >= 0x10 && byte <= 0x15) { i += 2; continue; }
-
-    // AT/TAB control: 2 parameter bytes
-    if (byte === 0x16 || byte === 0x17) { i += 3; continue; }
-
-    // Other control codes
-    if (byte < 0x20) { i++; continue; }
+    // Colour control codes (1 parameter byte), AT and TAB (2), and the rest
+    // of the control range. None has a named escape, so all are written in
+    // decimal — INK 2 inside a string is `\{16}\{2}`.
+    if (byte >= 0x10 && byte <= 0x15) { pushControl(2); continue; }
+    if (byte === 0x16 || byte === 0x17) { pushControl(3); continue; }
+    if (byte < 0x20) { pushControl(1); continue; }
 
     // TS2068 extended tokens / ZX Spectrum characters (0x7B-0x7F)
     if (byte >= 0x7b && byte <= 0x7f) {
@@ -349,25 +360,24 @@ function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode):
       continue;
     }
 
-    // UDG characters (0x90-0xA4)
+    // UDG characters (0x90-0xA4), written `\a` to `\u`
     if (byte >= 0x90 && byte <= 0xa4) {
-      const letter = String.fromCharCode(0x41 + (byte - 0x90));
-      tokens.push({ type: 'udg', text: `[UDG-${letter}]` });
+      tokens.push({ type: 'udg', text: spectrumEscape(byte)! });
       prevByte = byte;
       i++;
       continue;
     }
 
-    // Block graphics (0x80-0x8F)
+    // Block graphics (0x80-0x8F), written as a two-character mosaic escape
     if (byte >= 0x80 && byte <= 0x8f) {
-      tokens.push({ type: 'graphic', text: BLOCK_CHARS[byte - 0x80] });
+      tokens.push({ type: 'graphic', text: spectrumEscape(byte)! });
       prevByte = byte;
       i++;
       continue;
     }
 
     // Regular printable characters (0x20-0x7A)
-    const ch = mapCharacter(byte);
+    const ch = spectrumEscape(byte) ?? mapCharacter(byte);
     if (ch) tokens.push({ type: 'text', text: ch });
     prevByte = byte;
     i++;
@@ -381,14 +391,16 @@ function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode):
  * Highlights both the activation call and the command it enables:
  *   1. <stmt> USR 100: LOAD ... (RANDOMIZE USR 100, PRINT USR 100, etc.)
  *   2. PRINT #<n>: LOAD ...  (after OPEN #<n>,"dd" channel init)
- *   3. OPEN #<n>,"dd"  (channel setup)
- *   4. OUT 244,<n>  (Oliger DOS ROM paging)
+ *   3. PRINT #4;"..."  (LKDOS's own channel — the whole statement is DOS)
+ *   4. OPEN #<n>,"dd"  (channel setup)
+ *   5. OUT 244,<n>  (Oliger DOS ROM paging)
  */
 function markLarkenDiskCmds(tokens: BasicToken[]): void {
   // Two-pass approach: first find and mark USR 100 sequences, then PRINT # patterns
 
   markUsr100Sequences(tokens);
   markPrintChannelCmds(tokens);
+  markPrintChannel4(tokens);
   markOpenChannelSetup(tokens);
   markOligerOut244(tokens);
 }
@@ -503,6 +515,46 @@ function markPrintChannelCmds(tokens: BasicToken[]): void {
 }
 
 /**
+ * Mark `PRINT #4;...` — LKDOS's own channel.
+ *
+ * Larken reserves stream 4 for the DOS, so `PRINT #4;"LOAD prog"` is not
+ * printing anything: it is handing a command line to the disk. The command
+ * itself is a string, so nothing inside it tokenizes and the earlier passes,
+ * which look for a disk keyword after a colon, never see it. The whole
+ * statement is disk work, up to the colon that ends it.
+ */
+function markPrintChannel4(tokens: BasicToken[]): void {
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].text.trim() !== 'PRINT') continue;
+
+    let j = i + 1;
+    while (j < tokens.length && tokens[j].text.trim() === '') j++;
+    if (j >= tokens.length || tokens[j].text.trim() !== '#') continue;
+
+    // The channel number, however many digits it was written with.
+    let channel = '';
+    let k = j + 1;
+    while (k < tokens.length && /^\d$/.test(tokens[k].text.trim())) {
+      channel += tokens[k].text.trim();
+      k++;
+    }
+    if (channel !== '4') continue;
+
+    // Run to the colon that ends the statement, ignoring one inside the
+    // command string — `PRINT #4;"LOAD prog:2"` is all one statement.
+    let end = k;
+    let inQuote = false;
+    for (let m = k; m < tokens.length; m++) {
+      const t = tokens[m].text;
+      if (t.includes('"')) inQuote = !inQuote;
+      if (!inQuote && t.trim() === ':') break;
+      end = m;
+    }
+    markRange(tokens, i, end);
+  }
+}
+
+/**
  * Mark OPEN #<n>,"dd" sequences as disk-cmd (Larken disk channel initialization).
  */
 function markOpenChannelSetup(tokens: BasicToken[]): void {
@@ -567,9 +619,11 @@ function markOligerOut244(tokens: BasicToken[]): void {
   }
 }
 
+/**
+ * A byte that is its own character. £, ↑ and the backslash are not — they go
+ * through `spectrumEscape`, which every caller consults first.
+ */
 function mapCharacter(byte: number): string {
-  if (byte === 0x60) return '\u00A3'; // Pound sign
-  if (byte === 0x5e) return '\u2191'; // Up arrow
   if (byte >= 0x20 && byte <= 0x7a) return String.fromCharCode(byte);
   return '';
 }
