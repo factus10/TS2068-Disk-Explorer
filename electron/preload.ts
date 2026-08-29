@@ -48,6 +48,29 @@ contextBridge.exposeInMainWorld('diskTools', {
     return () => ipcRenderer.removeListener('menu-export-known', handler);
   },
   getDiskArchiveStatus: (imagePath: string) => ipcRenderer.invoke('get-disk-archive-status', imagePath),
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  wpStatus: () => ipcRenderer.invoke('wp-status'),
+  wpTest: (url?: string) => ipcRenderer.invoke('wp-test', url),
+  wpSaveUrl: (url: string) => ipcRenderer.invoke('wp-save-url', url),
+  wpLookup: (name: string) => ipcRenderer.invoke('wp-lookup', name),
+  wpSearchSource: (phrase: string) => ipcRenderer.invoke('wp-search-source', phrase),
+  wpSearchName: (name: string) => ipcRenderer.invoke('wp-search-name', name),
+  wpRefreshMatches: () => ipcRenderer.invoke('wp-refresh-matches'),
+  onWpRefreshProgress: (callback: (p: { done: number; total: number }) => void) => {
+    const handler = (_e: any, p: any) => callback(p);
+    ipcRenderer.on('wp-refresh-progress', handler);
+    return () => ipcRenderer.removeListener('wp-refresh-progress', handler);
+  },
+  onMenuWpSearch: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-wp-search', handler);
+    return () => ipcRenderer.removeListener('menu-wp-search', handler);
+  },
+  onMenuWpRefresh: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-wp-refresh', handler);
+    return () => ipcRenderer.removeListener('menu-wp-refresh', handler);
+  },
   pickCatalogDir: () => ipcRenderer.invoke('pick-catalog-dir'),
   clearCatalogDir: () => ipcRenderer.invoke('clear-catalog-dir'),
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),

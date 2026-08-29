@@ -1,13 +1,18 @@
 import React from 'react';
 import type { FileEntry, TapPackage } from '../api';
+import { ArchivePresence } from './ArchivePresence';
 
 interface Props {
   entry: FileEntry;
   onViewHex: () => void;
   tapPackage?: TapPackage | null;
+  /** The published archive to ask about this program; null when none is set. */
+  wordpressUrl?: string | null;
+  /** Take the question to the archive search window. */
+  onSearchArchive?: (query: string) => void;
 }
 
-export function FileDetails({ entry, onViewHex, tapPackage }: Props) {
+export function FileDetails({ entry, onViewHex, tapPackage, wordpressUrl, onSearchArchive }: Props) {
   return (
     <div style={{
       padding: '10px 14px',
@@ -41,6 +46,13 @@ export function FileDetails({ entry, onViewHex, tapPackage }: Props) {
           <span key={k}>{k}: {v}</span>
         ))}
       </div>
+      {onSearchArchive && (
+        <ArchivePresence
+          name={entry.filename.trim()}
+          siteUrl={wordpressUrl ?? null}
+          onSearch={onSearchArchive}
+        />
+      )}
       {tapPackage && (
         <div style={{ marginTop: 6, color: 'var(--accent)' }}>
           <span style={{ fontWeight: 600 }}>Loads: </span>

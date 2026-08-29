@@ -18,6 +18,7 @@ import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './component
 import { ExportPrompt, ExportChoice } from './components/ExportPrompt';
 import { CatalogIngest } from './components/CatalogIngest';
 import { CatalogInsights } from './components/CatalogInsights';
+import { ArchiveSearch } from './components/ArchiveSearch';
 
 function buildArchiveZipName(diskBase: string, meta: ArchiveMetadata): string {
   const clean = diskBase.replace(/[<>:"/\\|?*]/g, '-').replace(/\s+/g, ' ').trim() || 'archive';
@@ -83,6 +84,10 @@ function App() {
   const [showArchiveExport, setShowArchiveExport] = useState(false);
   const [showIngest, setShowIngest] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
+  // The archive search window, and the query it was opened on. Null means
+  // closed; an empty string means opened with nothing asked yet.
+  const [archiveSearch, setArchiveSearch] = useState<{ query: string; mode: 'source' | 'name' } | null>(null);
+  const [wordpressUrl, setWordpressUrl] = useState<string | null>(null);
   // Set when a finding should take the browser somewhere.
   const [browseTo, setBrowseTo] = useState<string | null>(null);
   const [exportPrompt, setExportPrompt] = useState<{
@@ -117,6 +122,7 @@ function App() {
    * of selection.
    */
   const runRef = useRef<() => void>(() => {});
+  const refreshMatchesRef = useRef<() => void>(() => {});
 
   // Apply theme
   useEffect(() => {
@@ -706,7 +712,12 @@ function App() {
     const unsubCheck = api.onMenuCheckCatalogUpdate(() => {
       api.checkCatalogUpdate(false).then((r) => setStatus(r.message)).catch(() => {});
     });
-    return () => { unsub(); unsubKnown(); unsubCheck(); unsubIngest(); unsubInsights(); unsubRun(); };
+    const unsubWpSearch = api.onMenuWpSearch(() => setArchiveSearch({ query: '', mode: 'source' }));
+    const unsubWpRefresh = api.onMenuWpRefresh(() => { refreshMatchesRef.current(); });
+    return () => {
+      unsub(); unsubKnown(); unsubCheck(); unsubIngest(); unsubInsights(); unsubRun();
+      unsubWpSearch(); unsubWpRefresh();
+    };
   }, [handleExportKnown]);
 
   // Keyboard shortcuts
@@ -837,7 +848,44 @@ function App() {
     }
   }, [disk, runTarget, editState]);
 
+  /**
+   * Re-read the published archive and re-match the catalogue against it.
+   *
+   * Reading close to two thousand records takes long enough to say so as it
+   * goes; the status line carries the count rather than a spinner, because
+   * the number is the only part of the wait that means anything.
+   */
+  const handleRefreshMatches = useCallback(async () => {
+    setStatus('Reading the published archive...');
+    const unsub = api.onWpRefreshProgress(({ done, total }) => {
+      setStatus(`Reading the published archive... ${done}${total ? ` of ${total}` : ''}`);
+    });
+    try {
+      const r = await api.wpRefreshMatches();
+      if (!r.ok) { setStatus(r.error); return; }
+      setStatus(
+        `Matched ${r.matched} of ${r.programs} catalogued programs `
+        + `(${r.exact} on a whole name) against ${r.records} published records`,
+      );
+      setBrowserRefresh((n) => n + 1);
+      if (disk) refreshArchiveStatus(disk.path);
+    } catch (err: any) {
+      setStatus(`Could not refresh matches: ${err.message}`);
+    } finally {
+      unsub();
+    }
+  }, [disk, refreshArchiveStatus]);
+
   useEffect(() => { runRef.current = handleRun; }, [handleRun]);
+  useEffect(() => { refreshMatchesRef.current = handleRefreshMatches; }, [handleRefreshMatches]);
+
+  // Which site the selected program is asked about. Re-read when Preferences
+  // closes, since that is the only place it changes.
+  const loadWpUrl = useCallback(() => {
+    if (!api) return;
+    api.wpStatus().then((w) => setWordpressUrl(w.url)).catch(() => setWordpressUrl(null));
+  }, []);
+  useEffect(loadWpUrl, [loadWpUrl]);
 
   // Bundling is only meaningful where the files are tape blocks to begin with.
   const canBundleTap = disk !== null
@@ -923,6 +971,8 @@ function App() {
               entry={selectedEntry}
               onViewHex={() => handleViewContent(selectedEntry)}
               tapPackage={selectedPackage}
+              wordpressUrl={wordpressUrl}
+              onSearchArchive={(q) => setArchiveSearch({ query: q, mode: 'name' })}
             />
           )}
         </div>
@@ -955,7 +1005,9 @@ function App() {
 
       {disk && <DropZone onDrop={handleDrop} overlay />}
 
-      {showPreferences && <Preferences onClose={() => setShowPreferences(false)} />}
+      {showPreferences && (
+        <Preferences onClose={() => { setShowPreferences(false); loadWpUrl(); }} />
+      )}
 
       {showTapCreator && (
         <TapCreator
@@ -983,6 +1035,14 @@ function App() {
             setBrowserRefresh((n) => n + 1);
             if (disk) refreshArchiveStatus(disk.path);
           }}
+        />
+      )}
+
+      {archiveSearch && (
+        <ArchiveSearch
+          onClose={() => setArchiveSearch(null)}
+          initialQuery={archiveSearch.query || undefined}
+          initialMode={archiveSearch.mode}
         />
       )}
 
