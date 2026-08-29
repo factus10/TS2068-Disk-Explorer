@@ -1857,7 +1857,7 @@ id,title,kind,size,copies,archived
 3fc39336,UDGS,code,25,2,
 3fc68945,TRKSID,code,1168,1,
 3fdefc2f,MSCRIP,basic,3228,4,
-3fe31157,tinyboard,basic,30860,2,matched
+3fe31157,tinyboard,basic,30860,2,yes
 3fe3ee78,HORSE,code,6144,1,
 3feeb5b2,DEMO,code,2978,1,
 3ff77a86,MINISTUDIO,basic,8516,2,yes
@@ -2588,7 +2588,7 @@ id,title,kind,size,copies,archived
 588ae012,face6,code,8881,2,
 5895261f,Village,basic,3547,3,
 58995a92,FTRKSD,loader,4781,3,
-58a5e6d1,Spec-Golf,basic,17031,4,
+58a5e6d1,Spec-Golf,basic,17031,4,yes
 58a8a5a0,A,UDG,256,1,
 58a91106,COMMAND,basic,539,3,
 58ab8787,CLEARR,code,59,4,
@@ -3279,7 +3279,7 @@ id,title,kind,size,copies,archived
 70db25bf,AUTOSTART,loader,3619,1,
 70ef420a,snug,code,7136,3,
 70fb3179,colordemos,basic,2315,3,
-71006438,ZX Centi,basic,280,2,
+71006438,ZX Centi,basic,280,2,yes
 710069fd,toybiz,basic,41782,1,
 71132de5,AUTOSTART,loader,3611,3,
 7117a4d9,JLO DFMdoc,code,9606,6,
@@ -5831,7 +5831,7 @@ c7c3d850,Budget,basic,324,1,
 c7cec240,058908,code,3236,4,
 c7d2a956,ted C,code,900,7,
 c7d502d0,ADRS1,loader,37804,1,
-c7da6ca3,addition 1,basic,545,3,matched
+c7da6ca3,addition 1,basic,545,3,yes
 c7dcbff8,2,code,4933,1,
 c7f6227b,cat,code,1822,1,
 c7fc439c,calSCREEN$,screen,6912,7,
@@ -6789,7 +6789,7 @@ e8fff7fd,tom640,code,9729,1,
 e907b088,consn2,code,4249,1,
 e915d410,consgn,code,4224,1,
 e92dcbb4,softclock,basic,1436,2,
-e938e60b,centipede,basic,6467,2,
+e938e60b,centipede,basic,6467,2,yes
 e938ec86,AUTOSTART,loader,3824,1,
 e93936f3,TED,basic,1871,7,yes
 e9398e12,Death Castle,basic,2075,1,matched
