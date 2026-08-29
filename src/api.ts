@@ -400,8 +400,13 @@ interface DiskToolsAPI {
   wpSaveUrl: (url: string) => Promise<string | null>;
   /** Published records whose title matches, for one program while browsing. */
   wpLookup: (name: string) => Promise<{ hits: WpHit[]; error?: string }>;
-  /** Published records whose BASIC listing holds this phrase. */
+  /** Published records whose BASIC listing holds this phrase, from the local copy. */
   wpSearchSource: (phrase: string) => Promise<WpSearchResult>;
+  /** What the local copy of the listings holds, or null when there is none. */
+  wpListingsStatus: () => Promise<WpListingsStatus | null>;
+  /** Take a fresh copy of every published listing. */
+  wpFetchListings: () => Promise<({ ok: true } & WpListingsStatus) | { ok: false; error: string }>;
+  onWpListingsProgress: (callback: (p: { done: number; total: number }) => void) => () => void;
   wpSearchName: (name: string) => Promise<WpSearchResult>;
   /** Re-read the whole archive and re-match the catalogue against it. */
   wpRefreshMatches: () => Promise<WpRefreshResult>;
@@ -475,11 +480,24 @@ export interface WpHit {
 
 export interface WpSearchResult {
   hits: WpHit[];
-  /** Records the site offered before the phrase was confirmed here. */
-  considered: number;
-  /** More candidates existed than were read, so the count is a floor. */
-  truncated: boolean;
+  /** Listings read — every one held, not a sample. */
+  searched: number;
+  /** When the local copy of the listings was taken. */
+  generated: string;
+  /** The phrase as searched, after any surrounding quotes were removed. */
+  phrase: string;
+  /** There is no local copy yet; the window should offer to make one. */
+  needsFetch?: boolean;
   error?: string;
+}
+
+/** What the local copy of the published listings holds. */
+export interface WpListingsStatus {
+  generated: string;
+  site: string;
+  records: number;
+  /** Of those, ones that actually carry a listing. */
+  withSource: number;
 }
 
 export type WpRefreshResult =
@@ -487,6 +505,8 @@ export type WpRefreshResult =
       ok: true;
       programs: number; matched: number; exact: number;
       records: number; recordsMatched: number; dir: string;
+      /** Listings stored in the same pass. */
+      listings: number;
     }
   | { ok: false; error: string };
 

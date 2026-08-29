@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { fetchArchive, lookupByName, searchSource, siteInfo, effectiveDownload } from '../electron/wordpress';
+import { fetchArchive, fetchListings, lookupByName, siteInfo, effectiveDownload } from '../electron/wordpress';
+import { saveListings, searchListings, listingsStatus, unquote } from '../electron/wordpress-listings';
 import { refreshMatches } from '../electron/wordpress-match';
 
 /**
@@ -128,54 +129,122 @@ describe('reading the archive', () => {
 });
 
 describe('searching the listing', () => {
-  /**
-   * The site's search matches each word anywhere in the record, so it offers
-   * candidates that do not hold the phrase at all. Confirming that here is
-   * the whole point of the source search: without it, a search for a line of
-   * BASIC would report every program using those words in any order.
-   */
-  it('keeps only the records whose listing holds the phrase', async () => {
-    routes.set('/wp-json/wp/v2/computer_media?search=GO SUB 9000&page=1&per_page=100', {
-      total: 3,
-      body: [
-        record(1, 'Horserace', { source_code: '10 GO SUB 9000\n20 STOP' }),
-        // Every word, never adjacent: exactly what the server cannot exclude.
-        record(2, 'Ledger', { source_code: '10 GO TO 500\n20 SUB TOTAL\n30 LET x=9000' }),
-        record(3, 'Pong', { source_code: '1020 POKE 23658,8: GO SUB 9000' }),
-      ],
-    });
+  let dir: string;
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wplist-')); });
+  afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
-    const r = await searchSource(BASE, 'GO SUB 9000');
-
-    expect(r.hits.map((h) => h.title)).toEqual(['Horserace', 'Pong']);
-    expect(r.considered).toBe(3);
-    expect(r.truncated).toBe(false);
+  const listing = (id: number, title: string, source: string) => ({
+    id, title, url: `${BASE}/${id}`, downloadUrl: '', mediaType: 'Program',
+    date: '', company: [], source,
   });
 
-  it('shows the lines that earned the match', async () => {
-    routes.set('/wp-json/wp/v2/computer_media?search=PRINT AT&page=1&per_page=100', {
-      total: 1,
-      body: [record(1, 'Demo', { source_code: '10 REM x\n20 PRINT AT 1,1;"hi"\n30 PRINT AT 2,2;"there"' })],
-    });
+  const put = (...records: ReturnType<typeof listing>[]) => saveListings(dir, BASE, records);
 
-    const [hit] = (await searchSource(BASE, 'PRINT AT')).hits;
+  it('finds a phrase wherever the listing is kept', () => {
+    // The second record is the case the site's own search could never reach:
+    // its listing lives only in the field, never in the rendered body.
+    put(
+      listing(1, 'Horserace', '10 GO SUB 9000\n20 STOP'),
+      listing(2, 'Glenagleys', '100 LET o=1:GO SUB 9000'),
+      listing(3, 'Ledger', '10 GO TO 500\n20 SUB TOTAL\n30 LET x=9000'),
+    );
 
-    expect(hit.context).toEqual([
+    const r = searchListings(dir, 'GO SUB 9000')!;
+
+    expect(r.hits.map((h) => h.title)).toEqual(['Horserace', 'Glenagleys']);
+    // Every listing read, not a narrowed candidate set.
+    expect(r.searched).toBe(3);
+  });
+
+  it('ignores case on both sides', () => {
+    put(listing(1, 'Demo', '10 print at 1,1;"hi"'));
+    for (const q of ['PRINT AT', 'print at', 'PrInT aT']) {
+      expect(searchListings(dir, q)!.hits).toHaveLength(1);
+    }
+  });
+
+  /**
+   * Quoting used to guarantee an empty result: the quotes were kept and
+   * looked for in the listing, where they never appear.
+   */
+  it('reads quotes around a phrase as meaning the phrase', () => {
+    put(listing(1, 'Horserace', '10 GO SUB 9000'));
+
+    const quoted = searchListings(dir, '"GO SUB 9000"')!;
+    expect(quoted.hits).toHaveLength(1);
+    expect(quoted.phrase).toBe('GO SUB 9000');
+
+    // A quote mark inside the phrase is still just a character to match.
+    put(listing(2, 'Printer', '20 PRINT "HELLO"'));
+    expect(searchListings(dir, 'PRINT "HELLO"')!.hits.map((h) => h.title)).toEqual(['Printer']);
+  });
+
+  it('unquotes only a genuinely wrapped phrase', () => {
+    expect(unquote('"GO SUB"')).toBe('GO SUB');
+    expect(unquote('  "GO SUB"  ')).toBe('GO SUB');
+    expect(unquote('PRINT "HI"')).toBe('PRINT "HI"');
+    expect(unquote('"')).toBe('"');
+    expect(unquote('GO SUB')).toBe('GO SUB');
+  });
+
+  it('shows the lines that earned the match', () => {
+    put(listing(1, 'Demo', '10 REM x\n20 PRINT AT 1,1;"hi"\n30 PRINT AT 2,2;"there"'));
+
+    expect(searchListings(dir, 'PRINT AT')!.hits[0].context).toEqual([
       { line: '20 PRINT AT 1,1;"hi"', number: 2 },
       { line: '30 PRINT AT 2,2;"there"', number: 3 },
     ]);
   });
 
-  it('is not fooled by a record with no listing at all', async () => {
-    routes.set('/wp-json/wp/v2/computer_media?search=anything&page=1&per_page=100', {
-      total: 1, body: [record(1, 'Cassette Inlay', { source_code: '' })],
-    });
-    expect((await searchSource(BASE, 'anything')).hits).toEqual([]);
+  it('passes over a record that carries no listing', () => {
+    put(listing(1, 'Cassette Inlay', ''));
+    expect(searchListings(dir, 'anything')!.hits).toEqual([]);
   });
 
-  it('asks nothing of the site for an empty phrase', async () => {
-    expect(await searchSource(BASE, '   ')).toEqual({ hits: [], considered: 0, truncated: false });
-    expect(asked).toEqual([]);
+  /**
+   * The difference that matters: no copy is not the same answer as nothing
+   * found, and reporting the second for the first would say the archive was
+   * empty.
+   */
+  it('says there is no copy rather than reporting nothing found', () => {
+    expect(searchListings(dir, 'GO SUB')).toBeNull();
+    expect(listingsStatus(dir)).toBeNull();
+  });
+
+  it('reports what the copy holds, and replaces it wholesale', () => {
+    put(listing(1, 'A', '10 REM a'), listing(2, 'B', ''));
+    expect(listingsStatus(dir)).toMatchObject({ records: 2, withSource: 1, site: BASE });
+
+    put(listing(3, 'C', '10 REM c'));
+    expect(listingsStatus(dir)).toMatchObject({ records: 1, withSource: 1 });
+    expect(searchListings(dir, 'REM a')!.hits).toEqual([]);
+  });
+
+  it('survives a copy that was truncated by a failed write', () => {
+    put(listing(1, 'A', '10 REM a'));
+    const file = path.join(dir, 'wordpress-listings.json');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf-8').slice(0, 40));
+    expect(searchListings(dir, 'REM')).toBeNull();
+  });
+});
+
+describe('taking a copy of the listings', () => {
+  it('pages the whole archive and keeps the source', async () => {
+    const page = (from: number, n: number) => Array.from({ length: n }, (_, i) => ({
+      ...record(from + i, `P${from + i}`),
+      acf: { ...record(from + i, `P${from + i}`).acf, source_code: `10 REM ${from + i}` },
+    }));
+    routes.set('/wp-json/wp/v2/computer_media?page=1&per_page=100', { total: 150, body: page(1, 100) });
+    routes.set('/wp-json/wp/v2/computer_media?page=2&per_page=100', { total: 150, body: page(101, 50) });
+
+    const seen: number[] = [];
+    const all = await fetchListings(BASE, (done) => seen.push(done));
+
+    expect(all).toHaveLength(150);
+    expect(all[0].source).toBe('10 REM 1');
+    expect(seen).toEqual([100, 150]);
+    // The empty context a hit carries has no business in a 15 MB cache.
+    expect(all[0]).not.toHaveProperty('context');
   });
 });
 

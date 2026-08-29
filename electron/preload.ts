@@ -54,6 +54,13 @@ contextBridge.exposeInMainWorld('diskTools', {
   wpSaveUrl: (url: string) => ipcRenderer.invoke('wp-save-url', url),
   wpLookup: (name: string) => ipcRenderer.invoke('wp-lookup', name),
   wpSearchSource: (phrase: string) => ipcRenderer.invoke('wp-search-source', phrase),
+  wpListingsStatus: () => ipcRenderer.invoke('wp-listings-status'),
+  wpFetchListings: () => ipcRenderer.invoke('wp-fetch-listings'),
+  onWpListingsProgress: (callback: (p: { done: number; total: number }) => void) => {
+    const handler = (_e: any, p: any) => callback(p);
+    ipcRenderer.on('wp-listings-progress', handler);
+    return () => ipcRenderer.removeListener('wp-listings-progress', handler);
+  },
   wpSearchName: (name: string) => ipcRenderer.invoke('wp-search-name', name),
   wpRefreshMatches: () => ipcRenderer.invoke('wp-refresh-matches'),
   onWpRefreshProgress: (callback: (p: { done: number; total: number }) => void) => {

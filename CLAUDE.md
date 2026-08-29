@@ -291,14 +291,21 @@ guess.
   "What holds this line?" is the search for when the name settles nothing, and
   is close to decisive. "What does the whole archive say?" re-matches the
   catalogue and is the live form of the old dump-and-match pair.
-- **The listing is searchable because it is in the post body.** WordPress's own
-  `search` does not reach postmeta, but the BASIC listing is rendered into
-  `post_content`, so a search finds it. What `search` cannot do is match a
-  *phrase* — it splits on spaces and ANDs the words, each matched anywhere — so
-  the site narrows and `searchSource` confirms the phrase here, against
-  `acf.source_code`, which is the listing as plain text rather than HTML where
-  `<` is `&lt;`. On a real archive that is the difference between 293
-  candidates and the 56 that hold the line.
+- **The listings are searched from a copy, because the site cannot answer.**
+  WordPress searches `post_content`, and only some records render their listing
+  into the body — the rest keep it in `source_code` alone, where a search never
+  looks. Such a record is not ranked low, it is never offered, so no amount of
+  reading further down the results reaches it: asking the site missed 12 of the
+  68 records holding `GO SUB 9000` and 37 of the 523 holding `PRINT AT 10,`.
+  So `fetchListings` reads all of them once — about 12 MB, seven seconds — into
+  `wordpress-listings.json` beside `wordpress.json`, and `searchListings` reads
+  that. A search is then exact, complete, and about 30 ms. The refresh takes
+  the copy in the same pass, since a fresh match with stale listings would be
+  answering two different days' questions.
+- **Quotes around a phrase mean the phrase.** They are stripped before
+  matching. Keeping them was a silent trap: the quotes were looked for in the
+  listing, where they never appear, so quoting a search — the habit every
+  search box teaches — guaranteed no results. Case is ignored on both sides.
 - **The REST API says by number what the dump said by name.** `programmers`
   comes back as `indiv` *taxonomy term* ids and `producer-company` as whole
   post objects; both are resolved in one batched round after the records, not

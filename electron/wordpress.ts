@@ -63,14 +63,6 @@ export interface WpHit {
   context: { line: string; number: number }[];
 }
 
-export interface WpSearchResult {
-  hits: WpHit[];
-  /** Records the server offered before the phrase was confirmed. */
-  considered: number;
-  /** More candidates existed than were read; the count is a floor. */
-  truncated: boolean;
-}
-
 export interface WpSiteInfo {
   name: string;
   url: string;
@@ -83,14 +75,6 @@ export const DEFAULT_WP_URL = 'http://localhost';
 
 /** WordPress caps `per_page` at 100, and every list here wants the maximum. */
 const PER_PAGE = 100;
-
-/**
- * How many records a phrase search will read before giving up on being
- * exhaustive. A term like `GO SUB` matches most of the archive, and reading
- * all of it to find the twelve that hold the phrase is a poor trade — the
- * result says it was truncated rather than pretending it was complete.
- */
-const SEARCH_LIMIT = 600;
 
 export class WpError extends Error {}
 
@@ -367,46 +351,57 @@ function contextFor(source: string, phrase: string, want = 3): { line: string; n
   return out;
 }
 
+/** One published program together with its listing, for searching offline. */
+export interface WpListing {
+  id: number;
+  title: string;
+  url: string;
+  downloadUrl: string;
+  mediaType: string;
+  date: string;
+  company: string[];
+  /** The listing as plain text; empty for a record that has none. */
+  source: string;
+}
+
 /**
- * Records whose BASIC source holds `phrase`.
+ * Every listing the archive holds, for searching on this machine instead of
+ * asking the site.
  *
- * This is the search for when a name is no help — the disk calls it
- * `AUTOSTART`, or six programs share a title — and a line of the listing is
- * the only distinctive thing to hand.
+ * The site's own search cannot answer a source search properly. It reaches
+ * `post_content`, and only some records render their listing into the body —
+ * the rest keep it in `source_code` alone, where a search never looks. Those
+ * records are not merely ranked low, they are never offered at all, so no
+ * amount of reading further down the results finds them. Measured against
+ * this archive, a phrase search that way missed 12 of the 68 records holding
+ * `GO SUB 9000` and 37 of the 523 holding `PRINT AT 10,`.
  *
- * The site's own search does the narrowing: the listing is rendered into the
- * post body, so a search reaches it. But it matches each *word* anywhere in
- * the post, not the phrase, so every candidate is then confirmed here against
- * `source_code`, which is the listing as plain text.
+ * So the listings are read once — about 15 MB and five seconds — and every
+ * search afterwards runs here, over all of them, exactly.
  */
-export async function searchSource(baseUrl: string, phrase: string): Promise<WpSearchResult> {
-  const q = phrase.trim();
-  if (!q) return { hits: [], considered: 0, truncated: false };
+export async function fetchListings(
+  baseUrl: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<WpListing[]> {
+  const out: WpListing[] = [];
+  let total = 0;
 
-  const hits: WpHit[] = [];
-  let considered = 0;
-  let page = 1;
-  let truncated = false;
-
-  for (;;) {
-    const url = `${apiRoot(baseUrl)}/computer_media?search=${encodeURIComponent(q)}`
-      + `&per_page=${PER_PAGE}&page=${page}&_fields=${HIT_FIELDS},acf.source_code`;
-    const { body, total } = await getJson(url, 30000);
+  for (let page = 1; ; page++) {
+    const url = `${apiRoot(baseUrl)}/computer_media?per_page=${PER_PAGE}&page=${page}`
+      + `&orderby=id&order=asc&_fields=${HIT_FIELDS},acf.source_code`;
+    const { body, total: reported } = await getJson(url, 60000);
+    if (page === 1) total = reported;
     const batch = Array.isArray(body) ? body : [];
     if (batch.length === 0) break;
 
     for (const p of batch) {
-      considered++;
-      const source = scalar(p?.acf?.source_code);
-      if (!source) continue;
-      const context = contextFor(source, q);
-      if (context.length > 0) hits.push(toHit(p, context));
+      if (p?.id == null) continue;
+      const { context: _unused, ...rest } = toHit(p);
+      out.push({ ...rest, source: scalar(p?.acf?.source_code) });
     }
-
+    onProgress?.(out.length, total || out.length);
     if (batch.length < PER_PAGE) break;
-    if (considered >= SEARCH_LIMIT) { truncated = total > considered; break; }
-    page++;
   }
 
-  return { hits, considered, truncated };
+  return out;
 }

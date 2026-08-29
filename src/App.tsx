@@ -865,7 +865,8 @@ function App() {
       if (!r.ok) { setStatus(r.error); return; }
       setStatus(
         `Matched ${r.matched} of ${r.programs} catalogued programs `
-        + `(${r.exact} on a whole name) against ${r.records} published records`,
+        + `(${r.exact} on a whole name) against ${r.records} published records; `
+        + `${r.listings} listings copied for searching`,
       );
       setBrowserRefresh((n) => n + 1);
       if (disk) refreshArchiveStatus(disk.path);
