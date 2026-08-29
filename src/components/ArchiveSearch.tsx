@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { api, WpHit, WpSearchResult } from '../api';
+import { api, WpHit, WpListingsStatus, WpSearchResult } from '../api';
 
 interface Props {
   onClose: () => void;
@@ -21,10 +21,11 @@ type Mode = 'source' | 'name';
  * So the name search is the quick one and the source search is the one to
  * fall back on when the name settles nothing.
  *
- * The source search is exact on the phrase. WordPress narrows by matching
- * each word anywhere in the record, and the main process then confirms the
- * phrase against the listing itself — so what comes back here has genuinely
- * got those characters in that order, and shows the lines that prove it.
+ * The source search reads a copy of the listings held on this machine rather
+ * than asking the site, because the site cannot answer it: WordPress searches
+ * the rendered body, and many records keep their listing only in a field it
+ * never looks at. Those records were not ranked low, they were unreachable.
+ * Over the local copy the answer is exact and complete, and instant.
  */
 export function ArchiveSearch({ onClose, initialQuery, initialMode }: Props) {
   const [mode, setMode] = useState<Mode>(initialMode ?? 'source');
@@ -32,7 +33,32 @@ export function ArchiveSearch({ onClose, initialQuery, initialMode }: Props) {
   const [result, setResult] = useState<WpSearchResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState('');
+  const [listings, setListings] = useState<WpListingsStatus | null>(null);
+  const [fetching, setFetching] = useState<{ done: number; total: number } | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { api.wpListingsStatus().then(setListings).catch(() => setListings(null)); }, []);
+
+  /**
+   * Take the copy of the listings the source search reads. Reported as it
+   * goes: fifteen megabytes is a few seconds, which is long enough that a
+   * still window would read as a hang.
+   */
+  const fetchListings = useCallback(async () => {
+    setFetchError(null);
+    setFetching({ done: 0, total: 0 });
+    const unsub = api.onWpListingsProgress(setFetching);
+    try {
+      const r = await api.wpFetchListings();
+      if (r.ok) setListings(r); else setFetchError(r.error);
+    } catch (err: any) {
+      setFetchError(err.message);
+    } finally {
+      unsub();
+      setFetching(null);
+    }
+  }, []);
 
   useEffect(() => { input.current?.focus(); input.current?.select(); }, []);
 
@@ -50,7 +76,7 @@ export function ArchiveSearch({ onClose, initialQuery, initialMode }: Props) {
     try {
       setResult(m === 'source' ? await api.wpSearchSource(phrase) : await api.wpSearchName(phrase));
     } catch (err: any) {
-      setResult({ hits: [], considered: 0, truncated: false, error: err.message });
+      setResult({ hits: [], searched: 0, generated: '', phrase: q, error: err.message });
     }
     setSearching(false);
   }, []);
@@ -127,9 +153,11 @@ export function ArchiveSearch({ onClose, initialQuery, initialMode }: Props) {
 
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
             {mode === 'source'
-              ? 'Matched against the BASIC listing as published, exactly as typed. This is the search '
-                + 'for when the name settles nothing — a disk full of AUTOSTART, or six programs with the same title.'
-              : 'Matched against the published title. Quick, and enough when the disk name is distinctive.'}
+              ? 'Matched against the BASIC listing exactly as typed, ignoring case, over every listing '
+                + 'the archive holds. This is the search for when the name settles nothing — a disk full '
+                + 'of AUTOSTART, or six programs with the same title.'
+              : 'Matched against the published title, asked of the site. Quick, and enough when the disk '
+                + 'name is distinctive.'}
           </div>
         </div>
 
@@ -140,21 +168,53 @@ export function ArchiveSearch({ onClose, initialQuery, initialMode }: Props) {
             </div>
           )}
 
-          {!result && !searching && (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Nothing searched yet.
+          {/* No copy of the listings: say so, and offer to make one. An empty
+              result here would read as an empty archive, which is the one
+              thing this must never imply. */}
+          {mode === 'source' && !listings && !fetching && (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <div style={{ marginBottom: 10 }}>
+                The listings are searched from a copy held on this machine, and there is not
+                one yet. Fetching reads about 15&nbsp;MB and takes a few seconds; after that
+                every search is instant and needs no network.
+              </div>
+              <button onClick={fetchListings} style={btn}>Fetch the listings</button>
+              {fetchError && (
+                <div style={{ marginTop: 10, color: 'var(--badge-dump, #d97706)' }}>{fetchError}</div>
+              )}
             </div>
           )}
 
-          {result && !result.error && (
+          {fetching && (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Reading the listings...
+              {fetching.total > 0 && ` ${fetching.done.toLocaleString()} of ${fetching.total.toLocaleString()}`}
+            </div>
+          )}
+
+          {!result && !searching && !fetching && (mode === 'name' || listings) && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Nothing searched yet.
+              {mode === 'source' && listings && (
+                <span>
+                  {' '}{listings.withSource.toLocaleString()} listings held, copied{' '}
+                  {new Date(listings.generated).toLocaleString()}.
+                </span>
+              )}
+            </div>
+          )}
+
+          {result && !result.error && !result.needsFetch && (
             <>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
                 {result.hits.length === 0
-                  ? `Nothing in the archive holds “${searched}”`
-                  : `${result.hits.length} program${result.hits.length === 1 ? ' holds' : 's hold'} “${searched}”`}
-                {mode === 'source' && result.considered > 0
-                  && ` — ${result.considered} record${result.considered === 1 ? '' : 's'} looked at`}
-                {result.truncated && ', and there were more than were read'}
+                  ? `Nothing in the archive holds “${result.phrase || searched}”`
+                  : `${result.hits.length} program${result.hits.length === 1 ? ' holds' : 's hold'} `
+                    + `“${result.phrase || searched}”`}
+                {mode === 'source' && result.searched > 0
+                  && ` — all ${result.searched.toLocaleString()} listings searched`}
+                {result.phrase && result.phrase !== searched.trim()
+                  && ' (quotes around a phrase mean the phrase, so they were dropped)'}
               </div>
 
               {result.hits.map((hit) => <Hit key={hit.id} hit={hit} />)}

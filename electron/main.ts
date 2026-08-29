@@ -16,7 +16,8 @@ import {
 import { checkForUpdate, saveUpdate, clearUpdate, countRows } from './catalog-update';
 import { surveyCollection, ingestImages } from './catalog-ingest';
 import { buildInsights } from './catalog-insights';
-import { siteInfo, fetchArchive, lookupByName, searchSource, WpError, DEFAULT_WP_URL } from './wordpress';
+import { siteInfo, fetchArchive, fetchListings, lookupByName, WpError, DEFAULT_WP_URL } from './wordpress';
+import { searchListings, saveListings, listingsStatus } from './wordpress-listings';
 import { refreshMatches } from './wordpress-match';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
@@ -828,6 +829,34 @@ ipcMain.handle('wp-status', async () => {
   return { url: wordpressUrl ?? null, defaultUrl: DEFAULT_WP_URL };
 });
 
+/**
+ * Where the listing copy lives: beside `wordpress.json` when a catalogue is
+ * set, and in the app's own data folder otherwise, so a reader with a site
+ * but no catalogue can still search.
+ */
+function listingsDir(): string {
+  return getSettings().catalogDir ?? app.getPath('userData');
+}
+
+ipcMain.handle('wp-listings-status', async () => listingsStatus(listingsDir()));
+
+/**
+ * Take a fresh copy of every listing. Slow enough to report progress, and
+ * explicitly asked for, so it is never done behind the reader's back.
+ */
+ipcMain.handle('wp-fetch-listings', async (event) => {
+  const site = wpSite();
+  if ('error' in site) return { ok: false as const, error: site.error };
+  try {
+    const records = await fetchListings(site.url, (done, total) => {
+      event.sender.send('wp-listings-progress', { done, total });
+    });
+    return { ok: true as const, ...saveListings(listingsDir(), site.url, records) };
+  } catch (err) {
+    return { ok: false as const, error: wpMessage(err) };
+  }
+});
+
 ipcMain.handle('wp-lookup', async (_event, name: string) => {
   const site = wpSite();
   if ('error' in site) return { hits: [], error: site.error };
@@ -839,23 +868,21 @@ ipcMain.handle('wp-lookup', async (_event, name: string) => {
 });
 
 ipcMain.handle('wp-search-source', async (_event, phrase: string) => {
-  const site = wpSite();
-  if ('error' in site) return { hits: [], considered: 0, truncated: false, error: site.error };
-  try {
-    return await searchSource(site.url, phrase);
-  } catch (err) {
-    return { hits: [], considered: 0, truncated: false, error: wpMessage(err) };
-  }
+  const found = searchListings(listingsDir(), phrase);
+  // No copy yet: say so plainly so the window can offer to make one, rather
+  // than reporting an empty archive.
+  if (!found) return { hits: [], searched: 0, generated: '', phrase, needsFetch: true };
+  return found;
 });
 
 ipcMain.handle('wp-search-name', async (_event, name: string) => {
   const site = wpSite();
-  if ('error' in site) return { hits: [], considered: 0, truncated: false, error: site.error };
+  if ('error' in site) return { hits: [], searched: 0, generated: '', phrase: name, error: site.error };
   try {
     const hits = await lookupByName(site.url, name);
-    return { hits, considered: hits.length, truncated: false };
+    return { hits, searched: hits.length, generated: '', phrase: name };
   } catch (err) {
-    return { hits: [], considered: 0, truncated: false, error: wpMessage(err) };
+    return { hits: [], searched: 0, generated: '', phrase: name, error: wpMessage(err) };
   }
 });
 
@@ -874,9 +901,19 @@ ipcMain.handle('wp-refresh-matches', async (event) => {
 
   try {
     const records = await fetchArchive(site.url, (done, total) => {
-      event.sender.send('wp-refresh-progress', { done, total });
+      event.sender.send('wp-refresh-progress', { done, total, stage: 'records' });
     });
-    return { ok: true as const, ...refreshMatches(catalogDir, records) };
+    const result = refreshMatches(catalogDir, records);
+
+    // Take the listings in the same pass. They are what the source search
+    // reads, and a refresh that left them behind would answer this morning's
+    // question about matches with last week's listings.
+    const listings = await fetchListings(site.url, (done, total) => {
+      event.sender.send('wp-refresh-progress', { done, total, stage: 'listings' });
+    });
+    const saved = saveListings(listingsDir(), site.url, listings);
+
+    return { ok: true as const, ...result, listings: saved.withSource };
   } catch (err: any) {
     if (err?.code === 'ENOENT') {
       return { ok: false as const, error: 'That catalogue folder has no catalog.json in it.' };
