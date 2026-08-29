@@ -273,7 +273,44 @@ npx tsx scripts/export-shared-catalog.mts ~/TS-Catalog          # refresh the sh
   List, or with `export-shared-catalog.mts`.
 
 `match-wordpress.mts` and `export-wordpress.php` are not committed: they are
-specific to one site's `computer_media` post type.
+specific to one site's `computer_media` post type. The app now does both jobs
+itself over the REST API — see below — and writes the same two files, so
+either route leaves a catalogue the other can read.
+
+## Asking WordPress What Is Already Published
+
+`electron/wordpress.ts` reads the published archive straight off the site over
+the REST API, replacing the old `wp eval-file` dump. Everything is a GET of
+published posts: no credentials are involved, and nothing is ever written back.
+The address is a setting (Preferences ▸ Published archive), unset until the
+reader gives one, because it is a network request nothing should make on a
+guess.
+
+- **Three questions, not one.** "Is this program published?" is asked of a
+  selected file and answered by its name — one request, and only ever a lead.
+  "What holds this line?" is the search for when the name settles nothing, and
+  is close to decisive. "What does the whole archive say?" re-matches the
+  catalogue and is the live form of the old dump-and-match pair.
+- **The listing is searchable because it is in the post body.** WordPress's own
+  `search` does not reach postmeta, but the BASIC listing is rendered into
+  `post_content`, so a search finds it. What `search` cannot do is match a
+  *phrase* — it splits on spaces and ANDs the words, each matched anywhere — so
+  the site narrows and `searchSource` confirms the phrase here, against
+  `acf.source_code`, which is the listing as plain text rather than HTML where
+  `<` is `&lt;`. On a real archive that is the difference between 293
+  candidates and the 56 that hold the line.
+- **The REST API says by number what the dump said by name.** `programmers`
+  comes back as `indiv` *taxonomy term* ids and `producer-company` as whole
+  post objects; both are resolved in one batched round after the records, not
+  one request per record. `_fields` prunes server-side, which matters: asking
+  for whole records instead of the dozen fields wanted would pull tens of
+  megabytes of rendered pages.
+- **`wordpress-match.ts` is `match-wordpress.mts`'s rules, moved in.** Same
+  conservative name matching — a distinctive name only, a prefix reported as a
+  guess — because a wrong match says a program is safely archived when it is
+  not, the one error that loses material. Verified by rebuilding the committed
+  `matches.json` from the same catalogue and dump: identical, all 911 matches.
+  `catalog.json` is never touched; the script still writes the CSVs.
 
 ## GitHub
 

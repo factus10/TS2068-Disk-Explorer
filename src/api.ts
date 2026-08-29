@@ -163,6 +163,8 @@ export interface Settings {
   autoCheckCatalogUpdate?: boolean;
   /** Whether package and archive.org exports also mark those programs archived. */
   markArchivedOnExport?: boolean;
+  /** The WordPress site holding the published archive, as a base URL. */
+  wordpressUrl?: string;
   /** The ZEsarUX binary Run uses, when it is somewhere the app cannot find on its own. */
   emulatorPath?: string;
 }
@@ -390,6 +392,22 @@ interface DiskToolsAPI {
     => Promise<{ changed: number; total: number } | null>;
   markProgramsArchived: (ids: string[], archived?: boolean) => Promise<{ changed: number } | null>;
   onMenuCatalogInsights: (callback: () => void) => () => void;
+  /** Open an http(s) URL in the reader's browser; anything else is refused. */
+  openExternal: (url: string) => Promise<boolean>;
+  /** Is there a published archive at this address, and what does it hold? */
+  wpTest: (url?: string) => Promise<({ ok: true } & WpSiteInfo) | { ok: false; error: string }>;
+  wpStatus: () => Promise<{ url: string | null; defaultUrl: string }>;
+  wpSaveUrl: (url: string) => Promise<string | null>;
+  /** Published records whose title matches, for one program while browsing. */
+  wpLookup: (name: string) => Promise<{ hits: WpHit[]; error?: string }>;
+  /** Published records whose BASIC listing holds this phrase. */
+  wpSearchSource: (phrase: string) => Promise<WpSearchResult>;
+  wpSearchName: (name: string) => Promise<WpSearchResult>;
+  /** Re-read the whole archive and re-match the catalogue against it. */
+  wpRefreshMatches: () => Promise<WpRefreshResult>;
+  onWpRefreshProgress: (callback: (p: { done: number; total: number }) => void) => () => void;
+  onMenuWpSearch: (callback: () => void) => () => void;
+  onMenuWpRefresh: (callback: () => void) => () => void;
   pickCatalogDir: () => Promise<string | null>;
   clearCatalogDir: () => Promise<boolean>;
   openFileDialog: () => Promise<DiskImage | null>;
@@ -434,6 +452,43 @@ interface DiskToolsAPI {
   selectFilesForTap: () => Promise<string[] | null>;
   createTapFromFiles: (specs: TapFileSpec[], destPath: string) => Promise<string | null>;
 }
+
+/** A site holding the published archive; see electron/wordpress.ts. */
+export interface WpSiteInfo {
+  name: string;
+  url: string;
+  records: number;
+}
+
+/** One published program a search turned up. */
+export interface WpHit {
+  id: number;
+  title: string;
+  url: string;
+  downloadUrl: string;
+  mediaType: string;
+  date: string;
+  company: string[];
+  /** The lines of its listing that held the phrase, for a source search. */
+  context: { line: string; number: number }[];
+}
+
+export interface WpSearchResult {
+  hits: WpHit[];
+  /** Records the site offered before the phrase was confirmed here. */
+  considered: number;
+  /** More candidates existed than were read, so the count is a floor. */
+  truncated: boolean;
+  error?: string;
+}
+
+export type WpRefreshResult =
+  | {
+      ok: true;
+      programs: number; matched: number; exact: number;
+      records: number; recordsMatched: number; dir: string;
+    }
+  | { ok: false; error: string };
 
 declare global {
   interface Window {

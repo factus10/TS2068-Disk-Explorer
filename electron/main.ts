@@ -16,6 +16,8 @@ import {
 import { checkForUpdate, saveUpdate, clearUpdate, countRows } from './catalog-update';
 import { surveyCollection, ingestImages } from './catalog-ingest';
 import { buildInsights } from './catalog-insights';
+import { siteInfo, fetchArchive, lookupByName, searchSource, WpError, DEFAULT_WP_URL } from './wordpress';
+import { refreshMatches } from './wordpress-match';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -184,6 +186,15 @@ function buildMenu() {
         {
           label: 'Update Shared Program List...',
           click: () => mainWindow?.webContents.send('menu-export-known'),
+        },
+        {
+          label: 'Search the Published Archive...',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => mainWindow?.webContents.send('menu-wp-search'),
+        },
+        {
+          label: 'Refresh Matches from WordPress...',
+          click: () => mainWindow?.webContents.send('menu-wp-refresh'),
         },
         {
           label: 'Recent Files',
@@ -758,6 +769,122 @@ ipcMain.handle('pick-catalog-dir', async () => {
 });
 
 ipcMain.handle('clear-catalog-dir', async () => { updateSettings({ catalogDir: undefined }); return true; });
+
+// ---------------------------------------------------------- WordPress ------
+//
+// Read-only queries against the site holding the published archive. Every one
+// of them needs an address the reader gave: without it there is nothing to
+// ask, and guessing at localhost would mean the app made a request nobody
+// asked for.
+
+/** The configured site, or a message saying plainly that there isn't one. */
+function wpSite(): { url: string } | { error: string } {
+  const { wordpressUrl } = getSettings();
+  if (!wordpressUrl) {
+    return { error: 'No WordPress site is set. Preferences → Published archive.' };
+  }
+  return { url: wordpressUrl };
+}
+
+/** What went wrong, in the reader's terms rather than the network's. */
+function wpMessage(err: any): string {
+  return err instanceof WpError ? err.message : `Could not read the archive: ${err?.message ?? err}`;
+}
+
+ipcMain.handle('wp-test', async (_event, url?: string) => {
+  const target = (url ?? getSettings().wordpressUrl ?? DEFAULT_WP_URL).trim();
+  try {
+    const info = await siteInfo(target);
+    return { ok: true as const, ...info };
+  } catch (err) {
+    return { ok: false as const, error: wpMessage(err) };
+  }
+});
+
+ipcMain.handle('wp-save-url', async (_event, url: string) => {
+  const trimmed = url.trim().replace(/\/+$/, '');
+  updateSettings({ wordpressUrl: trimmed || undefined });
+  return trimmed || null;
+});
+
+/**
+ * Open a published record in the reader's browser.
+ *
+ * The URL comes out of WordPress, which is data rather than instruction, so
+ * only http and https are ever handed to the shell — a `file:` or a custom
+ * scheme reaching `openExternal` would be running something on the strength
+ * of what a web page said.
+ */
+ipcMain.handle('open-external', async (_event, url: string) => {
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { return false; }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  await shell.openExternal(parsed.toString());
+  return true;
+});
+
+ipcMain.handle('wp-status', async () => {
+  const { wordpressUrl } = getSettings();
+  return { url: wordpressUrl ?? null, defaultUrl: DEFAULT_WP_URL };
+});
+
+ipcMain.handle('wp-lookup', async (_event, name: string) => {
+  const site = wpSite();
+  if ('error' in site) return { hits: [], error: site.error };
+  try {
+    return { hits: await lookupByName(site.url, name) };
+  } catch (err) {
+    return { hits: [], error: wpMessage(err) };
+  }
+});
+
+ipcMain.handle('wp-search-source', async (_event, phrase: string) => {
+  const site = wpSite();
+  if ('error' in site) return { hits: [], considered: 0, truncated: false, error: site.error };
+  try {
+    return await searchSource(site.url, phrase);
+  } catch (err) {
+    return { hits: [], considered: 0, truncated: false, error: wpMessage(err) };
+  }
+});
+
+ipcMain.handle('wp-search-name', async (_event, name: string) => {
+  const site = wpSite();
+  if ('error' in site) return { hits: [], considered: 0, truncated: false, error: site.error };
+  try {
+    const hits = await lookupByName(site.url, name);
+    return { hits, considered: hits.length, truncated: false };
+  } catch (err) {
+    return { hits: [], considered: 0, truncated: false, error: wpMessage(err) };
+  }
+});
+
+/**
+ * Read the whole archive and re-match the catalogue against it. This is the
+ * live form of the old dump-and-match pair, and writes the same two files, so
+ * the catalogue scripts still read what this leaves behind.
+ */
+ipcMain.handle('wp-refresh-matches', async (event) => {
+  const site = wpSite();
+  if ('error' in site) return { ok: false as const, error: site.error };
+  const { catalogDir } = getSettings();
+  if (!catalogDir) {
+    return { ok: false as const, error: 'No catalogue is set. Preferences → Catalogue folder.' };
+  }
+
+  try {
+    const records = await fetchArchive(site.url, (done, total) => {
+      event.sender.send('wp-refresh-progress', { done, total });
+    });
+    return { ok: true as const, ...refreshMatches(catalogDir, records) };
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') {
+      return { ok: false as const, error: 'That catalogue folder has no catalog.json in it.' };
+    }
+    return { ok: false as const, error: wpMessage(err) };
+  }
+});
+
 
 ipcMain.handle('select-directory', async () => {
   // Open where the reader last chose to extract. The dialog is still shown --

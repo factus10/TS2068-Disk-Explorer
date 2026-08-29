@@ -19,12 +19,17 @@ export function Preferences({ onClose }: Props) {
   const [catalog, setCatalog] = useState<{ dir: string; images: number; folders: number; programs: number; archived: number } | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [emulator, setEmulator] = useState<EmulatorStatus | null>(null);
+  const [wpUrl, setWpUrl] = useState('');
+  const [wpDefault, setWpDefault] = useState('http://localhost');
+  const [wpTesting, setWpTesting] = useState(false);
+  const [wpMessage, setWpMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     api.getSettings().then(setSettings).catch(() => setSettings({}));
     api.getCatalogSummary().then(setCatalog).catch(() => setCatalog(null));
     api.compareShippedList().then(setShipped).catch(() => setShipped(null));
     api.getEmulatorStatus().then(setEmulator).catch(() => setEmulator({ path: null, configured: false }));
+    api.wpStatus().then((w) => { setWpUrl(w.url ?? ''); setWpDefault(w.defaultUrl); }).catch(() => { /* leave blank */ });
   }, []);
 
   // Escape closes, as it does in every other dialog.
@@ -55,6 +60,38 @@ export function Preferences({ onClose }: Props) {
       setCheckMessage(`Check failed: ${err.message}`);
     }
     setChecking(false);
+  };
+
+  /**
+   * Ask the address whether it holds an archive, and only keep it if it does.
+   * Saving an address that answers nothing would leave every later lookup
+   * failing with no clue as to why.
+   */
+  const testWp = async () => {
+    const target = wpUrl.trim() || wpDefault;
+    setWpTesting(true);
+    setWpMessage(null);
+    try {
+      const r = await api.wpTest(target);
+      if (r.ok) {
+        await api.wpSaveUrl(target);
+        setWpUrl(target);
+        setSettings((prev) => ({ ...prev, wordpressUrl: target }));
+        setWpMessage({ ok: true, text: `${r.name} — ${r.records.toLocaleString()} published programs. Saved.` });
+      } else {
+        setWpMessage({ ok: false, text: r.error });
+      }
+    } catch (err: any) {
+      setWpMessage({ ok: false, text: err.message });
+    }
+    setWpTesting(false);
+  };
+
+  const clearWp = async () => {
+    await api.wpSaveUrl('');
+    setWpUrl('');
+    setWpMessage(null);
+    setSettings((prev) => ({ ...prev, wordpressUrl: undefined }));
   };
 
   const chooseCatalog = async () => {
@@ -215,6 +252,47 @@ export function Preferences({ onClose }: Props) {
               match on its own.
             </span>
           </label>
+        )}
+
+        <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />
+
+        <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 6 }}>
+          Published archive
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+          The WordPress site holding the published <code>computer_media</code> records &mdash;
+          a local copy of it, usually. With one set, a selected program says whether it is
+          already published, File &#9656; Search the Published Archive looks one up by name or
+          by a line of its listing, and the catalogue&rsquo;s matches can be refreshed from the
+          site. Everything here reads; nothing is ever written back to WordPress.
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="text"
+            value={wpUrl}
+            placeholder={wpDefault}
+            onChange={(e) => { setWpUrl(e.target.value); setWpMessage(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') testWp(); }}
+            style={{
+              flex: 1, fontSize: 11, fontFamily: 'var(--mono, monospace)', padding: '6px 8px',
+              background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+              border: '1px solid var(--border)', borderRadius: 3,
+            }}
+          />
+          <button onClick={testWp} style={btn} disabled={wpTesting}>
+            {wpTesting ? 'Testing...' : 'Test and save'}
+          </button>
+          {settings?.wordpressUrl && <button onClick={clearWp} style={btn}>Clear</button>}
+        </div>
+
+        {wpMessage && (
+          <div style={{
+            fontSize: 11, marginTop: 8, lineHeight: 1.5,
+            color: wpMessage.ok ? 'var(--accent)' : 'var(--badge-dump, #d97706)',
+          }}>
+            {wpMessage.text}
+          </div>
         )}
 
         <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />

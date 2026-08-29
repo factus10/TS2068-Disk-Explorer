@@ -60,6 +60,17 @@ export interface Settings {
   autoCheckCatalogUpdate?: boolean;
 
   /**
+   * The WordPress site holding the published archive, as a base URL — a local
+   * copy of it, usually. With one set, the app can say whether a program is
+   * already published, search the archive by name or by a line of its
+   * listing, and refresh the catalogue's matches from it.
+   *
+   * Unset by default: it is a network address the reader has to give, and
+   * nothing here should guess at one and start making requests.
+   */
+  wordpressUrl?: string;
+
+  /**
    * The emulator binary used by Run. Only worth storing when ZEsarUX is
    * somewhere unusual: with nothing set the app looks in the places it
    * installs itself, so most readers never see this setting.
@@ -118,6 +129,17 @@ export function getSettings(): Settings {
         fs.accessSync(raw.emulatorPath, fs.constants.X_OK);
         out.emulatorPath = raw.emulatorPath;
       } catch { /* gone; leave it unset */ }
+    }
+    // Only http and https are kept. A stored address is handed to fetch and
+    // its host is opened in a browser, so a `file:` or a custom scheme here
+    // would be a stored instruction rather than a setting.
+    if (typeof raw.wordpressUrl === 'string' && raw.wordpressUrl) {
+      try {
+        const { protocol } = new URL(raw.wordpressUrl);
+        if (protocol === 'http:' || protocol === 'https:') {
+          out.wordpressUrl = raw.wordpressUrl.replace(/\/+$/, '');
+        }
+      } catch { /* not a URL; leave it unset */ }
     }
     if (typeof raw.autoCheckCatalogUpdate === 'boolean') out.autoCheckCatalogUpdate = raw.autoCheckCatalogUpdate;
     if (raw.catalogUpdate && typeof raw.catalogUpdate === 'object') {
