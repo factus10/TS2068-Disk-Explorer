@@ -11,6 +11,10 @@ interface Props {
 
 type Mode = 'source' | 'name';
 
+/** Rows drawn at once. The ordering carries the answer, so the head of it is
+ *  what the window is for — and a thousand rows would cost more than it tells. */
+const SHOWN = 200;
+
 /**
  * Searching the published archive from inside the app.
  *
@@ -156,8 +160,8 @@ export function ArchiveSearch({ onClose, initialQuery, initialMode }: Props) {
               ? 'Matched against the BASIC listing exactly as typed, ignoring case, over every listing '
                 + 'the archive holds. This is the search for when the name settles nothing — a disk full '
                 + 'of AUTOSTART, or six programs with the same title.'
-              : 'Matched against the published title, asked of the site. Quick, and enough when the disk '
-                + 'name is distinctive.'}
+              : 'Matched against the published title, over every record the archive holds, with an '
+                + 'exact name first. Enough on its own when the disk name is distinctive.'}
           </div>
         </div>
 
@@ -211,13 +215,20 @@ export function ArchiveSearch({ onClose, initialQuery, initialMode }: Props) {
                   ? `Nothing in the archive holds “${result.phrase || searched}”`
                   : `${result.hits.length} program${result.hits.length === 1 ? ' holds' : 's hold'} `
                     + `“${result.phrase || searched}”`}
-                {mode === 'source' && result.searched > 0
-                  && ` — all ${result.searched.toLocaleString()} listings searched`}
+                {result.searched > 0
+                  && ` — all ${result.searched.toLocaleString()} ${mode === 'source' ? 'listings' : 'titles'} searched`}
                 {result.phrase && result.phrase !== searched.trim()
                   && ' (quotes around a phrase mean the phrase, so they were dropped)'}
               </div>
 
-              {result.hits.map((hit) => <Hit key={hit.id} hit={hit} />)}
+              {result.hits.slice(0, SHOWN).map((hit) => <Hit key={hit.id} hit={hit} />)}
+
+              {result.hits.length > SHOWN && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '10px 0' }}>
+                  Showing the first {SHOWN} of {result.hits.length.toLocaleString()}. Narrow the
+                  search to see the rest.
+                </div>
+              )}
             </>
           )}
         </div>

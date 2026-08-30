@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { fetchArchive, fetchListings, lookupByName, siteInfo, effectiveDownload } from '../electron/wordpress';
-import { saveListings, searchListings, listingsStatus, unquote } from '../electron/wordpress-listings';
+import { saveListings, searchListings, searchTitles, listingsStatus, unquote } from '../electron/wordpress-listings';
 import { refreshMatches } from '../electron/wordpress-match';
 
 /**
@@ -228,6 +228,57 @@ describe('searching the listing', () => {
   });
 });
 
+describe('searching by name', () => {
+  let dir: string;
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wpname-')); });
+  afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
+
+  const listing = (id: number, title: string, source = '') => ({
+    id, title, url: `${BASE}/${id}`, downloadUrl: '', mediaType: 'Program',
+    date: '', company: [], source,
+  });
+
+  /**
+   * The case that showed the fault: the site matched 80 records on "on",
+   * "your" and "mark" appearing anywhere, returned them newest-first, and the
+   * record actually called "On Your Mark" was fiftieth — so asking for twenty
+   * got twenty wrong answers and not the right one.
+   */
+  it('finds the record of that name among ones that merely mention it', () => {
+    saveListings(dir, BASE, [
+      listing(1, 'Household Finance Calculator', '10 REM on your mark'),
+      listing(2, 'TEST', '10 PRINT "your mark"'),
+      listing(3, 'On Your Mark'),
+    ]);
+
+    const r = searchTitles(dir, 'On Your Mark')!;
+
+    expect(r.hits.map((h) => h.title)).toEqual(['On Your Mark']);
+    expect(r.searched).toBe(3);
+  });
+
+  it('puts the whole name first, then what begins with it, then the rest', () => {
+    saveListings(dir, BASE, [
+      listing(1, 'Hi-Res Chess'),
+      listing(2, 'Chess Player'),
+      listing(3, 'Chess'),
+      listing(4, 'BBS Chess'),
+    ]);
+
+    expect(searchTitles(dir, 'chess')!.hits.map((h) => h.title))
+      .toEqual(['Chess', 'Chess Player', 'BBS Chess', 'Hi-Res Chess']);
+  });
+
+  it('ignores case, and is not capped at twenty', () => {
+    saveListings(dir, BASE, Array.from({ length: 25 }, (_, i) => listing(i + 1, `Chess ${i + 1}`)));
+    expect(searchTitles(dir, 'CHESS')!.hits).toHaveLength(25);
+  });
+
+  it('says there is no copy rather than reporting nothing found', () => {
+    expect(searchTitles(dir, 'Chess')).toBeNull();
+  });
+});
+
 describe('taking a copy of the listings', () => {
   it('pages the whole archive and keeps the source', async () => {
     const page = (from: number, n: number) => Array.from({ length: n }, (_, i) => ({
@@ -248,9 +299,9 @@ describe('taking a copy of the listings', () => {
   });
 });
 
-describe('looking one program up by name', () => {
-  it('prefers the records that have the name in their title', async () => {
-    routes.set('/wp-json/wp/v2/computer_media?search=Hangman&per_page=20', {
+describe('looking one program up by name, from the site', () => {
+  it('keeps only the records that have the name in their title', async () => {
+    routes.set('/wp-json/wp/v2/computer_media?search=Hangman&per_page=100', {
       body: [
         record(1, 'Hangman'),
         // Matched on its body, not its name — not an answer to this question.
@@ -261,11 +312,21 @@ describe('looking one program up by name', () => {
     expect((await lookupByName(BASE, 'Hangman')).map((h) => h.title)).toEqual(['Hangman']);
   });
 
-  it('falls back to what the site offered when no title contains the name', async () => {
-    routes.set('/wp-json/wp/v2/computer_media?search=zzz&per_page=20', {
+  /**
+   * It used to return the whole pile when nothing matched, which presented
+   * unrelated programs as though they were the one being looked for.
+   */
+  it('answers none rather than offering unrelated records', async () => {
+    routes.set('/wp-json/wp/v2/computer_media?search=zzz&per_page=100', {
       body: [record(2, 'Games Compendium')],
     });
-    expect((await lookupByName(BASE, 'zzz')).map((h) => h.title)).toEqual(['Games Compendium']);
+    expect(await lookupByName(BASE, 'zzz')).toEqual([]);
+  });
+
+  it('asks the site to rank by relevance, not by date', async () => {
+    routes.set('/wp-json/wp/v2/computer_media?search=Hangman&per_page=100', { body: [] });
+    await lookupByName(BASE, 'Hangman');
+    expect(asked[0]).toContain('orderby=relevance');
   });
 });
 
