@@ -320,35 +320,34 @@ function toHit(p: any, context: { line: string; number: number }[] = []): WpHit 
 const HIT_FIELDS = 'id,title,link,acf.download_url,acf.media-type,acf.mediadate,acf.producer-company';
 
 /**
- * Records whose title matches `name`. This is the "is this one already up?"
- * question asked of a single program while browsing a disk, so it stays one
- * request and reports what the site says without interpreting it.
+ * Records whose title matches `name`, asked of the site.
+ *
+ * Only the fallback for when no copy of the listings has been taken yet —
+ * `searchTitles` answers this properly from the copy. Two things have to be
+ * said to the site to get a usable answer at all:
+ *
+ *   - **`orderby=relevance`.** The REST API sorts newest-first by default,
+ *     which for "On Your Mark" put the record of that name fiftieth of 80,
+ *     behind everything that merely contained "on", "your" or "mark"
+ *     somewhere. With relevance it comes first.
+ *   - **A hundred, not twenty.** A search matching each word anywhere in a
+ *     record turns up far more than twenty, and the wanted one need not be
+ *     among the first twenty of them.
+ *
+ * A record whose title does not hold the name is not an answer to this
+ * question, so when none does the answer is none — returning the pile the
+ * site offered would be presenting unrelated programs as matches.
  */
 export async function lookupByName(baseUrl: string, name: string): Promise<WpHit[]> {
   const q = name.trim();
   if (!q) return [];
   const url = `${apiRoot(baseUrl)}/computer_media?search=${encodeURIComponent(q)}`
-    + `&per_page=20&_fields=${HIT_FIELDS}`;
+    + `&orderby=relevance&per_page=${PER_PAGE}&_fields=${HIT_FIELDS}`;
   const { body } = await getJson(url, 10000);
   const hits = (Array.isArray(body) ? body : []).map((p: any) => toHit(p));
 
-  // The server matched terms anywhere in the post, which for a short name
-  // catches a great deal. Only titles that actually contain the name are an
-  // answer to the question that was asked.
   const needle = q.toLowerCase();
-  const inTitle = hits.filter((h) => h.title.toLowerCase().includes(needle));
-  return inTitle.length > 0 ? inTitle : hits;
-}
-
-/** The lines around a phrase, for showing why a record matched. */
-function contextFor(source: string, phrase: string, want = 3): { line: string; number: number }[] {
-  const lines = source.split(/\r?\n/);
-  const needle = phrase.toLowerCase();
-  const out: { line: string; number: number }[] = [];
-  for (let i = 0; i < lines.length && out.length < want; i++) {
-    if (lines[i].toLowerCase().includes(needle)) out.push({ line: lines[i].trim(), number: i + 1 });
-  }
-  return out;
+  return hits.filter((h) => h.title.toLowerCase().includes(needle));
 }
 
 /** One published program together with its listing, for searching offline. */

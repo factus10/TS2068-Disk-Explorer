@@ -118,6 +118,42 @@ export function unquote(phrase: string): string {
   return quoted ? q.slice(1, -1).trim() : q;
 }
 
+/**
+ * Published programs whose *title* holds `name`, from the same copy.
+ *
+ * The site cannot rank this usefully. Its search matches each word anywhere
+ * in a record, so "On Your Mark" matched 80 records on the strength of "on",
+ * "your" and "mark" appearing somewhere, and the REST API returns them
+ * newest-first rather than by relevance — which put the record actually
+ * called "On Your Mark" fiftieth, behind "Household Finance Calculator" and
+ * "TEST". Asking for the first twenty of that got twenty wrong answers.
+ *
+ * Here every title is read, and the ones that are the name outright come
+ * first, then the ones that begin with it, then the rest — so the answer a
+ * reader wants is the answer at the top.
+ */
+export function searchTitles(dir: string, name: string): LocalSearchResult | null {
+  const file = load(dir);
+  if (!file) return null;
+
+  const wanted = unquote(name);
+  const empty = { hits: [], searched: file.records.length, generated: file.generated, phrase: wanted };
+  if (!wanted) return empty;
+
+  const needle = wanted.toLowerCase();
+  const ranked: { rank: number; hit: WpHit }[] = [];
+  for (const rec of file.records) {
+    const title = rec.title.toLowerCase();
+    const rank = title === needle ? 0 : title.startsWith(needle) ? 1 : title.includes(needle) ? 2 : -1;
+    if (rank < 0) continue;
+    const { source: _omit, ...rest } = rec;
+    ranked.push({ rank, hit: { ...rest, context: [] } });
+  }
+  ranked.sort((a, b) => a.rank - b.rank || a.hit.title.localeCompare(b.hit.title));
+
+  return { ...empty, hits: ranked.map((r) => r.hit) };
+}
+
 /** The lines holding the phrase, for showing why a record matched. */
 function contextFor(source: string, needle: string, want = 3): { line: string; number: number }[] {
   const lines = source.split(/\r?\n/);

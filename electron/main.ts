@@ -17,7 +17,7 @@ import { checkForUpdate, saveUpdate, clearUpdate, countRows } from './catalog-up
 import { surveyCollection, ingestImages } from './catalog-ingest';
 import { buildInsights } from './catalog-insights';
 import { siteInfo, fetchArchive, fetchListings, lookupByName, WpError, DEFAULT_WP_URL } from './wordpress';
-import { searchListings, saveListings, listingsStatus } from './wordpress-listings';
+import { searchListings, searchTitles, saveListings, listingsStatus } from './wordpress-listings';
 import { refreshMatches } from './wordpress-match';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
@@ -858,6 +858,9 @@ ipcMain.handle('wp-fetch-listings', async (event) => {
 });
 
 ipcMain.handle('wp-lookup', async (_event, name: string) => {
+  const local = searchTitles(listingsDir(), name);
+  if (local) return { hits: local.hits };
+
   const site = wpSite();
   if ('error' in site) return { hits: [], error: site.error };
   try {
@@ -876,6 +879,10 @@ ipcMain.handle('wp-search-source', async (_event, phrase: string) => {
 });
 
 ipcMain.handle('wp-search-name', async (_event, name: string) => {
+  // The copy ranks this properly and has every record; the site does neither.
+  const local = searchTitles(listingsDir(), name);
+  if (local) return local;
+
   const site = wpSite();
   if ('error' in site) return { hits: [], searched: 0, generated: '', phrase: name, error: site.error };
   try {
