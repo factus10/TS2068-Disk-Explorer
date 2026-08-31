@@ -219,9 +219,19 @@ function buildMenu() {
       ],
     },
     {
+      // On macOS the standard editing accelerators only work if their roles
+      // are in the menu — Cmd+V does nothing without a paste item, however
+      // ordinary the field. That was tolerable while the app only read
+      // things; now there is an application password to paste in, a search
+      // phrase, and a title to correct.
       label: 'Edit',
       submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
         { role: 'copy' },
+        { role: 'paste' },
         { role: 'selectAll' },
       ],
     },

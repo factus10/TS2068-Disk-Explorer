@@ -160,6 +160,11 @@ export function ExportPrompt({
           borderRadius: 8,
           padding: 24,
           width: 420,
+          maxWidth: '92vw',
+          // Short today, but a dialog that outgrows the screen has no way to
+          // be scrolled to and no way to be dismissed but Escape.
+          maxHeight: '85vh',
+          overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
           gap: 12,

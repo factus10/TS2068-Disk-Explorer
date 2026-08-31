@@ -27,6 +27,17 @@ describe('the Preferences window', () => {
     expect(html()).toMatch(/Loading|Not set/);
   });
 
+  /**
+   * The settings outgrew a short window: on a laptop the foot of it was off
+   * the bottom of the screen, with the fields down there unreachable. The
+   * body has to scroll, and Close has to stay put.
+   */
+  it('scrolls rather than running off the screen', () => {
+    const out = html();
+    expect(out).toContain('max-height:85vh');
+    expect(out).toContain('overflow-y:auto');
+  });
+
   it('offers a way to choose one', () => {
     expect(html()).toContain('Choose');
   });

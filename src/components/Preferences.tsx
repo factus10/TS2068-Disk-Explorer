@@ -166,15 +166,24 @@ export function Preferences({ onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-          borderRadius: 6, width: 520, maxWidth: '90vw', padding: 20,
+          borderRadius: 6, width: 520, maxWidth: '90vw',
+          // The settings have outgrown a short window: on a laptop the foot of
+          // this was off the bottom of the screen with no way to reach it. The
+          // body scrolls and the header stays, so Close is always in reach.
+          maxHeight: '85vh', display: 'flex', flexDirection: 'column',
           boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          padding: '20px 20px 12px', borderBottom: '1px solid var(--border)',
+        }}>
           <h2 style={{ margin: 0, fontSize: 15, color: 'var(--text-primary)' }}>Preferences</h2>
           <div style={{ flex: 1 }} />
           <button onClick={onClose} style={btn}>Close</button>
         </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 20px' }}>
 
         <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 6 }}>
           Extraction folder
@@ -467,6 +476,7 @@ export function Preferences({ onClose }: Props) {
             <strong style={{ color: 'var(--badge-basic)' }}>{catalog.archived.toLocaleString()} marked archived</strong>.
           </div>
         )}
+        </div>
       </div>
     </div>
   );
