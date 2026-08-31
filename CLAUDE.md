@@ -375,6 +375,19 @@ Other things worth knowing:
 - **The credential is an application password in the OS keychain**, via
   Electron `safeStorage`, never in `settings.json`. Where no keychain exists
   nothing is stored rather than something stored in the clear.
+- **Publishing follows the archive bundle.** A record is made out of exactly
+  what the ZIP holds, so the offer comes when the bundle is written and the
+  year, publisher and machine have just been answered. The File menu keeps an
+  entry for publishing a program without exporting it again.
+- **The big vocabularies are searched, not listed.** 3,448 people, 1,336 tags
+  and some 900 companies cannot be chips or a dropdown — nobody recalls whether
+  it is filed under Dan Klyver or A. Dan Klyver. `TermPicker` asks the site
+  from three characters in, debounced, dropping replies to searches the reader
+  has already typed past. Genre is small but hierarchical, so it is held whole
+  and matched locally, each term shown by its path: `Game > Chess`, not
+  `Chess`. A company search filters to titles, because WordPress matches a
+  post's body too and would otherwise offer names containing nothing of what
+  was typed.
 - **Everything is created as a draft.** Nothing here publishes, and nothing
   overwrites or deletes an existing post.
 

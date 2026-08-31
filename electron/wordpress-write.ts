@@ -25,13 +25,33 @@
  * deletes or overwrites an existing post.
  */
 
+/** WordPress renders post titles HTML-encoded; a picker wants the text. */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+}
+
 export interface WpAuth {
   user: string;
   /** An application password, from Users → Profile. */
   password: string;
 }
 
-export interface WpTerm { id: number; name: string }
+export interface WpTerm {
+  id: number;
+  name: string;
+  /**
+   * For a hierarchical vocabulary, the full path — `Game > Chess`. Genre has
+   * 35 of its 88 terms under a parent, and a bare `Chess` in a flat list says
+   * nothing about which of them it is.
+   */
+  path?: string;
+}
 
 export class WpWriteError extends Error {}
 
@@ -145,6 +165,86 @@ export class WpWriter {
       if (batch.length < 100) break;
     }
     return out;
+  }
+
+  /**
+   * Terms matching what has been typed so far.
+   *
+   * Vocabularies of this size cannot be picked from a list: 3,448 people and
+   * 1,336 tags are a search box, not a set of chips. The site is asked as the
+   * reader types, and only from a few characters in, because a one-letter
+   * search matches most of the archive and tells nobody anything.
+   */
+  async searchTerms(taxonomy: string, query: string, limit = 20): Promise<WpTerm[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const found = await this.call(
+      `/wp/v2/${taxonomy}?search=${encodeURIComponent(q)}&per_page=${limit}&_fields=id,name`,
+      {}, 10000,
+    );
+    return (Array.isArray(found) ? found : []).map((t: any) => ({
+      id: Number(t.id), name: String(t.name ?? ''),
+    }));
+  }
+
+  /**
+   * Companies matching what has been typed.
+   *
+   * WordPress searches a post's body as well as its title, so asking for
+   * "sinclair" offers companies whose name contains nothing of the sort. A
+   * name search should answer with names, so anything whose title does not
+   * contain the words is dropped.
+   */
+  async searchCompanies(query: string, limit = 20): Promise<WpTerm[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const found = await this.call(
+      `/wp/v2/company?search=${encodeURIComponent(q)}&per_page=${limit}&_fields=id,title`,
+      {}, 10000,
+    );
+    const needle = q.toLowerCase();
+    return (Array.isArray(found) ? found : [])
+      .map((p: any) => ({ id: Number(p.id), name: decodeEntities(String(p.title?.rendered ?? '')) }))
+      .filter((c: WpTerm) => c.name.toLowerCase().includes(needle));
+  }
+
+  /**
+   * A hierarchical vocabulary in full, each term labelled with its path.
+   *
+   * Genre is small enough to hold entirely — one request — and doing so is
+   * what makes the hierarchy visible at all: a term's parent is an id, and
+   * resolving it needs the rest of the vocabulary to hand.
+   */
+  async listHierarchy(taxonomy: string): Promise<WpTerm[]> {
+    const raw: { id: number; name: string; parent: number }[] = [];
+    for (let page = 1; ; page++) {
+      const batch = await this.call(`/wp/v2/${taxonomy}?per_page=100&page=${page}&_fields=id,name,parent`);
+      if (!Array.isArray(batch) || batch.length === 0) break;
+      raw.push(...batch.map((t: any) => ({
+        id: Number(t.id), name: String(t.name ?? ''), parent: Number(t.parent ?? 0),
+      })));
+      if (batch.length < 100) break;
+    }
+
+    const byId = new Map(raw.map((t) => [t.id, t]));
+    const pathOf = (t: { id: number; name: string; parent: number }): string => {
+      const parts = [t.name];
+      const seen = new Set([t.id]);
+      let p = t.parent;
+      // A vocabulary edited by hand can contain a cycle; walking one for ever
+      // would hang the dialog rather than mislabel a term.
+      while (p && byId.has(p) && !seen.has(p)) {
+        seen.add(p);
+        const parent = byId.get(p)!;
+        parts.unshift(parent.name);
+        p = parent.parent;
+      }
+      return parts.join(' > ');
+    };
+
+    return raw
+      .map((t) => ({ id: t.id, name: t.name, path: pathOf(t) }))
+      .sort((a, b) => a.path!.localeCompare(b.path!));
   }
 
   /** `company` posts, which `producer-company` points at by id. */

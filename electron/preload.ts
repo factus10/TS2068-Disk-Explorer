@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld('diskTools', {
   wpCheckCredentials: () => ipcRenderer.invoke('wp-check-credentials'),
   wpPublishSuggest: (imagePath: string, entryIndex: number, year: string) =>
     ipcRenderer.invoke('wp-publish-suggest', imagePath, entryIndex, year),
+  wpTermSearch: (kind: string, query: string) => ipcRenderer.invoke('wp-term-search', kind, query),
   wpPublish: (request: unknown) => ipcRenderer.invoke('wp-publish', request),
   onWpPublishProgress: (callback: (p: { message: string }) => void) => {
     const handler = (_e: any, p: any) => callback(p);

@@ -415,6 +415,8 @@ interface DiskToolsAPI {
   /** What the app can work out about a program, plus the live vocabularies. */
   wpPublishSuggest: (imagePath: string, entryIndex: number, year: string)
     => Promise<WpPublishSuggestion | { error: string }>;
+  /** Terms matching what has been typed; `kind` is a taxonomy or 'company'. */
+  wpTermSearch: (kind: string, query: string) => Promise<{ terms: WpTerm[]; error?: string }>;
   wpPublish: (request: WpPublishRequest) => Promise<WpPublishResult>;
   onWpPublishProgress: (callback: (p: { message: string }) => void) => () => void;
   onMenuWpPublish: (callback: () => void) => () => void;
@@ -527,7 +529,12 @@ export interface WpCredentialState {
   canStore: boolean;
 }
 
-export interface WpTerm { id: number; name: string }
+export interface WpTerm {
+  id: number;
+  name: string;
+  /** For a hierarchical vocabulary, the full path — `Game > Chess`. */
+  path?: string;
+}
 
 export interface WpPublishSuggestion {
   suggested: {
@@ -540,9 +547,11 @@ export interface WpPublishSuggestion {
     tags: WpTerm[];
     tagsUnmatched: string[];
   };
-  vocabularies: {
-    basic: WpTerm[]; model: WpTerm[]; genre: WpTerm[]; tags: WpTerm[]; companies: WpTerm[];
-  };
+  /**
+   * Only the small closed vocabularies travel whole. Tags, people and
+   * companies are searched as the reader types.
+   */
+  vocabularies: { basic: WpTerm[]; model: WpTerm[]; genre: WpTerm[] };
   error?: undefined;
 }
 

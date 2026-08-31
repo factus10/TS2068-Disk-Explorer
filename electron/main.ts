@@ -846,14 +846,20 @@ ipcMain.handle('wp-publish-suggest', async (
     const listing = readBasicListing(imagePath, entryIndex);
     const used = listing ? keywordsUsed(listing) : [];
 
-    const [basicVocab, modelVocab, genreVocab, tagVocab, companies] = await Promise.all([
-      w.listTerms('basic'), w.listTerms('model'), w.listTerms('genre'),
-      w.listTerms('tags'), w.listCompanies(),
+    // Only the small, closed vocabularies travel whole. Tags, people and
+    // companies run to thousands and are searched as the reader types; genre
+    // is small but hierarchical, so it comes with each term's full path.
+    const [basicVocab, modelVocab, genreVocab] = await Promise.all([
+      w.listTerms('basic'), w.listTerms('model'), w.listHierarchy('genre'),
     ]);
 
     const { matched, unmatched } = matchVocabulary(used, basicVocab);
+    // The derived tags are looked up by name rather than filtered from a list
+    // nobody fetched — an exact search per tag, of which there are at most two.
     const wantedTags = deriveTags(model?.name ?? null, year);
-    const tagIds = tagVocab.filter((t) => wantedTags.some((n) => n.toLowerCase() === t.name.toLowerCase()));
+    const tagHits = await Promise.all(wantedTags.map((n) => w.searchTerms('tags', n, 10)));
+    const tagIds = wantedTags.flatMap((n, i) =>
+      tagHits[i].filter((t) => t.name.toLowerCase() === n.toLowerCase()));
     const modelTerm = model ? modelVocab.find((t) => t.name === model.name) ?? null : null;
 
     return {
@@ -864,13 +870,31 @@ ipcMain.handle('wp-publish-suggest', async (
         basicUnmatched: unmatched,
         tags: tagIds,
         tagsUnmatched: wantedTags.filter(
-          (n) => !tagVocab.some((t) => t.name.toLowerCase() === n.toLowerCase()),
+          (n) => !tagIds.some((t) => t.name.toLowerCase() === n.toLowerCase()),
         ),
       },
-      vocabularies: { basic: basicVocab, model: modelVocab, genre: genreVocab, tags: tagVocab, companies },
+      vocabularies: { basic: basicVocab, model: modelVocab, genre: genreVocab },
     };
   } catch (err) {
     return { error: err instanceof WpWriteError ? err.message : `Could not read the vocabularies: ${err}` };
+  }
+});
+
+/**
+ * Terms matching what the reader has typed. One request, answered as they
+ * type — the alternative is shipping 3,448 people to the renderer and asking
+ * it to filter, which is slower to start and no better to use.
+ */
+ipcMain.handle('wp-term-search', async (_event, kind: string, query: string) => {
+  const w = wpWriter();
+  if ('error' in w) return { terms: [], error: w.error };
+  try {
+    const terms = kind === 'company'
+      ? await w.searchCompanies(query)
+      : await w.searchTerms(kind, query);
+    return { terms };
+  } catch (err) {
+    return { terms: [], error: err instanceof WpWriteError ? err.message : String(err) };
   }
 });
 

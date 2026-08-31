@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, WpPublishSuggestion, WpPublishResult, WpTerm } from '../api';
+import { TermPicker } from './TermPicker';
 
 interface Props {
   imagePath: string;
@@ -34,8 +35,10 @@ export function PublishDialog(props: Props) {
   const [data, setData] = useState<WpPublishSuggestion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState(defaultTitle);
-  const [programmers, setProgrammers] = useState('');
-  const [company, setCompany] = useState<number | null>(null);
+  const [people, setPeople] = useState<WpTerm[]>([]);
+  const [companies, setCompanies] = useState<WpTerm[]>([]);
+  const [genres, setGenres] = useState<WpTerm[]>([]);
+  const [tags, setTags] = useState<WpTerm[]>([]);
   const [picked, setPicked] = useState<Record<string, Set<number>>>({});
   const [describe, setDescribe] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -51,9 +54,8 @@ export function PublishDialog(props: Props) {
         setPicked({
           model: new Set(s.suggested.model ? [s.suggested.model.id] : []),
           basic: new Set(s.suggested.basic.map((t) => t.id)),
-          tags: new Set(s.suggested.tags.map((t) => t.id)),
-          genre: new Set(),
         });
+        setTags(s.suggested.tags);
       })
       .catch((e) => setError(e.message));
   }, [imagePath, entryIndex, metadata.year]);
@@ -85,15 +87,17 @@ export function PublishDialog(props: Props) {
         acf: {
           mediadate: metadata.year,
           'media-type': 'Program',
-          ...(company ? { 'producer-company': [company] } : {}),
+          ...(companies.length ? { 'producer-company': companies.map((c) => c.id) } : {}),
         },
         taxonomies: {
           model: [...(picked.model ?? [])],
           basic: [...(picked.basic ?? [])],
-          genre: [...(picked.genre ?? [])],
-          tags: [...(picked.tags ?? [])],
+          genre: genres.map((t) => t.id),
+          tags: tags.map((t) => t.id),
         },
-        programmerNames: programmers.split(',').map((n) => n.trim()).filter(Boolean),
+        // Names, not ids: a person picked from the archive and one typed in
+        // fresh are both resolved on the far side, and only people are made.
+        programmerNames: people.map((t) => t.name),
         images: [],
         describe,
       });
@@ -107,7 +111,7 @@ export function PublishDialog(props: Props) {
       unsub();
       setBusy(null);
     }
-  }, [title, sourceFilename, imagePath, entryIndex, editedLines, metadata, company, picked, programmers, describe, props]);
+  }, [title, sourceFilename, imagePath, entryIndex, editedLines, metadata, companies, picked, genres, tags, people, describe, props]);
 
   const btn: React.CSSProperties = {
     background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
@@ -146,8 +150,6 @@ export function PublishDialog(props: Props) {
     () => new Set(data?.suggested.model ? [data.suggested.model.id] : []), [data]);
   const derivedBasic = useMemo(
     () => new Set(data?.suggested.basic.map((t) => t.id) ?? []), [data]);
-  const derivedTags = useMemo(
-    () => new Set(data?.suggested.tags.map((t) => t.id) ?? []), [data]);
 
   return (
     <div
@@ -267,11 +269,32 @@ export function PublishDialog(props: Props) {
                 </div>
               )}
 
-              <div style={label}>Genre</div>
-              {chips('genre', data.vocabularies.genre, new Set())}
+              <div style={label}>
+                Genre
+                <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                  {' '}&mdash; type to match; a term under another is shown by its path
+                </span>
+              </div>
+              <TermPicker
+                kind="genre"
+                local={data.vocabularies.genre}
+                value={genres}
+                onChange={setGenres}
+                placeholder="Game, Utility, Education..."
+              />
 
-              <div style={label}>Tags</div>
-              {chips('tags', data.vocabularies.tags.slice(0, 60), derivedTags)}
+              <div style={label}>
+                Tags
+                <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                  {' '}&mdash; type to search the archive's tags
+                </span>
+              </div>
+              <TermPicker
+                kind="tags"
+                value={tags}
+                onChange={setTags}
+                placeholder="Type at least three characters"
+              />
               {data.suggested.tagsUnmatched.length > 0 && (
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                   No tag exists for: {data.suggested.tagsUnmatched.join(', ')}
@@ -281,34 +304,25 @@ export function PublishDialog(props: Props) {
               <div style={label}>
                 Programmers
                 <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
-                  {' '}&mdash; comma separated; anyone new is added to the archive
+                  {' '}&mdash; type to search; anyone the archive has not met can be added
                 </span>
               </div>
-              <input
-                type="text"
-                value={programmers}
-                placeholder="Jane Smith, A. Dan Klyver"
-                onChange={(e) => setProgrammers(e.target.value)}
-                style={{
-                  width: '100%', fontSize: 12, padding: '6px 8px', background: 'var(--bg-tertiary)',
-                  color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3,
-                }}
+              <TermPicker
+                kind="indiv"
+                value={people}
+                onChange={setPeople}
+                placeholder="Surname or forename"
+                allowNew
               />
 
               <div style={label}>Publisher</div>
-              <select
-                value={company ?? ''}
-                onChange={(e) => setCompany(e.target.value ? Number(e.target.value) : null)}
-                style={{
-                  width: '100%', fontSize: 12, padding: '6px 8px', background: 'var(--bg-tertiary)',
-                  color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3,
-                }}
-              >
-                <option value="">(none)</option>
-                {data.vocabularies.companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <TermPicker
+                kind="company"
+                value={companies}
+                onChange={setCompanies}
+                placeholder="Type at least three characters"
+                single
+              />
 
               <label style={{
                 display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 16,
