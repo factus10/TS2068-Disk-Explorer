@@ -15,7 +15,8 @@ import { TapCreator } from './components/TapCreator';
 import { Preferences } from './components/Preferences';
 import { FileBrowser } from './components/FileBrowser';
 import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './components/ArchiveExportDialog';
-import { ExportPrompt, ExportChoice } from './components/ExportPrompt';
+import { ExportPrompt, ExportChoice, loadRemembered } from './components/ExportPrompt';
+import { PublishDialog } from './components/PublishDialog';
 import { CatalogIngest } from './components/CatalogIngest';
 import { CatalogInsights } from './components/CatalogInsights';
 import { ArchiveSearch } from './components/ArchiveSearch';
@@ -87,6 +88,9 @@ function App() {
   // The archive search window, and the query it was opened on. Null means
   // closed; an empty string means opened with nothing asked yet.
   const [archiveSearch, setArchiveSearch] = useState<{ query: string; mode: 'source' | 'name' } | null>(null);
+  // The program being turned into a published record; null when the dialog is
+  // closed. Publishing is per-program, unlike the extract buttons.
+  const [publishing, setPublishing] = useState<{ entryIndex: number; title: string } | null>(null);
   const [wordpressUrl, setWordpressUrl] = useState<string | null>(null);
   // Set when a finding should take the browser somewhere.
   const [browseTo, setBrowseTo] = useState<string | null>(null);
@@ -123,6 +127,7 @@ function App() {
    */
   const runRef = useRef<() => void>(() => {});
   const refreshMatchesRef = useRef<() => void>(() => {});
+  const publishRef = useRef<() => void>(() => {});
 
   // Apply theme
   useEffect(() => {
@@ -714,9 +719,10 @@ function App() {
     });
     const unsubWpSearch = api.onMenuWpSearch(() => setArchiveSearch({ query: '', mode: 'source' }));
     const unsubWpRefresh = api.onMenuWpRefresh(() => { refreshMatchesRef.current(); });
+    const unsubWpPublish = api.onMenuWpPublish(() => { publishRef.current(); });
     return () => {
       unsub(); unsubKnown(); unsubCheck(); unsubIngest(); unsubInsights(); unsubRun();
-      unsubWpSearch(); unsubWpRefresh();
+      unsubWpSearch(); unsubWpRefresh(); unsubWpPublish();
     };
   }, [handleExportKnown]);
 
@@ -878,6 +884,24 @@ function App() {
   }, [disk, refreshArchiveStatus]);
 
   useEffect(() => { runRef.current = handleRun; }, [handleRun]);
+  /**
+   * Publishing is one program at a time. A disk's worth of records is a
+   * different job with different answers per program, and doing it in bulk
+   * would mean guessing most of them.
+   */
+  const handlePublish = useCallback(() => {
+    if (!disk) { setStatus('Open a disk image first'); return; }
+    if (selectedIndices.size !== 1) {
+      setStatus('Select exactly one program to publish');
+      return;
+    }
+    const index = [...selectedIndices][0];
+    const entry = flattenEntries(disk.catalog).find((e) => e.index === index);
+    if (!entry) return;
+    setPublishing({ entryIndex: index, title: entry.filename.trim() });
+  }, [disk, selectedIndices]);
+
+  useEffect(() => { publishRef.current = handlePublish; }, [handlePublish]);
   useEffect(() => { refreshMatchesRef.current = handleRefreshMatches; }, [handleRefreshMatches]);
 
   // Which site the selected program is asked about. Re-read when Preferences
@@ -1036,6 +1060,21 @@ function App() {
             setBrowserRefresh((n) => n + 1);
             if (disk) refreshArchiveStatus(disk.path);
           }}
+        />
+      )}
+
+      {publishing && disk && (
+        <PublishDialog
+          imagePath={disk.path}
+          entryIndex={publishing.entryIndex}
+          defaultTitle={publishing.title}
+          sourceFilename={`${publishing.title}.zip`}
+          {...(editState[publishing.entryIndex]
+            ? { editedLines: editState[publishing.entryIndex] }
+            : {})}
+          metadata={{ year: loadRemembered().year, publisher: loadRemembered().publisher }}
+          onClose={() => setPublishing(null)}
+          onStatus={setStatus}
         />
       )}
 

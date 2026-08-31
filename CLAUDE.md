@@ -319,6 +319,69 @@ guess.
   `matches.json` from the same catalogue and dump: identical, all 911 matches.
   `catalog.json` is never touched; the script still writes the CSVs.
 
+## Creating a Record from the App
+
+`Publish Selected to WordPress` makes a draft `computer_media` record out of
+one program: title, ACF fields, taxonomies, the listing, and — if asked — a
+description written by the describer plugin. `wordpress-write.ts` does the
+writing, `wordpress-derive.ts` works out what it can beforehand, and the
+credential lives in `wordpress-credentials.ts`.
+
+Four things about writing to WordPress were established by running them
+against a real site rather than read from documentation, because none of them
+is what the documentation implies:
+
+- **`acf` on `wp/v2` is display-only.** acf-to-rest-api registers it with a
+  `get_callback` and no `update_callback`, so a write there is accepted and
+  silently dropped — the post is created and every field is empty. The write
+  path is that plugin's own `acf/v3/computer_media/<id>` route, with a
+  `fields` object. Its `edit_in_rest` gate permits editing by default; the
+  filter in its readme is opt-in *restriction*, not permission.
+- **WordPress eats one level of backslashes.** A listing sent as-is comes back
+  with `\a\b\c` as `abc` and `\\` as `\` — a single stripslashes pass.
+  `slashForWordPress` doubles them first, which restores the text exactly.
+  This is the same reasoning the CSV importer's `wp_slash()` carries, at the
+  other end of the pipe, and it matters more than it looks: a listing that
+  loses its escapes is quietly unrebuildable rather than obviously broken.
+- **Something stamps a featured image on creation** and it cannot be cleared
+  by setting `featured_media` to zero. It can be replaced by a real
+  attachment, which is what a program with a screenshot wants anyway.
+- **`media-type` is two different things.** The ACF text field holds
+  `Program`; the `media-type` *taxonomy* holds Cartridge, Cassette and ROM.
+  Same name, unrelated vocabularies, and writing one into the other would
+  create a junk term.
+
+Other things worth knowing:
+
+- **The import stamp is shared.** Records carry `_wcmi_source_filename`, the
+  key the CSV importer looks for, so both tools agree on when two records are
+  the same record. It is protected meta and was unreachable over REST until
+  the importer plugin registered it — that `register_post_meta` call lives in
+  WP-Computer-Media_Import, not here.
+- **The machine, the keywords and the tags are derived, not asked.** The
+  machine follows from the disk format, the BASIC keywords from the program's
+  own tokens — the detokenizer already names them, so `keywordsUsed` is a walk
+  over what the reader is shown — and the tags from those two. All of it
+  arrives pre-ticked and overridable; none of it is applied unseen. A ZX81
+  disk suggests Timex/Sinclair 1000 with the ZX81 named beside it, because the
+  disk settles the family and not the badge.
+- **People are created, other terms are reported.** A programmer the archive
+  has not met is ordinary; a BASIC keyword or a machine it does not know is
+  more likely a typo, so those are listed as unmatched for a person to add.
+- **The describer needs the record to exist.** Its `analyze` route takes a
+  `post_id` and reads the listing off the post, so describing is a second pass
+  after creating, and it returns text rather than writing it — the description
+  is applied separately.
+- **The credential is an application password in the OS keychain**, via
+  Electron `safeStorage`, never in `settings.json`. Where no keychain exists
+  nothing is stored rather than something stored in the clear.
+- **Everything is created as a draft.** Nothing here publishes, and nothing
+  overwrites or deletes an existing post.
+
+Note for anyone editing the site's plugins: that WordPress has
+`opcache.validate_timestamps` off, so a PHP edit does nothing until php-fpm is
+reloaded (`kill -USR2 $(pgrep -f "php-fpm: master")`).
+
 ## GitHub
 
 Repo: https://github.com/factus10/TS2068-Disk-Explorer

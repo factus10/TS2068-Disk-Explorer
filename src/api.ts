@@ -408,6 +408,16 @@ interface DiskToolsAPI {
   wpFetchListings: () => Promise<({ ok: true } & WpListingsStatus) | { ok: false; error: string }>;
   onWpListingsProgress: (callback: (p: { done: number; total: number }) => void) => () => void;
   wpSearchName: (name: string) => Promise<WpSearchResult>;
+  /** Whether a publishing credential is stored; never the password itself. */
+  wpCredentialState: () => Promise<WpCredentialState>;
+  wpSaveCredentials: (user: string, password: string) => Promise<WpCredentialState & { warning?: string }>;
+  wpCheckCredentials: () => Promise<{ ok: true; name: string } | { ok: false; error: string }>;
+  /** What the app can work out about a program, plus the live vocabularies. */
+  wpPublishSuggest: (imagePath: string, entryIndex: number, year: string)
+    => Promise<WpPublishSuggestion | { error: string }>;
+  wpPublish: (request: WpPublishRequest) => Promise<WpPublishResult>;
+  onWpPublishProgress: (callback: (p: { message: string }) => void) => () => void;
+  onMenuWpPublish: (callback: () => void) => () => void;
   /** Re-read the whole archive and re-match the catalogue against it. */
   wpRefreshMatches: () => Promise<WpRefreshResult>;
   onWpRefreshProgress: (callback: (p: { done: number; total: number }) => void) => () => void;
@@ -509,6 +519,51 @@ export type WpRefreshResult =
       listings: number;
     }
   | { ok: false; error: string };
+
+export interface WpCredentialState {
+  user: string;
+  hasPassword: boolean;
+  /** False when the OS offers no keychain, so nothing can be kept. */
+  canStore: boolean;
+}
+
+export interface WpTerm { id: number; name: string }
+
+export interface WpPublishSuggestion {
+  suggested: {
+    model: WpTerm | null;
+    /** Terms the same disk could also mean; the machine is not certain. */
+    modelAlternatives: string[];
+    basic: WpTerm[];
+    /** Keywords used that the archive has no term for — worth adding by hand. */
+    basicUnmatched: string[];
+    tags: WpTerm[];
+    tagsUnmatched: string[];
+  };
+  vocabularies: {
+    basic: WpTerm[]; model: WpTerm[]; genre: WpTerm[]; tags: WpTerm[]; companies: WpTerm[];
+  };
+  error?: undefined;
+}
+
+export interface WpPublishRequest {
+  title: string;
+  sourceFilename: string;
+  /** Main builds the listing from these, using the export's own text builder. */
+  imagePath: string;
+  entryIndex: number;
+  editedLines?: Record<number, string>;
+  acf: Record<string, unknown>;
+  taxonomies: { basic?: number[]; model?: number[]; genre?: number[]; tags?: number[] };
+  /** Names rather than ids: a missing person is created, other terms are not. */
+  programmerNames: string[];
+  images: { filename: string; data: number[] }[];
+  describe: boolean;
+}
+
+export type WpPublishResult =
+  | { ok: true; postId: number; url: string; people: number; images: number; described: boolean }
+  | { ok: false; error: string; postId?: number; url?: string };
 
 declare global {
   interface Window {

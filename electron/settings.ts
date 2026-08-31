@@ -71,6 +71,19 @@ export interface Settings {
   wordpressUrl?: string;
 
   /**
+   * The WordPress user whose application password the app publishes with.
+   * Only meaningful alongside wordpressPassword.
+   */
+  wordpressUser?: string;
+
+  /**
+   * That application password, encrypted against the OS keychain — see
+   * wordpress-credentials.ts. Never the password itself, and never read
+   * outside the main process.
+   */
+  wordpressPassword?: string;
+
+  /**
    * The emulator binary used by Run. Only worth storing when ZEsarUX is
    * somewhere unusual: with nothing set the app looks in the places it
    * installs itself, so most readers never see this setting.
@@ -140,6 +153,10 @@ export function getSettings(): Settings {
           out.wordpressUrl = raw.wordpressUrl.replace(/\/+$/, '');
         }
       } catch { /* not a URL; leave it unset */ }
+    }
+    if (typeof raw.wordpressUser === 'string' && raw.wordpressUser) out.wordpressUser = raw.wordpressUser;
+    if (typeof raw.wordpressPassword === 'string' && raw.wordpressPassword) {
+      out.wordpressPassword = raw.wordpressPassword;
     }
     if (typeof raw.autoCheckCatalogUpdate === 'boolean') out.autoCheckCatalogUpdate = raw.autoCheckCatalogUpdate;
     if (raw.catalogUpdate && typeof raw.catalogUpdate === 'object') {

@@ -23,6 +23,11 @@ export function Preferences({ onClose }: Props) {
   const [wpDefault, setWpDefault] = useState('http://localhost');
   const [wpTesting, setWpTesting] = useState(false);
   const [wpMessage, setWpMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [creds, setCreds] = useState<import('../api').WpCredentialState | null>(null);
+  const [wpUserField, setWpUserField] = useState('');
+  const [wpPassField, setWpPassField] = useState('');
+  const [credMessage, setCredMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [credBusy, setCredBusy] = useState(false);
 
   useEffect(() => {
     api.getSettings().then(setSettings).catch(() => setSettings({}));
@@ -30,6 +35,7 @@ export function Preferences({ onClose }: Props) {
     api.compareShippedList().then(setShipped).catch(() => setShipped(null));
     api.getEmulatorStatus().then(setEmulator).catch(() => setEmulator({ path: null, configured: false }));
     api.wpStatus().then((w) => { setWpUrl(w.url ?? ''); setWpDefault(w.defaultUrl); }).catch(() => { /* leave blank */ });
+    api.wpCredentialState().then((c) => { setCreds(c); setWpUserField(c.user); }).catch(() => setCreds(null));
   }, []);
 
   // Escape closes, as it does in every other dialog.
@@ -85,6 +91,38 @@ export function Preferences({ onClose }: Props) {
       setWpMessage({ ok: false, text: err.message });
     }
     setWpTesting(false);
+  };
+
+  /**
+   * Store the credential and immediately ask the site whether it works.
+   * Saving something that silently fails later would be worse than saying so
+   * now, while the reader is still looking at the field.
+   */
+  const saveCreds = async () => {
+    setCredBusy(true);
+    setCredMessage(null);
+    try {
+      const state = await api.wpSaveCredentials(wpUserField, wpPassField);
+      setCreds(state);
+      setWpPassField('');
+      if (state.warning) {
+        setCredMessage({ ok: false, text: state.warning });
+      } else {
+        const check = await api.wpCheckCredentials();
+        setCredMessage(check.ok
+          ? { ok: true, text: `Signed in as ${check.name}. Publishing is available.` }
+          : { ok: false, text: check.error });
+      }
+    } catch (err: any) {
+      setCredMessage({ ok: false, text: err.message });
+    }
+    setCredBusy(false);
+  };
+
+  const forgetCreds = async () => {
+    setCreds(await api.wpSaveCredentials(wpUserField, ''));
+    setWpPassField('');
+    setCredMessage(null);
   };
 
   const clearWp = async () => {
@@ -292,6 +330,57 @@ export function Preferences({ onClose }: Props) {
             color: wpMessage.ok ? 'var(--accent)' : 'var(--badge-dump, #d97706)',
           }}>
             {wpMessage.text}
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '14px 0 8px', lineHeight: 1.5 }}>
+          To <em>create</em> records rather than only read them, the app needs an application
+          password &mdash; made at Users &#9656; Profile on the site, not your login password.
+          It is kept encrypted by the system keychain, never in the settings file, and is only
+          ever sent to the site above.
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="text"
+            value={wpUserField}
+            placeholder="WordPress username"
+            onChange={(e) => { setWpUserField(e.target.value); setCredMessage(null); }}
+            style={{
+              flex: 1, fontSize: 11, padding: '6px 8px', background: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3,
+            }}
+          />
+          <input
+            type="password"
+            value={wpPassField}
+            placeholder={creds?.hasPassword ? 'stored — type to replace' : 'application password'}
+            onChange={(e) => { setWpPassField(e.target.value); setCredMessage(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveCreds(); }}
+            style={{
+              flex: 1, fontSize: 11, fontFamily: 'var(--mono, monospace)', padding: '6px 8px',
+              background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+              border: '1px solid var(--border)', borderRadius: 3,
+            }}
+          />
+          <button onClick={saveCreds} style={btn} disabled={credBusy || !wpUserField.trim()}>
+            {credBusy ? 'Checking...' : 'Save'}
+          </button>
+          {creds?.hasPassword && <button onClick={forgetCreds} style={btn}>Forget</button>}
+        </div>
+
+        {creds && !creds.canStore && (
+          <div style={{ fontSize: 11, marginTop: 8, color: 'var(--badge-dump, #d97706)', lineHeight: 1.5 }}>
+            This system offers no keychain, so a password cannot be kept between sessions.
+          </div>
+        )}
+
+        {credMessage && (
+          <div style={{
+            fontSize: 11, marginTop: 8, lineHeight: 1.5,
+            color: credMessage.ok ? 'var(--accent)' : 'var(--badge-dump, #d97706)',
+          }}>
+            {credMessage.text}
           </div>
         )}
 

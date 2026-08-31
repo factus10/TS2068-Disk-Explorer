@@ -63,6 +63,23 @@ contextBridge.exposeInMainWorld('diskTools', {
   },
   wpSearchName: (name: string) => ipcRenderer.invoke('wp-search-name', name),
   wpRefreshMatches: () => ipcRenderer.invoke('wp-refresh-matches'),
+  wpCredentialState: () => ipcRenderer.invoke('wp-credential-state'),
+  wpSaveCredentials: (user: string, password: string) =>
+    ipcRenderer.invoke('wp-save-credentials', user, password),
+  wpCheckCredentials: () => ipcRenderer.invoke('wp-check-credentials'),
+  wpPublishSuggest: (imagePath: string, entryIndex: number, year: string) =>
+    ipcRenderer.invoke('wp-publish-suggest', imagePath, entryIndex, year),
+  wpPublish: (request: unknown) => ipcRenderer.invoke('wp-publish', request),
+  onWpPublishProgress: (callback: (p: { message: string }) => void) => {
+    const handler = (_e: any, p: any) => callback(p);
+    ipcRenderer.on('wp-publish-progress', handler);
+    return () => ipcRenderer.removeListener('wp-publish-progress', handler);
+  },
+  onMenuWpPublish: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu-wp-publish', handler);
+    return () => ipcRenderer.removeListener('menu-wp-publish', handler);
+  },
   onWpRefreshProgress: (callback: (p: { done: number; total: number }) => void) => {
     const handler = (_e: any, p: any) => callback(p);
     ipcRenderer.on('wp-refresh-progress', handler);

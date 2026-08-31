@@ -19,6 +19,9 @@ import { buildInsights } from './catalog-insights';
 import { siteInfo, fetchArchive, fetchListings, lookupByName, WpError, DEFAULT_WP_URL } from './wordpress';
 import { searchListings, searchTitles, saveListings, listingsStatus } from './wordpress-listings';
 import { refreshMatches } from './wordpress-match';
+import { WpWriter, WpWriteError, type AcfFields, type Taxonomies } from './wordpress-write';
+import { credentialState, saveCredentials, readCredentials } from './wordpress-credentials';
+import { keywordsUsed, matchVocabulary, deriveModel, deriveTags } from './wordpress-derive';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -196,6 +199,10 @@ function buildMenu() {
         {
           label: 'Refresh Matches from WordPress...',
           click: () => mainWindow?.webContents.send('menu-wp-refresh'),
+        },
+        {
+          label: 'Publish Selected to WordPress...',
+          click: () => mainWindow?.webContents.send('menu-wp-publish'),
         },
         {
           label: 'Recent Files',
@@ -770,6 +777,198 @@ ipcMain.handle('pick-catalog-dir', async () => {
 });
 
 ipcMain.handle('clear-catalog-dir', async () => { updateSettings({ catalogDir: undefined }); return true; });
+
+// ------------------------------------------------------ WordPress writes ---
+//
+// Creating a record is the one thing here that changes the reader's site, so
+// it is deliberate throughout: a credential they entered, a draft rather than
+// a published post, and a report of every step rather than a silent success.
+
+/** A writer bound to the configured site, or the reason there isn't one. */
+function wpWriter(): WpWriter | { error: string } {
+  const { wordpressUrl } = getSettings();
+  if (!wordpressUrl) return { error: 'No WordPress site is set. Preferences → Published archive.' };
+  const creds = readCredentials();
+  if (!creds) {
+    return { error: 'No application password is stored. Preferences → Published archive.' };
+  }
+  return new WpWriter(wordpressUrl, creds);
+}
+
+ipcMain.handle('wp-credential-state', async () => credentialState());
+
+ipcMain.handle('wp-save-credentials', async (_event, user: string, password: string) => {
+  const state = saveCredentials(user, password);
+  if (password && !state.hasPassword) {
+    return { ...state, warning: 'This system offers no keychain, so the password was not stored.' };
+  }
+  return state;
+});
+
+/** Does the stored credential actually work, and may it edit posts? */
+ipcMain.handle('wp-check-credentials', async () => {
+  const w = wpWriter();
+  if ('error' in w) return { ok: false as const, error: w.error };
+  try {
+    const who = await w.checkCredentials();
+    return who.canEdit
+      ? { ok: true as const, name: who.name }
+      : { ok: false as const, error: `${who.name} may not edit posts on this site.` };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof WpWriteError ? err.message : String(err) };
+  }
+});
+
+/**
+ * What the app can say about a program before anyone is asked: the machine,
+ * the BASIC keywords it uses, and the tags that follow. Returned with the
+ * live vocabularies so the dialog can show what is available.
+ */
+ipcMain.handle('wp-publish-suggest', async (
+  _event, imagePath: string, entryIndex: number, year: string,
+) => {
+  const w = wpWriter();
+  if ('error' in w) return { error: w.error };
+
+  try {
+    const disk = parseDiskImage(imagePath);
+    const model = deriveModel(disk.header.format as DiskFormat);
+    const listing = readBasicListing(imagePath, entryIndex);
+    const used = listing ? keywordsUsed(listing) : [];
+
+    const [basicVocab, modelVocab, genreVocab, tagVocab, companies] = await Promise.all([
+      w.listTerms('basic'), w.listTerms('model'), w.listTerms('genre'),
+      w.listTerms('tags'), w.listCompanies(),
+    ]);
+
+    const { matched, unmatched } = matchVocabulary(used, basicVocab);
+    const wantedTags = deriveTags(model?.name ?? null, year);
+    const tagIds = tagVocab.filter((t) => wantedTags.some((n) => n.toLowerCase() === t.name.toLowerCase()));
+    const modelTerm = model ? modelVocab.find((t) => t.name === model.name) ?? null : null;
+
+    return {
+      suggested: {
+        model: modelTerm,
+        modelAlternatives: model?.alternatives ?? [],
+        basic: matched,
+        basicUnmatched: unmatched,
+        tags: tagIds,
+        tagsUnmatched: wantedTags.filter(
+          (n) => !tagVocab.some((t) => t.name.toLowerCase() === n.toLowerCase()),
+        ),
+      },
+      vocabularies: { basic: basicVocab, model: modelVocab, genre: genreVocab, tags: tagVocab, companies },
+    };
+  } catch (err) {
+    return { error: err instanceof WpWriteError ? err.message : `Could not read the vocabularies: ${err}` };
+  }
+});
+
+export interface PublishRequest {
+  title: string;
+  sourceFilename: string;
+  /** Where the listing comes from: main builds the zmakebas text itself, from
+   *  the same pair of functions the export sidecar uses, so a published
+   *  listing and an exported one cannot come out differently. */
+  imagePath: string;
+  entryIndex: number;
+  editedLines?: Record<number, string>;
+  acf: AcfFields;
+  taxonomies: Taxonomies;
+  /** Names, not ids: an indiv term is made for anyone the archive lacks. */
+  programmerNames: string[];
+  images: { filename: string; data: number[] }[];
+  describe: boolean;
+}
+
+/**
+ * Create the record. Each step reports as it goes, because this is several
+ * requests and a partial failure should say how far it got rather than
+ * leaving the reader guessing what is on the site.
+ */
+ipcMain.handle('wp-publish', async (event, req: PublishRequest) => {
+  const w = wpWriter();
+  if ('error' in w) return { ok: false as const, error: w.error };
+
+  const step = (message: string) => event.sender.send('wp-publish-progress', { message });
+  let postId = 0;
+
+  try {
+    // The listing as the export would have written it, hand-edited lines
+    // included. Built here rather than passed in, so the copy on the site is
+    // the copy on disk.
+    let listingText = '';
+    try {
+      const buffer = fs.readFileSync(req.imagePath);
+      const format = detectFormat(buffer, req.imagePath);
+      if (format) {
+        const parser = getParser(format);
+        const entry = flattenEntries(parser.readCatalog(buffer).entries)
+          .find((e) => e.index === req.entryIndex);
+        const fileData = entry ? parser.readFileData(buffer, entry) : null;
+        const listing = entry && fileData ? basicListingOf(format, entry, fileData) : null;
+        if (listing) listingText = listingToText(listing, req.editedLines);
+      }
+    } catch { /* a program with no listing is published without one */ }
+
+    step('Looking up the people...');
+    const people: number[] = [];
+    for (const name of req.programmerNames) {
+      if (name.trim()) people.push((await w.findOrCreatePerson(name)).id);
+    }
+
+    step('Creating the draft...');
+    postId = await w.createDraft({
+      title: req.title,
+      sourceFilename: req.sourceFilename,
+      taxonomies: req.taxonomies,
+    });
+
+    step('Writing the fields...');
+    await w.writeAcf(postId, {
+      ...req.acf,
+      ...(listingText ? { source_code: listingText } : {}),
+      ...(people.length ? { programmers: people } : {}),
+    });
+
+    const attachments: number[] = [];
+    for (const [i, image] of req.images.entries()) {
+      step(`Uploading image ${i + 1} of ${req.images.length}...`);
+      attachments.push(await w.uploadImage(image.filename, Buffer.from(image.data)));
+    }
+    if (attachments.length) {
+      await w.writeAcf(postId, { images: attachments });
+      await w.setFeaturedImage(postId, attachments[0]);
+    }
+
+    let described = false;
+    if (req.describe) {
+      step('Asking the describer what this program is...');
+      const d = await w.describe(postId);
+      if (d.description || d.teaser) {
+        await w.applyDescription(postId, d.description, d.teaser);
+        described = true;
+      }
+    }
+
+    return {
+      ok: true as const,
+      postId,
+      url: w.editUrl(postId),
+      people: people.length,
+      images: attachments.length,
+      described,
+    };
+  } catch (err) {
+    // A draft that exists but is incomplete is worth naming: it is on the
+    // site whether or not the rest succeeded.
+    return {
+      ok: false as const,
+      error: err instanceof WpWriteError ? err.message : String(err),
+      ...(postId ? { postId, url: w.editUrl(postId) } : {}),
+    };
+  }
+});
 
 // ---------------------------------------------------------- WordPress ------
 //
@@ -1749,7 +1948,18 @@ ipcMain.handle('export-tosec', async (
   };
 });
 
-ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex: number, ts2068Mode: Ts2068Mode = 'auto', remStyle: RemStyle = 'characters'): Promise<BasicListing | null> => {
+/**
+ * The detokenized listing for one entry, or null when it has none.
+ *
+ * Named rather than inline because two callers want it: the viewer, and the
+ * WordPress publish, which reads the keywords a program uses off the same
+ * listing the reader is shown. Two copies of this would be two chances for
+ * them to disagree about what a program contains.
+ */
+function readBasicListing(
+  imagePath: string, entryIndex: number,
+  ts2068Mode: Ts2068Mode = 'auto', remStyle: RemStyle = 'characters',
+): BasicListing | null {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
   if (!format) return null;
@@ -1781,7 +1991,12 @@ ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex
     listing.autostartLine = autostart;
   }
   return listing;
-});
+}
+
+ipcMain.handle('get-basic-listing', async (
+  _event, imagePath: string, entryIndex: number,
+  ts2068Mode: Ts2068Mode = 'auto', remStyle: RemStyle = 'characters',
+): Promise<BasicListing | null> => readBasicListing(imagePath, entryIndex, ts2068Mode, remStyle));
 
 ipcMain.handle('extract-basic-from-state', async (
   _event, imagePath: string, entryIndex: number, destDir: string,
