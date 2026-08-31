@@ -862,8 +862,40 @@ ipcMain.handle('wp-publish-suggest', async (
       tagHits[i].filter((t) => t.name.toLowerCase() === n.toLowerCase()));
     const modelTerm = model ? modelVocab.find((t) => t.name === model.name) ?? null : null;
 
+    // A program's loading screen is a SCREEN$ among the files its loader
+    // pulls in, so the package analysis already knows which one is its. Any
+    // other screen on the disk belongs to some other program.
+    const screens: { index: number; filename: string }[] = [];
+    try {
+      const buffer = fs.readFileSync(imagePath);
+      const format = detectFormat(buffer, imagePath);
+      if (format) {
+        const parser = getParser(format);
+        const { entries } = parser.readCatalog(buffer);
+        const all = flattenEntries(entries);
+        const fileData = new Map<number, Buffer>();
+        for (const e of all) {
+          if (e.isDirectory) continue;
+          const d = parser.readFileData(buffer, e);
+          if (d) fileData.set(e.index, d);
+        }
+        const usesTap = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64'].includes(format);
+        const pkg = usesTap
+          ? buildTapPackages(entries, fileData).find((x) => x.loader.index === entryIndex)
+          : undefined;
+        const candidates = pkg ? [pkg.loader, ...pkg.dependencies] : all.filter((e) => e.index === entryIndex);
+        for (const e of candidates) {
+          const data = fileData.get(e.index);
+          if (data && e.type === 'code' && data.length === SCREEN_SIZE) {
+            screens.push({ index: e.index, filename: e.filename.trim() });
+          }
+        }
+      }
+    } catch { /* a disk with no readable screen simply offers none */ }
+
     return {
       suggested: {
+        screens,
         model: modelTerm,
         modelAlternatives: model?.alternatives ?? [],
         basic: matched,
@@ -911,7 +943,8 @@ export interface PublishRequest {
   taxonomies: Taxonomies;
   /** Names, not ids: an indiv term is made for anyone the archive lacks. */
   programmerNames: string[];
-  images: { filename: string; data: number[] }[];
+  /** Catalog indices of SCREEN$ entries to attach, not the pixels themselves. */
+  screenIndices?: number[];
   describe: boolean;
 }
 
@@ -965,10 +998,25 @@ ipcMain.handle('wp-publish', async (event, req: PublishRequest) => {
       ...(people.length ? { programmers: people } : {}),
     });
 
+    // The screens are named rather than carried: the app decodes and encodes
+    // them here, so a 6912-byte SCREEN$ does not make the trip to the
+    // renderer and back as a PNG in an array of numbers.
     const attachments: number[] = [];
-    for (const [i, image] of req.images.entries()) {
-      step(`Uploading image ${i + 1} of ${req.images.length}...`);
-      attachments.push(await w.uploadImage(image.filename, Buffer.from(image.data)));
+    const wanted = req.screenIndices ?? [];
+    if (wanted.length) {
+      const buffer = fs.readFileSync(req.imagePath);
+      const format = detectFormat(buffer, req.imagePath);
+      const parser = format ? getParser(format) : null;
+      const all = parser ? flattenEntries(parser.readCatalog(buffer).entries) : [];
+      for (const [i, index] of wanted.entries()) {
+        step(`Uploading screen ${i + 1} of ${wanted.length}...`);
+        const entry = all.find((e) => e.index === index);
+        const data = entry && parser ? parser.readFileData(buffer, entry) : null;
+        if (!data || data.length !== SCREEN_SIZE) continue;
+        const png = encodePng(decodeScreen(data).rgba, 2);
+        const name = `${makeSafeFilename(req.title)}-${makeSafeFilename(entry!.filename.trim())}.png`;
+        attachments.push(await w.uploadImage(name, png));
+      }
     }
     if (attachments.length) {
       await w.writeAcf(postId, { images: attachments });
@@ -979,8 +1027,8 @@ ipcMain.handle('wp-publish', async (event, req: PublishRequest) => {
     if (req.describe) {
       step('Asking the describer what this program is...');
       const d = await w.describe(postId);
-      if (d.description || d.teaser) {
-        await w.applyDescription(postId, d.description, d.teaser);
+      if (d.description || d.teaser || d.analysis) {
+        await w.applyDescription(postId, d.description, d.teaser, d.analysis);
         described = true;
       }
     }

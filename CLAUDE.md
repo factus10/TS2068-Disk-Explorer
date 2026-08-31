@@ -368,10 +368,25 @@ Other things worth knowing:
 - **People are created, other terms are reported.** A programmer the archive
   has not met is ordinary; a BASIC keyword or a machine it does not know is
   more likely a typo, so those are listed as unmatched for a person to add.
-- **The describer needs the record to exist.** Its `analyze` route takes a
-  `post_id` and reads the listing off the post, so describing is a second pass
-  after creating, and it returns text rather than writing it — the description
-  is applied separately.
+- **The describer needs the record to exist**, and returns three things that
+  are not interchangeable. Its `analyze` route takes a `post_id` and reads the
+  listing off the post, so describing is a second pass after creating, and it
+  returns text rather than writing it. `description` is a factual paragraph,
+  `teaser` one sentence for the excerpt, and `analysis` the technical write-up
+  in HTML — which is the substance. The body is assembled the way the
+  plugin's own WP-CLI command assembles it: the paragraph, a rule, then the
+  analysis. Writing only the description leaves a record with one paragraph
+  where the reading of the program should be.
+- **The download follows the archive name.** Every bundle lives in the same
+  archive.org item, so the URL is that item plus the TOSEC filename — the same
+  name the import stamp uses. It stays editable, since a program hosted
+  elsewhere is possible and a wrong URL is worse than a blank one.
+- **A program's screens are the ones its loader pulls in.** `buildTapPackages`
+  already knows which SCREEN$ belongs to which program; any other screen on the
+  disk belongs to something else. They are attached by catalog index and
+  encoded in the main process, so a 6912-byte SCREEN$ does not travel to the
+  renderer and back as a PNG in an array of numbers. The first becomes the
+  featured image, which is what replaces the default something else stamps on.
 - **The credential is an application password in the OS keychain**, via
   Electron `safeStorage`, never in `settings.json`. Where no keychain exists
   nothing is stored rather than something stored in the clear.

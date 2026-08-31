@@ -538,6 +538,8 @@ export interface WpTerm {
 
 export interface WpPublishSuggestion {
   suggested: {
+    /** SCREEN$ files belonging to this program, offered as gallery images. */
+    screens: { index: number; filename: string }[];
     model: WpTerm | null;
     /** Terms the same disk could also mean; the machine is not certain. */
     modelAlternatives: string[];
@@ -566,7 +568,8 @@ export interface WpPublishRequest {
   taxonomies: { basic?: number[]; model?: number[]; genre?: number[]; tags?: number[] };
   /** Names rather than ids: a missing person is created, other terms are not. */
   programmerNames: string[];
-  images: { filename: string; data: number[] }[];
+  /** Catalog indices of SCREEN$ entries to attach, not the pixels themselves. */
+  screenIndices?: number[];
   describe: boolean;
 }
 

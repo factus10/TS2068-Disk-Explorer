@@ -351,7 +351,9 @@ export class WpWriter {
    * anything once the record has both. It returns the text rather than
    * writing it, which is why the description is applied separately.
    */
-  async describe(postId: number, useWebSearch = false): Promise<{ description: string; teaser: string; mode: string }> {
+  async describe(postId: number, useWebSearch = false): Promise<{
+    description: string; teaser: string; analysis: string; mode: string;
+  }> {
     const r = await this.call('/wp/v2/ts-program-describer/analyze', {
       method: 'POST',
       body: JSON.stringify({ post_id: postId, use_web_search: useWebSearch }),
@@ -359,16 +361,34 @@ export class WpWriter {
     return {
       description: String(r?.description ?? ''),
       teaser: String(r?.teaser ?? ''),
+      analysis: String(r?.analysis ?? ''),
       mode: String(r?.mode ?? ''),
     };
   }
 
-  async applyDescription(postId: number, description: string, teaser: string): Promise<void> {
+  /**
+   * Put the description on the post the way the plugin's own CLI does.
+   *
+   * The describer returns three things and they are not interchangeable:
+   * `description` is a factual paragraph, `teaser` one sentence for the
+   * excerpt, and `analysis` the technical write-up in HTML — which is the
+   * substance. Writing only the description, as this first did, threw the
+   * analysis away and left a record with a single paragraph where the reading
+   * of the program should be.
+   */
+  async applyDescription(
+    postId: number, description: string, teaser: string, analysis: string,
+  ): Promise<void> {
+    let html = '';
+    if (description) html += `<p>${description}</p>\n<hr />\n`;
+    if (analysis) html += analysis;
+    if (!html && !teaser) return;
+
     await this.call(`/wp/v2/computer_media/${postId}`, {
       method: 'POST',
       body: JSON.stringify({
-        content: slashForWordPress(description),
-        excerpt: slashForWordPress(teaser),
+        ...(html ? { content: slashForWordPress(html) } : {}),
+        ...(teaser ? { excerpt: slashForWordPress(teaser) } : {}),
       }),
     });
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slashForWordPress } from '../electron/wordpress-write';
+import { slashForWordPress, WpWriter } from '../electron/wordpress-write';
 import { keywordsUsed, matchVocabulary, deriveModel, deriveTags, UDG_TERM } from '../electron/wordpress-derive';
 import type { BasicListing } from '../electron/parsers/basic-detokenizer';
 import type { DiskFormat } from '../electron/parsers/types';
@@ -44,6 +44,48 @@ describe('slashing a listing on the way to WordPress', () => {
     ].join('\n');
 
     expect(unslash(slashForWordPress(listing))).toBe(listing);
+  });
+});
+
+describe('putting the describer\'s answer on the record', () => {
+  /**
+   * The describer returns three things and they are not interchangeable:
+   * a factual paragraph, a one-sentence teaser, and the technical analysis in
+   * HTML — which is the substance. Writing only the paragraph, as this first
+   * did, threw the analysis away and left a record with one paragraph where
+   * the reading of the program should be.
+   */
+  const bodySentTo = async (
+    description: string, teaser: string, analysis: string,
+  ): Promise<{ content?: string; excerpt?: string } | null> => {
+    let sent: any = null;
+    const w = new WpWriter('http://wp.test', { user: 'u', password: 'p' });
+    (globalThis as any).fetch = async (_url: string, init: any) => {
+      sent = JSON.parse(init.body);
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    };
+    await w.applyDescription(1, description, teaser, analysis);
+    return sent;
+  };
+
+  it('puts the analysis in the body, under the summary', async () => {
+    const sent = await bodySentTo('A chess program.', 'Plays chess.', '<p>It uses <code>DEF FN</code>.</p>');
+    expect(sent!.content).toContain('<p>A chess program.</p>');
+    expect(sent!.content).toContain('<hr />');
+    expect(sent!.content).toContain('<code>DEF FN</code>');
+    // The order matters: summary first, then the analysis under a rule.
+    expect(sent!.content!.indexOf('A chess program')).toBeLessThan(sent!.content!.indexOf('DEF FN'));
+    expect(sent!.excerpt).toBe('Plays chess.');
+  });
+
+  it('writes what it has when the describer returns only some of it', async () => {
+    const sent = await bodySentTo('', 'Plays chess.', '<p>Analysis.</p>');
+    expect(sent!.content).toBe('<p>Analysis.</p>');
+    expect(sent!.excerpt).toBe('Plays chess.');
+  });
+
+  it('asks for nothing when there is nothing to say', async () => {
+    expect(await bodySentTo('', '', '')).toBeNull();
   });
 });
 

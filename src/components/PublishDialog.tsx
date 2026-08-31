@@ -29,6 +29,14 @@ interface Props {
  *
  * Everything is created as a draft. Nothing here publishes.
  */
+/**
+ * Where the bundles live. Every published record points into the same
+ * archive.org item, so the download follows from the archive filename — but
+ * it stays editable, because a program hosted somewhere else is a thing that
+ * can happen and a wrong URL is worse than a blank one.
+ */
+const ARCHIVE_BASE = 'https://archive.org/download/timex-sinclair-software-archive';
+
 export function PublishDialog(props: Props) {
   const { imagePath, entryIndex, defaultTitle, sourceFilename, editedLines, metadata } = props;
 
@@ -41,6 +49,9 @@ export function PublishDialog(props: Props) {
   const [tags, setTags] = useState<WpTerm[]>([]);
   const [picked, setPicked] = useState<Record<string, Set<number>>>({});
   const [describe, setDescribe] = useState(true);
+  const [downloadUrl, setDownloadUrl] = useState(
+    `${ARCHIVE_BASE}/${encodeURIComponent(props.sourceFilename)}`);
+  const [screens, setScreens] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<WpPublishResult | null>(null);
 
@@ -56,6 +67,9 @@ export function PublishDialog(props: Props) {
           basic: new Set(s.suggested.basic.map((t) => t.id)),
         });
         setTags(s.suggested.tags);
+        // A program's own loading screen is worth attaching by default; it is
+        // the picture of the thing.
+        setScreens(new Set(s.suggested.screens.map((x) => x.index)));
       })
       .catch((e) => setError(e.message));
   }, [imagePath, entryIndex, metadata.year]);
@@ -87,6 +101,7 @@ export function PublishDialog(props: Props) {
         acf: {
           mediadate: metadata.year,
           'media-type': 'Program',
+          ...(downloadUrl.trim() ? { download_url: downloadUrl.trim() } : {}),
           ...(companies.length ? { 'producer-company': companies.map((c) => c.id) } : {}),
         },
         taxonomies: {
@@ -98,7 +113,7 @@ export function PublishDialog(props: Props) {
         // Names, not ids: a person picked from the archive and one typed in
         // fresh are both resolved on the far side, and only people are made.
         programmerNames: people.map((t) => t.name),
-        images: [],
+        screenIndices: [...screens],
         describe,
       });
       setResult(r);
@@ -111,7 +126,7 @@ export function PublishDialog(props: Props) {
       unsub();
       setBusy(null);
     }
-  }, [title, sourceFilename, imagePath, entryIndex, editedLines, metadata, companies, picked, genres, tags, people, describe, props]);
+  }, [title, sourceFilename, imagePath, entryIndex, editedLines, metadata, companies, picked, genres, tags, people, describe, downloadUrl, screens, props]);
 
   const btn: React.CSSProperties = {
     background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
@@ -242,6 +257,56 @@ export function PublishDialog(props: Props) {
               />
 
               <div style={label}>
+                Download
+                <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                  {' '}&mdash; where the bundle will live; follows the archive name
+                </span>
+              </div>
+              <input
+                type="text"
+                value={downloadUrl}
+                onChange={(e) => setDownloadUrl(e.target.value)}
+                style={{
+                  width: '100%', fontSize: 11, fontFamily: 'var(--mono, monospace)',
+                  padding: '6px 8px', background: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3,
+                }}
+              />
+
+              {data.suggested.screens.length > 0 && (
+                <>
+                  <div style={label}>
+                    Screens
+                    <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                      {' '}&mdash; the SCREEN$ files this program loads; the first becomes the
+                      featured image
+                    </span>
+                  </div>
+                  {data.suggested.screens.map((sc) => (
+                    <label
+                      key={sc.index}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer',
+                        marginBottom: 4,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={screens.has(sc.index)}
+                        onChange={(e) => setScreens((prev) => {
+                          const next = new Set(prev);
+                          e.target.checked ? next.add(sc.index) : next.delete(sc.index);
+                          return next;
+                        })}
+                      />
+                      <span style={{ fontFamily: 'var(--mono, monospace)' }}>{sc.filename}</span>
+                    </label>
+                  ))}
+                </>
+              )}
+
+              <div style={label}>
                 Machine
                 {data.suggested.modelAlternatives.length > 0 && (
                   <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
@@ -335,9 +400,10 @@ export function PublishDialog(props: Props) {
                   style={{ marginTop: 2 }}
                 />
                 <span>
-                  Have the describer write the description and teaser from the listing, once the
-                  record exists. It reads the program on the site, so this only happens after the
-                  draft is made.
+                  Have the describer read the listing and write the record up &mdash; the
+                  technical analysis into the body, a summary paragraph above it, and a
+                  one-sentence teaser as the excerpt. It reads the program on the site, so this
+                  only happens after the draft is made.
                 </span>
               </label>
             </>
