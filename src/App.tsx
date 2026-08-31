@@ -15,7 +15,8 @@ import { TapCreator } from './components/TapCreator';
 import { Preferences } from './components/Preferences';
 import { FileBrowser } from './components/FileBrowser';
 import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './components/ArchiveExportDialog';
-import { ExportPrompt, ExportChoice } from './components/ExportPrompt';
+import { ExportPrompt, ExportChoice, loadRemembered, previewArchiveName } from './components/ExportPrompt';
+import { PublishDialog } from './components/PublishDialog';
 import { CatalogIngest } from './components/CatalogIngest';
 import { CatalogInsights } from './components/CatalogInsights';
 import { ArchiveSearch } from './components/ArchiveSearch';
@@ -87,6 +88,17 @@ function App() {
   // The archive search window, and the query it was opened on. Null means
   // closed; an empty string means opened with nothing asked yet.
   const [archiveSearch, setArchiveSearch] = useState<{ query: string; mode: 'source' | 'name' } | null>(null);
+  // The program being turned into a published record; null when the dialog is
+  // closed. Publishing is per-program, unlike the extract buttons.
+  const [publishing, setPublishing] = useState<{
+    entryIndex: number; title: string; sourceFilename: string;
+    metadata: { year: string; publisher: string };
+  } | null>(null);
+  /** Offered after an archive bundle is written; declining it costs one click. */
+  const [publishOffer, setPublishOffer] = useState<{
+    entryIndex: number; title: string; sourceFilename: string;
+    metadata: { year: string; publisher: string };
+  } | null>(null);
   const [wordpressUrl, setWordpressUrl] = useState<string | null>(null);
   // Set when a finding should take the browser somewhere.
   const [browseTo, setBrowseTo] = useState<string | null>(null);
@@ -123,6 +135,7 @@ function App() {
    */
   const runRef = useRef<() => void>(() => {});
   const refreshMatchesRef = useRef<() => void>(() => {});
+  const publishRef = useRef<() => void>(() => {});
 
   // Apply theme
   useEffect(() => {
@@ -404,6 +417,22 @@ function App() {
     setStatus(`${choice.shape === 'tosec-zip' ? 'Packed' : 'Extracted'} ${results.length} file(s)`
       + (marked ? ` — ${marked} marked archived` : ''));
     if (marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
+
+    // Publishing belongs here rather than in a menu of its own. A record is
+    // made out of exactly what the archive bundle holds, so the moment the
+    // bundle exists is the moment there is something to publish — and the
+    // year, publisher and machine were just answered a dialog ago.
+    if (isSingle && choice.shape === 'tosec-zip' && choice.metadata && results.length === 1) {
+      const index = [...selectedIndices][0];
+      const entry = all.find((e) => e.index === index);
+      const base = customName ?? entry?.filename.trim() ?? '';
+      setPublishOffer({
+        entryIndex: index,
+        title: base,
+        sourceFilename: `${previewArchiveName(base, choice.metadata, soleEntry ? archiveTypeSuffix(soleEntry) : 'Program')}.zip`,
+        metadata: { year: choice.metadata.year, publisher: choice.metadata.publisher },
+      });
+    }
   }, [disk, selectedIndices, editState, askForExport, refreshArchiveStatus]);
 
   /**
@@ -714,9 +743,10 @@ function App() {
     });
     const unsubWpSearch = api.onMenuWpSearch(() => setArchiveSearch({ query: '', mode: 'source' }));
     const unsubWpRefresh = api.onMenuWpRefresh(() => { refreshMatchesRef.current(); });
+    const unsubWpPublish = api.onMenuWpPublish(() => { publishRef.current(); });
     return () => {
       unsub(); unsubKnown(); unsubCheck(); unsubIngest(); unsubInsights(); unsubRun();
-      unsubWpSearch(); unsubWpRefresh();
+      unsubWpSearch(); unsubWpRefresh(); unsubWpPublish();
     };
   }, [handleExportKnown]);
 
@@ -878,6 +908,31 @@ function App() {
   }, [disk, refreshArchiveStatus]);
 
   useEffect(() => { runRef.current = handleRun; }, [handleRun]);
+  /**
+   * Publishing is one program at a time. A disk's worth of records is a
+   * different job with different answers per program, and doing it in bulk
+   * would mean guessing most of them.
+   */
+  const handlePublish = useCallback(() => {
+    if (!disk) { setStatus('Open a disk image first'); return; }
+    if (selectedIndices.size !== 1) {
+      setStatus('Select exactly one program to publish');
+      return;
+    }
+    const index = [...selectedIndices][0];
+    const entry = flattenEntries(disk.catalog).find((e) => e.index === index);
+    if (!entry) return;
+    const remembered = loadRemembered();
+    const base = entry.filename.trim();
+    setPublishing({
+      entryIndex: index,
+      title: base,
+      sourceFilename: `${previewArchiveName(base, remembered, archiveTypeSuffix(entry))}.zip`,
+      metadata: { year: remembered.year, publisher: remembered.publisher },
+    });
+  }, [disk, selectedIndices]);
+
+  useEffect(() => { publishRef.current = handlePublish; }, [handlePublish]);
   useEffect(() => { refreshMatchesRef.current = handleRefreshMatches; }, [handleRefreshMatches]);
 
   // Which site the selected program is asked about. Re-read when Preferences
@@ -1036,6 +1091,69 @@ function App() {
             setBrowserRefresh((n) => n + 1);
             if (disk) refreshArchiveStatus(disk.path);
           }}
+        />
+      )}
+
+      {publishOffer && !publishing && (
+        <div
+          onClick={() => setPublishOffer(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-surface)', border: '1px solid var(--border)',
+              borderRadius: 8, padding: 22, width: 420, maxWidth: '92vw',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+              Bundle written
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
+              Make a draft record for <strong>{publishOffer.title}</strong> on the site as well?
+              It is the same program and the same answers you have just given &mdash; the year,
+              the publisher and the machine carry over.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                onClick={() => setPublishOffer(null)}
+                style={{
+                  background: 'var(--bg-tertiary)', color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)', fontSize: 12, padding: '6px 12px', borderRadius: 3,
+                }}
+              >
+                Not now
+              </button>
+              <button
+                onClick={() => { setPublishing(publishOffer); setPublishOffer(null); }}
+                style={{
+                  background: 'var(--accent)', color: '#fff',
+                  border: '1px solid var(--border)', fontSize: 12, padding: '6px 12px', borderRadius: 3,
+                }}
+              >
+                Publish to WordPress...
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {publishing && disk && (
+        <PublishDialog
+          imagePath={disk.path}
+          entryIndex={publishing.entryIndex}
+          defaultTitle={publishing.title}
+          sourceFilename={publishing.sourceFilename}
+          {...(editState[publishing.entryIndex]
+            ? { editedLines: editState[publishing.entryIndex] }
+            : {})}
+          metadata={publishing.metadata}
+          onClose={() => setPublishing(null)}
+          onStatus={setStatus}
         />
       )}
 

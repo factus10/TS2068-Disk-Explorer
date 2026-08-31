@@ -71,6 +71,26 @@ export interface Settings {
   wordpressUrl?: string;
 
   /**
+   * Where hand-taken screenshots live, for attaching to a published record.
+   * Defaults to the same folder the CSV importer looks in, since they are the
+   * same screenshots.
+   */
+  screenshotsDir?: string;
+
+  /**
+   * The WordPress user whose application password the app publishes with.
+   * Only meaningful alongside wordpressPassword.
+   */
+  wordpressUser?: string;
+
+  /**
+   * That application password, encrypted against the OS keychain — see
+   * wordpress-credentials.ts. Never the password itself, and never read
+   * outside the main process.
+   */
+  wordpressPassword?: string;
+
+  /**
    * The emulator binary used by Run. Only worth storing when ZEsarUX is
    * somewhere unusual: with nothing set the app looks in the places it
    * installs itself, so most readers never see this setting.
@@ -140,6 +160,18 @@ export function getSettings(): Settings {
           out.wordpressUrl = raw.wordpressUrl.replace(/\/+$/, '');
         }
       } catch { /* not a URL; leave it unset */ }
+    }
+    // Like the extraction folder, a folder that has gone is dropped rather
+    // than kept: offering screenshots from somewhere that no longer exists
+    // would be worse than offering none.
+    if (typeof raw.screenshotsDir === 'string' && raw.screenshotsDir) {
+      try {
+        if (fs.statSync(raw.screenshotsDir).isDirectory()) out.screenshotsDir = raw.screenshotsDir;
+      } catch { /* gone; leave it unset */ }
+    }
+    if (typeof raw.wordpressUser === 'string' && raw.wordpressUser) out.wordpressUser = raw.wordpressUser;
+    if (typeof raw.wordpressPassword === 'string' && raw.wordpressPassword) {
+      out.wordpressPassword = raw.wordpressPassword;
     }
     if (typeof raw.autoCheckCatalogUpdate === 'boolean') out.autoCheckCatalogUpdate = raw.autoCheckCatalogUpdate;
     if (raw.catalogUpdate && typeof raw.catalogUpdate === 'object') {

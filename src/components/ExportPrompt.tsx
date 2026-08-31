@@ -51,7 +51,12 @@ interface Remembered {
   country: string;
 }
 
-function loadRemembered(): Remembered {
+/**
+ * The year, publisher and machine last used. Exported because publishing to
+ * WordPress asks the same questions an export does, and answering them twice
+ * differently for one program would be a way to get them wrong.
+ */
+export function loadRemembered(): Remembered {
   const fallback: Remembered = {
     shape: 'tap', year: '198x', publisher: '', system: 'TS2068', country: 'US',
   };
@@ -155,6 +160,11 @@ export function ExportPrompt({
           borderRadius: 8,
           padding: 24,
           width: 420,
+          maxWidth: '92vw',
+          // Short today, but a dialog that outgrows the screen has no way to
+          // be scrolled to and no way to be dismissed but Escape.
+          maxHeight: '85vh',
+          overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
           gap: 12,

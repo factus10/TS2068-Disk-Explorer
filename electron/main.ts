@@ -19,6 +19,12 @@ import { buildInsights } from './catalog-insights';
 import { siteInfo, fetchArchive, fetchListings, lookupByName, WpError, DEFAULT_WP_URL } from './wordpress';
 import { searchListings, searchTitles, saveListings, listingsStatus } from './wordpress-listings';
 import { refreshMatches } from './wordpress-match';
+import { WpWriter, WpWriteError, type AcfFields, type Taxonomies } from './wordpress-write';
+import { credentialState, saveCredentials, readCredentials } from './wordpress-credentials';
+import { keywordsUsed, matchVocabulary, deriveModel, deriveTags } from './wordpress-derive';
+import {
+  matchScreenshots, listScreenshots, stripArchiveSuffix, normalise as normaliseShot,
+} from './screenshot-match';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -198,6 +204,10 @@ function buildMenu() {
           click: () => mainWindow?.webContents.send('menu-wp-refresh'),
         },
         {
+          label: 'Publish Selected to WordPress...',
+          click: () => mainWindow?.webContents.send('menu-wp-publish'),
+        },
+        {
           label: 'Recent Files',
           submenu: recentSubmenu.length > 0 ? recentSubmenu : [{ label: 'No Recent Files', enabled: false }],
         },
@@ -212,9 +222,19 @@ function buildMenu() {
       ],
     },
     {
+      // On macOS the standard editing accelerators only work if their roles
+      // are in the menu — Cmd+V does nothing without a paste item, however
+      // ordinary the field. That was tolerable while the app only read
+      // things; now there is an application password to paste in, a search
+      // phrase, and a title to correct.
       label: 'Edit',
       submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
         { role: 'copy' },
+        { role: 'paste' },
         { role: 'selectAll' },
       ],
     },
@@ -770,6 +790,330 @@ ipcMain.handle('pick-catalog-dir', async () => {
 });
 
 ipcMain.handle('clear-catalog-dir', async () => { updateSettings({ catalogDir: undefined }); return true; });
+
+// ------------------------------------------------------ WordPress writes ---
+//
+// Creating a record is the one thing here that changes the reader's site, so
+// it is deliberate throughout: a credential they entered, a draft rather than
+// a published post, and a report of every step rather than a silent success.
+
+/** A writer bound to the configured site, or the reason there isn't one. */
+function wpWriter(): WpWriter | { error: string } {
+  const { wordpressUrl } = getSettings();
+  if (!wordpressUrl) return { error: 'No WordPress site is set. Preferences → Published archive.' };
+  const creds = readCredentials();
+  if (!creds) {
+    return { error: 'No application password is stored. Preferences → Published archive.' };
+  }
+  return new WpWriter(wordpressUrl, creds);
+}
+
+/**
+ * Where the hand-taken screenshots live. The CSV importer defaults to the
+ * same folder, because they are the same screenshots.
+ */
+function screenshotsDir(): string {
+  const set = getSettings().screenshotsDir;
+  if (set) return set;
+  return path.join(app.getPath('home'), 'Documents', 'Screen shots');
+}
+
+ipcMain.handle('wp-screenshots-dir', async () => {
+  const dir = screenshotsDir();
+  return { dir, exists: fs.existsSync(dir), count: listScreenshots(dir).length };
+});
+
+ipcMain.handle('pick-screenshots-dir', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openDirectory'],
+    title: 'Choose the folder holding your screenshots',
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  updateSettings({ screenshotsDir: result.filePaths[0] });
+  return result.filePaths[0];
+});
+
+/**
+ * Every screenshot in the folder, filtered by what has been typed — for when
+ * the matching misses, which on names taken in the moment it will.
+ */
+ipcMain.handle('wp-screenshot-browse', async (_event, query: string) => {
+  const all = listScreenshots(screenshotsDir());
+  const q = normaliseShot(query ?? '');
+  const shown = q ? all.filter((f) => normaliseShot(f.name).includes(q)) : all;
+  return { files: shown.slice(0, 60), total: all.length, shown: shown.length };
+});
+
+ipcMain.handle('wp-credential-state', async () => credentialState());
+
+ipcMain.handle('wp-save-credentials', async (_event, user: string, password: string) => {
+  const state = saveCredentials(user, password);
+  if (password && !state.hasPassword) {
+    return { ...state, warning: 'This system offers no keychain, so the password was not stored.' };
+  }
+  return state;
+});
+
+/** Does the stored credential actually work, and may it edit posts? */
+ipcMain.handle('wp-check-credentials', async () => {
+  const w = wpWriter();
+  if ('error' in w) return { ok: false as const, error: w.error };
+  try {
+    const who = await w.checkCredentials();
+    return who.canEdit
+      ? { ok: true as const, name: who.name }
+      : { ok: false as const, error: `${who.name} may not edit posts on this site.` };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof WpWriteError ? err.message : String(err) };
+  }
+});
+
+/**
+ * What the app can say about a program before anyone is asked: the machine,
+ * the BASIC keywords it uses, and the tags that follow. Returned with the
+ * live vocabularies so the dialog can show what is available.
+ */
+ipcMain.handle('wp-publish-suggest', async (
+  _event, imagePath: string, entryIndex: number, year: string, title = '',
+) => {
+  const w = wpWriter();
+  if ('error' in w) return { error: w.error };
+
+  try {
+    const disk = parseDiskImage(imagePath);
+    const model = deriveModel(disk.header.format as DiskFormat);
+    const listing = readBasicListing(imagePath, entryIndex);
+    const used = listing ? keywordsUsed(listing) : [];
+
+    // Only the small, closed vocabularies travel whole. Tags, people and
+    // companies run to thousands and are searched as the reader types; genre
+    // is small but hierarchical, so it comes with each term's full path.
+    const [basicVocab, modelVocab, genreVocab] = await Promise.all([
+      w.listTerms('basic'), w.listTerms('model'), w.listHierarchy('genre'),
+    ]);
+
+    const { matched, unmatched } = matchVocabulary(used, basicVocab);
+    // The derived tags are looked up by name rather than filtered from a list
+    // nobody fetched — an exact search per tag, of which there are at most two.
+    const wantedTags = deriveTags(model?.name ?? null, year);
+    const tagHits = await Promise.all(wantedTags.map((n) => w.searchTerms('tags', n, 10)));
+    const tagIds = wantedTags.flatMap((n, i) =>
+      tagHits[i].filter((t) => t.name.toLowerCase() === n.toLowerCase()));
+    const modelTerm = model ? modelVocab.find((t) => t.name === model.name) ?? null : null;
+
+    // A program's loading screen is a SCREEN$ among the files its loader
+    // pulls in, so the package analysis already knows which one is its. Any
+    // other screen on the disk belongs to some other program.
+    const screens: { index: number; filename: string }[] = [];
+    try {
+      const buffer = fs.readFileSync(imagePath);
+      const format = detectFormat(buffer, imagePath);
+      if (format) {
+        const parser = getParser(format);
+        const { entries } = parser.readCatalog(buffer);
+        const all = flattenEntries(entries);
+        const fileData = new Map<number, Buffer>();
+        for (const e of all) {
+          if (e.isDirectory) continue;
+          const d = parser.readFileData(buffer, e);
+          if (d) fileData.set(e.index, d);
+        }
+        const usesTap = ['larken', 'oliger-v1', 'oliger-v2', 'aerco-dos64'].includes(format);
+        const pkg = usesTap
+          ? buildTapPackages(entries, fileData).find((x) => x.loader.index === entryIndex)
+          : undefined;
+        const candidates = pkg ? [pkg.loader, ...pkg.dependencies] : all.filter((e) => e.index === entryIndex);
+        for (const e of candidates) {
+          const data = fileData.get(e.index);
+          if (data && e.type === 'code' && data.length === SCREEN_SIZE) {
+            screens.push({ index: e.index, filename: e.filename.trim() });
+          }
+        }
+      }
+    } catch { /* a disk with no readable screen simply offers none */ }
+
+    // Names this program could have been filed under when the screenshot was
+    // taken: what the disk calls it, and the title being published.
+    const entryName = flattenEntries(parseDiskImage(imagePath).catalog)
+      .find((e) => e.index === entryIndex)?.filename.trim() ?? '';
+    const shots = matchScreenshots(screenshotsDir(), [
+      entryName, stripArchiveSuffix(entryName), title, stripArchiveSuffix(title),
+    ].filter(Boolean));
+
+    return {
+      suggested: {
+        screenshots: shots,
+        screens,
+        model: modelTerm,
+        modelAlternatives: model?.alternatives ?? [],
+        basic: matched,
+        basicUnmatched: unmatched,
+        tags: tagIds,
+        tagsUnmatched: wantedTags.filter(
+          (n) => !tagIds.some((t) => t.name.toLowerCase() === n.toLowerCase()),
+        ),
+      },
+      vocabularies: { basic: basicVocab, model: modelVocab, genre: genreVocab },
+    };
+  } catch (err) {
+    return { error: err instanceof WpWriteError ? err.message : `Could not read the vocabularies: ${err}` };
+  }
+});
+
+/**
+ * Terms matching what the reader has typed. One request, answered as they
+ * type — the alternative is shipping 3,448 people to the renderer and asking
+ * it to filter, which is slower to start and no better to use.
+ */
+ipcMain.handle('wp-term-search', async (_event, kind: string, query: string) => {
+  const w = wpWriter();
+  if ('error' in w) return { terms: [], error: w.error };
+  try {
+    const terms = kind === 'company'
+      ? await w.searchCompanies(query)
+      : await w.searchTerms(kind, query);
+    return { terms };
+  } catch (err) {
+    return { terms: [], error: err instanceof WpWriteError ? err.message : String(err) };
+  }
+});
+
+export interface PublishRequest {
+  title: string;
+  sourceFilename: string;
+  /** Where the listing comes from: main builds the zmakebas text itself, from
+   *  the same pair of functions the export sidecar uses, so a published
+   *  listing and an exported one cannot come out differently. */
+  imagePath: string;
+  entryIndex: number;
+  editedLines?: Record<number, string>;
+  acf: AcfFields;
+  taxonomies: Taxonomies;
+  /** Names, not ids: an indiv term is made for anyone the archive lacks. */
+  programmerNames: string[];
+  /** Catalog indices of SCREEN$ entries to attach, not the pixels themselves. */
+  screenIndices?: number[];
+  /** Absolute paths of hand-taken screenshots to attach. */
+  screenshotFiles?: string[];
+  describe: boolean;
+}
+
+/**
+ * Create the record. Each step reports as it goes, because this is several
+ * requests and a partial failure should say how far it got rather than
+ * leaving the reader guessing what is on the site.
+ */
+ipcMain.handle('wp-publish', async (event, req: PublishRequest) => {
+  const w = wpWriter();
+  if ('error' in w) return { ok: false as const, error: w.error };
+
+  const step = (message: string) => event.sender.send('wp-publish-progress', { message });
+  let postId = 0;
+
+  try {
+    // The listing as the export would have written it, hand-edited lines
+    // included. Built here rather than passed in, so the copy on the site is
+    // the copy on disk.
+    let listingText = '';
+    try {
+      const buffer = fs.readFileSync(req.imagePath);
+      const format = detectFormat(buffer, req.imagePath);
+      if (format) {
+        const parser = getParser(format);
+        const entry = flattenEntries(parser.readCatalog(buffer).entries)
+          .find((e) => e.index === req.entryIndex);
+        const fileData = entry ? parser.readFileData(buffer, entry) : null;
+        const listing = entry && fileData ? basicListingOf(format, entry, fileData) : null;
+        if (listing) listingText = listingToText(listing, req.editedLines);
+      }
+    } catch { /* a program with no listing is published without one */ }
+
+    step('Looking up the people...');
+    const people: number[] = [];
+    for (const name of req.programmerNames) {
+      if (name.trim()) people.push((await w.findOrCreatePerson(name)).id);
+    }
+
+    step('Creating the draft...');
+    postId = await w.createDraft({
+      title: req.title,
+      sourceFilename: req.sourceFilename,
+      taxonomies: req.taxonomies,
+    });
+
+    step('Writing the fields...');
+    await w.writeAcf(postId, {
+      ...req.acf,
+      ...(listingText ? { source_code: listingText } : {}),
+      ...(people.length ? { programmers: people } : {}),
+    });
+
+    // The screens are named rather than carried: the app decodes and encodes
+    // them here, so a 6912-byte SCREEN$ does not make the trip to the
+    // renderer and back as a PNG in an array of numbers.
+    const attachments: number[] = [];
+    const wanted = req.screenIndices ?? [];
+    if (wanted.length) {
+      const buffer = fs.readFileSync(req.imagePath);
+      const format = detectFormat(buffer, req.imagePath);
+      const parser = format ? getParser(format) : null;
+      const all = parser ? flattenEntries(parser.readCatalog(buffer).entries) : [];
+      for (const [i, index] of wanted.entries()) {
+        step(`Uploading screen ${i + 1} of ${wanted.length}...`);
+        const entry = all.find((e) => e.index === index);
+        const data = entry && parser ? parser.readFileData(buffer, entry) : null;
+        if (!data || data.length !== SCREEN_SIZE) continue;
+        const png = encodePng(decodeScreen(data).rgba, 2);
+        const name = `${makeSafeFilename(req.title)}-${makeSafeFilename(entry!.filename.trim())}.png`;
+        attachments.push(await w.uploadImage(name, png));
+      }
+    }
+    for (const [i, file] of (req.screenshotFiles ?? []).entries()) {
+      step(`Uploading screenshot ${i + 1} of ${req.screenshotFiles!.length}...`);
+      try {
+        const ext = path.extname(file).toLowerCase();
+        const mime = ext === '.png' ? 'image/png'
+          : ext === '.gif' ? 'image/gif' : 'image/jpeg';
+        attachments.push(await w.uploadImage(path.basename(file), fs.readFileSync(file), mime));
+      } catch (err) {
+        // One unreadable screenshot should not lose the record.
+        step(`Could not upload ${path.basename(file)}`);
+      }
+    }
+
+    if (attachments.length) {
+      await w.writeAcf(postId, { images: attachments });
+      await w.setFeaturedImage(postId, attachments[0]);
+    }
+
+    let described = false;
+    if (req.describe) {
+      step('Asking the describer what this program is...');
+      const d = await w.describe(postId);
+      if (d.description || d.teaser || d.analysis) {
+        await w.applyDescription(postId, d.description, d.teaser, d.analysis, d.mode || 'source');
+        described = true;
+      }
+    }
+
+    return {
+      ok: true as const,
+      postId,
+      url: w.editUrl(postId),
+      people: people.length,
+      images: attachments.length,
+      described,
+    };
+  } catch (err) {
+    // A draft that exists but is incomplete is worth naming: it is on the
+    // site whether or not the rest succeeded.
+    return {
+      ok: false as const,
+      error: err instanceof WpWriteError ? err.message : String(err),
+      ...(postId ? { postId, url: w.editUrl(postId) } : {}),
+    };
+  }
+});
 
 // ---------------------------------------------------------- WordPress ------
 //
@@ -1749,7 +2093,18 @@ ipcMain.handle('export-tosec', async (
   };
 });
 
-ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex: number, ts2068Mode: Ts2068Mode = 'auto', remStyle: RemStyle = 'characters'): Promise<BasicListing | null> => {
+/**
+ * The detokenized listing for one entry, or null when it has none.
+ *
+ * Named rather than inline because two callers want it: the viewer, and the
+ * WordPress publish, which reads the keywords a program uses off the same
+ * listing the reader is shown. Two copies of this would be two chances for
+ * them to disagree about what a program contains.
+ */
+function readBasicListing(
+  imagePath: string, entryIndex: number,
+  ts2068Mode: Ts2068Mode = 'auto', remStyle: RemStyle = 'characters',
+): BasicListing | null {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
   if (!format) return null;
@@ -1781,7 +2136,12 @@ ipcMain.handle('get-basic-listing', async (_event, imagePath: string, entryIndex
     listing.autostartLine = autostart;
   }
   return listing;
-});
+}
+
+ipcMain.handle('get-basic-listing', async (
+  _event, imagePath: string, entryIndex: number,
+  ts2068Mode: Ts2068Mode = 'auto', remStyle: RemStyle = 'characters',
+): Promise<BasicListing | null> => readBasicListing(imagePath, entryIndex, ts2068Mode, remStyle));
 
 ipcMain.handle('extract-basic-from-state', async (
   _event, imagePath: string, entryIndex: number, destDir: string,

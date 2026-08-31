@@ -23,6 +23,12 @@ export function Preferences({ onClose }: Props) {
   const [wpDefault, setWpDefault] = useState('http://localhost');
   const [wpTesting, setWpTesting] = useState(false);
   const [wpMessage, setWpMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [creds, setCreds] = useState<import('../api').WpCredentialState | null>(null);
+  const [wpUserField, setWpUserField] = useState('');
+  const [wpPassField, setWpPassField] = useState('');
+  const [credMessage, setCredMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [credBusy, setCredBusy] = useState(false);
+  const [shots, setShots] = useState<{ dir: string; exists: boolean; count: number } | null>(null);
 
   useEffect(() => {
     api.getSettings().then(setSettings).catch(() => setSettings({}));
@@ -30,6 +36,8 @@ export function Preferences({ onClose }: Props) {
     api.compareShippedList().then(setShipped).catch(() => setShipped(null));
     api.getEmulatorStatus().then(setEmulator).catch(() => setEmulator({ path: null, configured: false }));
     api.wpStatus().then((w) => { setWpUrl(w.url ?? ''); setWpDefault(w.defaultUrl); }).catch(() => { /* leave blank */ });
+    api.wpCredentialState().then((c) => { setCreds(c); setWpUserField(c.user); }).catch(() => setCreds(null));
+    api.wpScreenshotsDir().then(setShots).catch(() => setShots(null));
   }, []);
 
   // Escape closes, as it does in every other dialog.
@@ -87,6 +95,38 @@ export function Preferences({ onClose }: Props) {
     setWpTesting(false);
   };
 
+  /**
+   * Store the credential and immediately ask the site whether it works.
+   * Saving something that silently fails later would be worse than saying so
+   * now, while the reader is still looking at the field.
+   */
+  const saveCreds = async () => {
+    setCredBusy(true);
+    setCredMessage(null);
+    try {
+      const state = await api.wpSaveCredentials(wpUserField, wpPassField);
+      setCreds(state);
+      setWpPassField('');
+      if (state.warning) {
+        setCredMessage({ ok: false, text: state.warning });
+      } else {
+        const check = await api.wpCheckCredentials();
+        setCredMessage(check.ok
+          ? { ok: true, text: `Signed in as ${check.name}. Publishing is available.` }
+          : { ok: false, text: check.error });
+      }
+    } catch (err: any) {
+      setCredMessage({ ok: false, text: err.message });
+    }
+    setCredBusy(false);
+  };
+
+  const forgetCreds = async () => {
+    setCreds(await api.wpSaveCredentials(wpUserField, ''));
+    setWpPassField('');
+    setCredMessage(null);
+  };
+
   const clearWp = async () => {
     await api.wpSaveUrl('');
     setWpUrl('');
@@ -128,15 +168,24 @@ export function Preferences({ onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-          borderRadius: 6, width: 520, maxWidth: '90vw', padding: 20,
+          borderRadius: 6, width: 520, maxWidth: '90vw',
+          // The settings have outgrown a short window: on a laptop the foot of
+          // this was off the bottom of the screen with no way to reach it. The
+          // body scrolls and the header stays, so Close is always in reach.
+          maxHeight: '85vh', display: 'flex', flexDirection: 'column',
           boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          padding: '20px 20px 12px', borderBottom: '1px solid var(--border)',
+        }}>
           <h2 style={{ margin: 0, fontSize: 15, color: 'var(--text-primary)' }}>Preferences</h2>
           <div style={{ flex: 1 }} />
           <button onClick={onClose} style={btn}>Close</button>
         </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 20px' }}>
 
         <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 6 }}>
           Extraction folder
@@ -295,6 +344,94 @@ export function Preferences({ onClose }: Props) {
           </div>
         )}
 
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '14px 0 8px', lineHeight: 1.5 }}>
+          To <em>create</em> records rather than only read them, the app needs an application
+          password &mdash; made at Users &#9656; Profile on the site, not your login password.
+          It is kept encrypted by the system keychain, never in the settings file, and is only
+          ever sent to the site above.
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="text"
+            value={wpUserField}
+            placeholder="WordPress username"
+            onChange={(e) => { setWpUserField(e.target.value); setCredMessage(null); }}
+            style={{
+              flex: 1, fontSize: 11, padding: '6px 8px', background: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3,
+            }}
+          />
+          <input
+            type="password"
+            value={wpPassField}
+            placeholder={creds?.hasPassword ? 'stored — type to replace' : 'application password'}
+            onChange={(e) => { setWpPassField(e.target.value); setCredMessage(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveCreds(); }}
+            style={{
+              flex: 1, fontSize: 11, fontFamily: 'var(--mono, monospace)', padding: '6px 8px',
+              background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+              border: '1px solid var(--border)', borderRadius: 3,
+            }}
+          />
+          <button onClick={saveCreds} style={btn} disabled={credBusy || !wpUserField.trim()}>
+            {credBusy ? 'Checking...' : 'Save'}
+          </button>
+          {creds?.hasPassword && <button onClick={forgetCreds} style={btn}>Forget</button>}
+        </div>
+
+        {creds && !creds.canStore && (
+          <div style={{ fontSize: 11, marginTop: 8, color: 'var(--badge-dump, #d97706)', lineHeight: 1.5 }}>
+            This system offers no keychain, so a password cannot be kept between sessions.
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '14px 0 8px', lineHeight: 1.5 }}>
+          Screenshots you have taken by hand, matched to a program when publishing it. The
+          same folder the CSV importer looks in, and matched by the same rules, so a
+          screenshot either tool would attach is the one the other offers.
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+          borderRadius: 4, padding: '8px 10px',
+        }}>
+          <span style={{
+            flex: 1, fontSize: 11, fontFamily: 'var(--mono, monospace)',
+            color: shots?.exists ? 'var(--text-primary)' : 'var(--text-muted)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            direction: 'rtl', textAlign: 'left',
+          }}>
+            {shots ? shots.dir : 'Loading...'}
+          </span>
+          <button
+            onClick={async () => {
+              const dir = await api.pickScreenshotsDir();
+              if (dir) setShots(await api.wpScreenshotsDir());
+            }}
+            style={btn}
+          >
+            Choose...
+          </button>
+        </div>
+        {shots && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+            {shots.exists
+              ? `${shots.count} screenshot${shots.count === 1 ? '' : 's'} there.`
+              : 'That folder is not there — choose another, or the publish window will offer none.'}
+          </div>
+        )}
+
+        {credMessage && (
+          <div style={{
+            fontSize: 11, marginTop: 8, lineHeight: 1.5,
+            color: credMessage.ok ? 'var(--accent)' : 'var(--badge-dump, #d97706)',
+          }}>
+            {credMessage.text}
+          </div>
+        )}
+
         <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />
 
         <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 6 }}>
@@ -378,6 +515,7 @@ export function Preferences({ onClose }: Props) {
             <strong style={{ color: 'var(--badge-basic)' }}>{catalog.archived.toLocaleString()} marked archived</strong>.
           </div>
         )}
+        </div>
       </div>
     </div>
   );
