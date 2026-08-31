@@ -413,8 +413,14 @@ interface DiskToolsAPI {
   wpSaveCredentials: (user: string, password: string) => Promise<WpCredentialState & { warning?: string }>;
   wpCheckCredentials: () => Promise<{ ok: true; name: string } | { ok: false; error: string }>;
   /** What the app can work out about a program, plus the live vocabularies. */
-  wpPublishSuggest: (imagePath: string, entryIndex: number, year: string)
+  wpPublishSuggest: (imagePath: string, entryIndex: number, year: string, title: string)
     => Promise<WpPublishSuggestion | { error: string }>;
+  /** Where the screenshots live, and whether there are any. */
+  wpScreenshotsDir: () => Promise<{ dir: string; exists: boolean; count: number }>;
+  pickScreenshotsDir: () => Promise<string | null>;
+  /** Every screenshot, filtered by what has been typed — for when matching misses. */
+  wpScreenshotBrowse: (query: string)
+    => Promise<{ files: { file: string; name: string }[]; total: number; shown: number }>;
   /** Terms matching what has been typed; `kind` is a taxonomy or 'company'. */
   wpTermSearch: (kind: string, query: string) => Promise<{ terms: WpTerm[]; error?: string }>;
   wpPublish: (request: WpPublishRequest) => Promise<WpPublishResult>;
@@ -540,6 +546,8 @@ export interface WpPublishSuggestion {
   suggested: {
     /** SCREEN$ files belonging to this program, offered as gallery images. */
     screens: { index: number; filename: string }[];
+    /** Hand-taken screenshots that look like this program's, graded. */
+    screenshots: ScreenshotMatch[];
     model: WpTerm | null;
     /** Terms the same disk could also mean; the machine is not certain. */
     modelAlternatives: string[];
@@ -557,6 +565,16 @@ export interface WpPublishSuggestion {
   error?: undefined;
 }
 
+/** A screenshot the folder holds that may belong to this program. */
+export interface ScreenshotMatch {
+  file: string;
+  name: string;
+  /** 0-100, on the same scale the CSV importer grades with. */
+  score: number;
+  /** `exact` and `likely` arrive ticked; `check` is offered and never ticked. */
+  grade: 'exact' | 'likely' | 'check';
+}
+
 export interface WpPublishRequest {
   title: string;
   sourceFilename: string;
@@ -570,6 +588,8 @@ export interface WpPublishRequest {
   programmerNames: string[];
   /** Catalog indices of SCREEN$ entries to attach, not the pixels themselves. */
   screenIndices?: number[];
+  /** Absolute paths of hand-taken screenshots to attach. */
+  screenshotFiles?: string[];
   describe: boolean;
 }
 

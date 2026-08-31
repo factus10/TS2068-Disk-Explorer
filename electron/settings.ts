@@ -71,6 +71,13 @@ export interface Settings {
   wordpressUrl?: string;
 
   /**
+   * Where hand-taken screenshots live, for attaching to a published record.
+   * Defaults to the same folder the CSV importer looks in, since they are the
+   * same screenshots.
+   */
+  screenshotsDir?: string;
+
+  /**
    * The WordPress user whose application password the app publishes with.
    * Only meaningful alongside wordpressPassword.
    */
@@ -153,6 +160,14 @@ export function getSettings(): Settings {
           out.wordpressUrl = raw.wordpressUrl.replace(/\/+$/, '');
         }
       } catch { /* not a URL; leave it unset */ }
+    }
+    // Like the extraction folder, a folder that has gone is dropped rather
+    // than kept: offering screenshots from somewhere that no longer exists
+    // would be worse than offering none.
+    if (typeof raw.screenshotsDir === 'string' && raw.screenshotsDir) {
+      try {
+        if (fs.statSync(raw.screenshotsDir).isDirectory()) out.screenshotsDir = raw.screenshotsDir;
+      } catch { /* gone; leave it unset */ }
     }
     if (typeof raw.wordpressUser === 'string' && raw.wordpressUser) out.wordpressUser = raw.wordpressUser;
     if (typeof raw.wordpressPassword === 'string' && raw.wordpressPassword) {

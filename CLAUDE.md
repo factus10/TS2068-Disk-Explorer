@@ -387,6 +387,21 @@ Other things worth knowing:
   encoded in the main process, so a 6912-byte SCREEN$ does not travel to the
   renderer and back as a PNG in an array of numbers. The first becomes the
   featured image, which is what replaces the default something else stamps on.
+- **Hand-taken screenshots are matched the importer's way.**
+  `screenshot-match.ts` is a port of `WCMI_Matcher`, thresholds and all —
+  including PHP's `similar_text`, reimplemented rather than approximated
+  because the thresholds were chosen against those exact numbers. 80% and up
+  is ticked, 68% and up is offered and left alone: `invert` scores 71 against
+  `invaders` and `SuperCalc` 74 against `SuperCheck`, and a wrong screenshot
+  is worse than none because nobody checks a picture that looks plausible. A
+  numbered set is offered whole, a truncated name reaches its screenshot
+  through the prefix rule, and there is a browser over the whole folder for
+  when the matching misses — which on names typed in the moment it will.
+- **The describer's stamps are written too.** `_tspd_analyzed` and
+  `_tspd_analyzed_via` drive the analysed column in the `computer_media` list.
+  They are protected meta and were unreachable over REST until the describer
+  plugin registered them; that change lives in ts-program-describer, beside the
+  importer's.
 - **The credential is an application password in the OS keychain**, via
   Electron `safeStorage`, never in `settings.json`. Where no keychain exists
   nothing is stored rather than something stored in the clear.

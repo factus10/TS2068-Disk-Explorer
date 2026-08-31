@@ -22,6 +22,9 @@ import { refreshMatches } from './wordpress-match';
 import { WpWriter, WpWriteError, type AcfFields, type Taxonomies } from './wordpress-write';
 import { credentialState, saveCredentials, readCredentials } from './wordpress-credentials';
 import { keywordsUsed, matchVocabulary, deriveModel, deriveTags } from './wordpress-derive';
+import {
+  matchScreenshots, listScreenshots, stripArchiveSuffix, normalise as normaliseShot,
+} from './screenshot-match';
 import type { FolderArchiveState } from './archive-marker';
 import { detectFormat } from './parsers/detect';
 import { readCatalog as readLarken, readFileData as readLarkenFile } from './parsers/larken';
@@ -805,6 +808,42 @@ function wpWriter(): WpWriter | { error: string } {
   return new WpWriter(wordpressUrl, creds);
 }
 
+/**
+ * Where the hand-taken screenshots live. The CSV importer defaults to the
+ * same folder, because they are the same screenshots.
+ */
+function screenshotsDir(): string {
+  const set = getSettings().screenshotsDir;
+  if (set) return set;
+  return path.join(app.getPath('home'), 'Documents', 'Screen shots');
+}
+
+ipcMain.handle('wp-screenshots-dir', async () => {
+  const dir = screenshotsDir();
+  return { dir, exists: fs.existsSync(dir), count: listScreenshots(dir).length };
+});
+
+ipcMain.handle('pick-screenshots-dir', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openDirectory'],
+    title: 'Choose the folder holding your screenshots',
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  updateSettings({ screenshotsDir: result.filePaths[0] });
+  return result.filePaths[0];
+});
+
+/**
+ * Every screenshot in the folder, filtered by what has been typed — for when
+ * the matching misses, which on names taken in the moment it will.
+ */
+ipcMain.handle('wp-screenshot-browse', async (_event, query: string) => {
+  const all = listScreenshots(screenshotsDir());
+  const q = normaliseShot(query ?? '');
+  const shown = q ? all.filter((f) => normaliseShot(f.name).includes(q)) : all;
+  return { files: shown.slice(0, 60), total: all.length, shown: shown.length };
+});
+
 ipcMain.handle('wp-credential-state', async () => credentialState());
 
 ipcMain.handle('wp-save-credentials', async (_event, user: string, password: string) => {
@@ -835,7 +874,7 @@ ipcMain.handle('wp-check-credentials', async () => {
  * live vocabularies so the dialog can show what is available.
  */
 ipcMain.handle('wp-publish-suggest', async (
-  _event, imagePath: string, entryIndex: number, year: string,
+  _event, imagePath: string, entryIndex: number, year: string, title = '',
 ) => {
   const w = wpWriter();
   if ('error' in w) return { error: w.error };
@@ -893,8 +932,17 @@ ipcMain.handle('wp-publish-suggest', async (
       }
     } catch { /* a disk with no readable screen simply offers none */ }
 
+    // Names this program could have been filed under when the screenshot was
+    // taken: what the disk calls it, and the title being published.
+    const entryName = flattenEntries(parseDiskImage(imagePath).catalog)
+      .find((e) => e.index === entryIndex)?.filename.trim() ?? '';
+    const shots = matchScreenshots(screenshotsDir(), [
+      entryName, stripArchiveSuffix(entryName), title, stripArchiveSuffix(title),
+    ].filter(Boolean));
+
     return {
       suggested: {
+        screenshots: shots,
         screens,
         model: modelTerm,
         modelAlternatives: model?.alternatives ?? [],
@@ -945,6 +993,8 @@ export interface PublishRequest {
   programmerNames: string[];
   /** Catalog indices of SCREEN$ entries to attach, not the pixels themselves. */
   screenIndices?: number[];
+  /** Absolute paths of hand-taken screenshots to attach. */
+  screenshotFiles?: string[];
   describe: boolean;
 }
 
@@ -1018,6 +1068,19 @@ ipcMain.handle('wp-publish', async (event, req: PublishRequest) => {
         attachments.push(await w.uploadImage(name, png));
       }
     }
+    for (const [i, file] of (req.screenshotFiles ?? []).entries()) {
+      step(`Uploading screenshot ${i + 1} of ${req.screenshotFiles!.length}...`);
+      try {
+        const ext = path.extname(file).toLowerCase();
+        const mime = ext === '.png' ? 'image/png'
+          : ext === '.gif' ? 'image/gif' : 'image/jpeg';
+        attachments.push(await w.uploadImage(path.basename(file), fs.readFileSync(file), mime));
+      } catch (err) {
+        // One unreadable screenshot should not lose the record.
+        step(`Could not upload ${path.basename(file)}`);
+      }
+    }
+
     if (attachments.length) {
       await w.writeAcf(postId, { images: attachments });
       await w.setFeaturedImage(postId, attachments[0]);
@@ -1028,7 +1091,7 @@ ipcMain.handle('wp-publish', async (event, req: PublishRequest) => {
       step('Asking the describer what this program is...');
       const d = await w.describe(postId);
       if (d.description || d.teaser || d.analysis) {
-        await w.applyDescription(postId, d.description, d.teaser, d.analysis);
+        await w.applyDescription(postId, d.description, d.teaser, d.analysis, d.mode || 'source');
         described = true;
       }
     }

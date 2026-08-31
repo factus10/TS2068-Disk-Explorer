@@ -25,6 +25,18 @@
  * deletes or overwrites an existing post.
  */
 
+/**
+ * The `YYYY-MM-DD HH:MM:SS` WordPress stores in a datetime column, in local
+ * time — which is what `current_time( 'mysql' )` gives the CLI, so a record
+ * stamped here reads the same way as one stamped there.
+ */
+function mysqlNow(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} `
+    + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 /** WordPress renders post titles HTML-encoded; a picker wants the text. */
 function decodeEntities(s: string): string {
   return s
@@ -377,7 +389,7 @@ export class WpWriter {
    * of the program should be.
    */
   async applyDescription(
-    postId: number, description: string, teaser: string, analysis: string,
+    postId: number, description: string, teaser: string, analysis: string, via = 'source',
   ): Promise<void> {
     let html = '';
     if (description) html += `<p>${description}</p>\n<hr />\n`;
@@ -389,6 +401,13 @@ export class WpWriter {
       body: JSON.stringify({
         ...(html ? { content: slashForWordPress(html) } : {}),
         ...(teaser ? { excerpt: slashForWordPress(teaser) } : {}),
+        // The same stamps the plugin's WP-CLI command records, so the
+        // computer_media list column shows a record described here as
+        // described rather than as untouched.
+        meta: {
+          _tspd_analyzed: mysqlNow(),
+          _tspd_analyzed_via: via,
+        },
       }),
     });
   }

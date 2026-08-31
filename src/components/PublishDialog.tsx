@@ -52,11 +52,16 @@ export function PublishDialog(props: Props) {
   const [downloadUrl, setDownloadUrl] = useState(
     `${ARCHIVE_BASE}/${encodeURIComponent(props.sourceFilename)}`);
   const [screens, setScreens] = useState<Set<number>>(new Set());
+  const [shots, setShots] = useState<Set<string>>(new Set());
+  const [browsing, setBrowsing] = useState(false);
+  const [browseQuery, setBrowseQuery] = useState('');
+  const [browseFiles, setBrowseFiles] = useState<{ file: string; name: string }[]>([]);
+  const [browseTotal, setBrowseTotal] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<WpPublishResult | null>(null);
 
   useEffect(() => {
-    api.wpPublishSuggest(imagePath, entryIndex, metadata.year)
+    api.wpPublishSuggest(imagePath, entryIndex, metadata.year, defaultTitle)
       .then((r) => {
         if ('error' in r && r.error) { setError(r.error); return; }
         const s = r as WpPublishSuggestion;
@@ -70,9 +75,13 @@ export function PublishDialog(props: Props) {
         // A program's own loading screen is worth attaching by default; it is
         // the picture of the thing.
         setScreens(new Set(s.suggested.screens.map((x) => x.index)));
+        // Exact and likely arrive ticked; a `check` match is offered and left
+        // alone, because below 80% the suggestions stop being trustworthy.
+        setShots(new Set(s.suggested.screenshots
+          .filter((x) => x.grade !== 'check').map((x) => x.file)));
       })
       .catch((e) => setError(e.message));
-  }, [imagePath, entryIndex, metadata.year]);
+  }, [imagePath, entryIndex, metadata.year, defaultTitle]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) props.onClose(); };
@@ -114,6 +123,7 @@ export function PublishDialog(props: Props) {
         // fresh are both resolved on the far side, and only people are made.
         programmerNames: people.map((t) => t.name),
         screenIndices: [...screens],
+        screenshotFiles: [...shots],
         describe,
       });
       setResult(r);
@@ -126,7 +136,27 @@ export function PublishDialog(props: Props) {
       unsub();
       setBusy(null);
     }
-  }, [title, sourceFilename, imagePath, entryIndex, editedLines, metadata, companies, picked, genres, tags, people, describe, downloadUrl, screens, props]);
+  }, [title, sourceFilename, imagePath, entryIndex, editedLines, metadata, companies, picked, genres, tags, people, describe, downloadUrl, screens, shots, props]);
+
+  useEffect(() => {
+    if (!browsing) return;
+    const timer = setTimeout(async () => {
+      try {
+        const r = await api.wpScreenshotBrowse(browseQuery);
+        setBrowseFiles(r.files);
+        setBrowseTotal(r.total);
+      } catch { /* the folder may not be there; the panel says so */ }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [browsing, browseQuery]);
+
+  const toggleShot = useCallback((file: string) => {
+    setShots((prev) => {
+      const next = new Set(prev);
+      next.has(file) ? next.delete(file) : next.add(file);
+      return next;
+    });
+  }, []);
 
   const btn: React.CSSProperties = {
     background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
@@ -272,6 +302,97 @@ export function PublishDialog(props: Props) {
                   color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 3,
                 }}
               />
+
+              <div style={label}>
+                Screenshots
+                <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                  {' '}&mdash; matched from your screenshots folder
+                </span>
+              </div>
+
+              {data.suggested.screenshots.length === 0 && !browsing && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                  Nothing there looks like this program.
+                </div>
+              )}
+
+              {data.suggested.screenshots.map((sh) => (
+                <label
+                  key={sh.file}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4,
+                    fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={shots.has(sh.file)}
+                    onChange={() => toggleShot(sh.file)}
+                  />
+                  <span style={{ fontFamily: 'var(--mono, monospace)' }}>{sh.name}</span>
+                  <span style={{
+                    fontSize: 10, padding: '1px 5px', borderRadius: 2,
+                    background: sh.grade === 'check' ? 'var(--bg-tertiary)' : 'var(--accent)',
+                    color: sh.grade === 'check' ? 'var(--text-muted)' : '#fff',
+                  }}>
+                    {sh.grade === 'exact' ? 'exact' : `${sh.grade} ${sh.score}%`}
+                  </span>
+                </label>
+              ))}
+
+              {/* Names taken in the moment do not always match a disk filename,
+                  so there has to be a way to go and find one by hand. */}
+              <button
+                onClick={() => setBrowsing((v) => !v)}
+                style={{
+                  ...btn, padding: '3px 8px', fontSize: 11, marginTop: 4,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                {browsing ? 'Done choosing' : 'Choose one myself...'}
+              </button>
+
+              {browsing && (
+                <div style={{
+                  marginTop: 6, border: '1px solid var(--border)', borderRadius: 3,
+                  background: 'var(--bg-tertiary)', padding: 8,
+                }}>
+                  <input
+                    type="text"
+                    value={browseQuery}
+                    placeholder={`Filter ${browseTotal || ''} screenshots`}
+                    onChange={(e) => setBrowseQuery(e.target.value)}
+                    style={{
+                      width: '100%', fontSize: 11, padding: '5px 7px', marginBottom: 6,
+                      background: 'var(--bg-secondary)', color: 'var(--text-primary)',
+                      border: '1px solid var(--border)', borderRadius: 3,
+                    }}
+                  />
+                  <div style={{ maxHeight: 150, overflowY: 'auto' }}>
+                    {browseFiles.length === 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 2px' }}>
+                        Nothing here. Check the folder in Preferences.
+                      </div>
+                    )}
+                    {browseFiles.map((f) => (
+                      <label
+                        key={f.file}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0',
+                          fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={shots.has(f.file)}
+                          onChange={() => toggleShot(f.file)}
+                        />
+                        <span style={{ fontFamily: 'var(--mono, monospace)' }}>{f.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {data.suggested.screens.length > 0 && (
                 <>

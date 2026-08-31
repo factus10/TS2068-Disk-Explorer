@@ -67,9 +67,12 @@ contextBridge.exposeInMainWorld('diskTools', {
   wpSaveCredentials: (user: string, password: string) =>
     ipcRenderer.invoke('wp-save-credentials', user, password),
   wpCheckCredentials: () => ipcRenderer.invoke('wp-check-credentials'),
-  wpPublishSuggest: (imagePath: string, entryIndex: number, year: string) =>
-    ipcRenderer.invoke('wp-publish-suggest', imagePath, entryIndex, year),
+  wpPublishSuggest: (imagePath: string, entryIndex: number, year: string, title: string) =>
+    ipcRenderer.invoke('wp-publish-suggest', imagePath, entryIndex, year, title),
   wpTermSearch: (kind: string, query: string) => ipcRenderer.invoke('wp-term-search', kind, query),
+  wpScreenshotsDir: () => ipcRenderer.invoke('wp-screenshots-dir'),
+  pickScreenshotsDir: () => ipcRenderer.invoke('pick-screenshots-dir'),
+  wpScreenshotBrowse: (query: string) => ipcRenderer.invoke('wp-screenshot-browse', query),
   wpPublish: (request: unknown) => ipcRenderer.invoke('wp-publish', request),
   onWpPublishProgress: (callback: (p: { message: string }) => void) => {
     const handler = (_e: any, p: any) => callback(p);

@@ -28,6 +28,7 @@ export function Preferences({ onClose }: Props) {
   const [wpPassField, setWpPassField] = useState('');
   const [credMessage, setCredMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [credBusy, setCredBusy] = useState(false);
+  const [shots, setShots] = useState<{ dir: string; exists: boolean; count: number } | null>(null);
 
   useEffect(() => {
     api.getSettings().then(setSettings).catch(() => setSettings({}));
@@ -36,6 +37,7 @@ export function Preferences({ onClose }: Props) {
     api.getEmulatorStatus().then(setEmulator).catch(() => setEmulator({ path: null, configured: false }));
     api.wpStatus().then((w) => { setWpUrl(w.url ?? ''); setWpDefault(w.defaultUrl); }).catch(() => { /* leave blank */ });
     api.wpCredentialState().then((c) => { setCreds(c); setWpUserField(c.user); }).catch(() => setCreds(null));
+    api.wpScreenshotsDir().then(setShots).catch(() => setShots(null));
   }, []);
 
   // Escape closes, as it does in every other dialog.
@@ -381,6 +383,43 @@ export function Preferences({ onClose }: Props) {
         {creds && !creds.canStore && (
           <div style={{ fontSize: 11, marginTop: 8, color: 'var(--badge-dump, #d97706)', lineHeight: 1.5 }}>
             This system offers no keychain, so a password cannot be kept between sessions.
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '14px 0 8px', lineHeight: 1.5 }}>
+          Screenshots you have taken by hand, matched to a program when publishing it. The
+          same folder the CSV importer looks in, and matched by the same rules, so a
+          screenshot either tool would attach is the one the other offers.
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+          borderRadius: 4, padding: '8px 10px',
+        }}>
+          <span style={{
+            flex: 1, fontSize: 11, fontFamily: 'var(--mono, monospace)',
+            color: shots?.exists ? 'var(--text-primary)' : 'var(--text-muted)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            direction: 'rtl', textAlign: 'left',
+          }}>
+            {shots ? shots.dir : 'Loading...'}
+          </span>
+          <button
+            onClick={async () => {
+              const dir = await api.pickScreenshotsDir();
+              if (dir) setShots(await api.wpScreenshotsDir());
+            }}
+            style={btn}
+          >
+            Choose...
+          </button>
+        </div>
+        {shots && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+            {shots.exists
+              ? `${shots.count} screenshot${shots.count === 1 ? '' : 's'} there.`
+              : 'That folder is not there — choose another, or the publish window will offer none.'}
           </div>
         )}
 
