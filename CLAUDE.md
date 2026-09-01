@@ -418,6 +418,12 @@ Other things worth knowing:
   `Chess`. A company search filters to titles, because WordPress matches a
   post's body too and would otherwise offer names containing nothing of what
   was typed.
+- **None of it shows unless a site is set.** Most people use this app to read
+  disk images and will never publish anything, so the three File-menu entries
+  are built only when `wordpressUrl` is configured, and the offer after an
+  archive export is not made at all without one. A prompt about WordPress in
+  the middle of someone's export is an interruption they can do nothing with.
+  Setting the site rebuilds the menu.
 - **Everything is created as a draft.** Nothing here publishes, and nothing
   overwrites or deletes an existing post.
 

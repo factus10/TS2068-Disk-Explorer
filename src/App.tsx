@@ -422,7 +422,11 @@ function App() {
     // made out of exactly what the archive bundle holds, so the moment the
     // bundle exists is the moment there is something to publish — and the
     // year, publisher and machine were just answered a dialog ago.
-    if (isSingle && choice.shape === 'tosec-zip' && choice.metadata && results.length === 1) {
+    // Only asked of someone who has a site to publish to. Most people use this
+    // to read disks, and a prompt about WordPress in the middle of an export
+    // is an interruption they can do nothing with.
+    if (wordpressUrl && isSingle && choice.shape === 'tosec-zip'
+        && choice.metadata && results.length === 1) {
       const index = [...selectedIndices][0];
       const entry = all.find((e) => e.index === index);
       const base = customName ?? entry?.filename.trim() ?? '';
@@ -433,7 +437,7 @@ function App() {
         metadata: { year: choice.metadata.year, publisher: choice.metadata.publisher },
       });
     }
-  }, [disk, selectedIndices, editState, askForExport, refreshArchiveStatus]);
+  }, [disk, selectedIndices, editState, askForExport, refreshArchiveStatus, wordpressUrl]);
 
   /**
    * Bundle the selected entries into one multi-file TAP — the loader is the

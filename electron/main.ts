@@ -146,6 +146,11 @@ function openHelpWindow() {
   helpWindow.on('closed', () => { helpWindow = null; });
 }
 
+/** Whether anything about the published archive is worth showing. */
+function publishedArchiveConfigured(): boolean {
+  return Boolean(getSettings().wordpressUrl);
+}
+
 function buildMenu() {
   const recentFiles = getRecent();
   const recentSubmenu: Electron.MenuItemConstructorOptions[] = recentFiles.map((fp) => ({
@@ -194,19 +199,25 @@ function buildMenu() {
           label: 'Update Shared Program List...',
           click: () => mainWindow?.webContents.send('menu-export-known'),
         },
-        {
-          label: 'Search the Published Archive...',
-          accelerator: 'CmdOrCtrl+Shift+F',
-          click: () => mainWindow?.webContents.send('menu-wp-search'),
-        },
-        {
-          label: 'Refresh Matches from WordPress...',
-          click: () => mainWindow?.webContents.send('menu-wp-refresh'),
-        },
-        {
-          label: 'Publish Selected to WordPress...',
-          click: () => mainWindow?.webContents.send('menu-wp-publish'),
-        },
+        // The WordPress entries only appear once a site is set. Most people
+        // use this to read disks and will never publish anything, and three
+        // items that answer "no site is configured" are clutter in the menu
+        // they do use. Setting one rebuilds the menu.
+        ...(publishedArchiveConfigured() ? [
+          {
+            label: 'Search the Published Archive...',
+            accelerator: 'CmdOrCtrl+Shift+F',
+            click: () => mainWindow?.webContents.send('menu-wp-search'),
+          },
+          {
+            label: 'Refresh Matches from WordPress...',
+            click: () => mainWindow?.webContents.send('menu-wp-refresh'),
+          },
+          {
+            label: 'Publish Selected to WordPress...',
+            click: () => mainWindow?.webContents.send('menu-wp-publish'),
+          },
+        ] as Electron.MenuItemConstructorOptions[] : []),
         {
           label: 'Recent Files',
           submenu: recentSubmenu.length > 0 ? recentSubmenu : [{ label: 'No Recent Files', enabled: false }],
@@ -1149,6 +1160,7 @@ ipcMain.handle('wp-test', async (_event, url?: string) => {
 ipcMain.handle('wp-save-url', async (_event, url: string) => {
   const trimmed = url.trim().replace(/\/+$/, '');
   updateSettings({ wordpressUrl: trimmed || undefined });
+  buildMenu();   // the WordPress entries appear and disappear with it
   return trimmed || null;
 });
 
