@@ -38,6 +38,11 @@ const KEYWORD_TO_BYTE: Record<string, number> = {
   'POKE': 0xf4, 'PRINT': 0xf5, 'PLOT': 0xf6, 'RUN': 0xf7, 'SAVE': 0xf8,
   'RANDOMIZE': 0xf9, 'IF': 0xfa, 'CLS': 0xfb, 'DRAW': 0xfc, 'CLEAR': 0xfd,
   'RETURN': 0xfe, 'COPY': 0xff,
+  // DELETE is a keyword to zmakebas, compiling to the control byte 0x0C — the
+  // detokenizer writes it as `DELETE` outside strings, so an edited line must
+  // read it back the same way. Strings are blanked before matching, so a
+  // literal "DELETE" in a string stays its letters, exactly as zmakebas does.
+  'DELETE': 0x0c,
 };
 
 const BYTE_TO_KEYWORD: Record<number, string> = {};
