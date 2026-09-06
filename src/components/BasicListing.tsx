@@ -23,6 +23,45 @@ const TOKEN_COLORS: Record<string, string> = {
   text: 'var(--text-primary)',
 };
 
+/**
+ * The colour and print-position controls that carry a parameter, so the
+ * tooltip can read `\{16}\{2}` as "INK 2" and `\{22}\{10}\{5}` as "AT 10,5".
+ */
+const CONTROL_WITH_PARAM: Record<number, string> = {
+  16: 'INK', 17: 'PAPER', 18: 'FLASH', 19: 'BRIGHT', 20: 'INVERSE', 21: 'OVER',
+};
+
+/**
+ * The single-byte controls, named the way the Spectrum keyboard and manual
+ * name them. These have no glyph, so the listing can only spell them as a
+ * decimal escape (`\{12}`) — the tooltip is where the reader learns that
+ * code 12 is DELETE without going to look it up.
+ */
+const CONTROL_NAMES: Record<number, string> = {
+  6: 'PRINT comma', 7: 'EDIT', 8: 'cursor left', 9: 'cursor right',
+  10: 'cursor down', 11: 'cursor up', 12: 'DELETE', 13: 'ENTER', 15: 'GRAPHICS',
+};
+
+/**
+ * Name a `control` token for its hover tooltip. The token text is one or more
+ * decimal escapes — the code and any parameter bytes it takes with it (see
+ * `pushControl` in the detokenizer) — so the leading code names the whole and
+ * the rest are its arguments. Returns undefined when there is nothing to say.
+ */
+function controlTooltip(text: string): string | undefined {
+  const codes = [...text.matchAll(/\\\{(\d+)\}/g)].map((m) => Number(m[1]));
+  if (codes.length === 0) return undefined;
+  const [code, ...params] = codes;
+
+  if (CONTROL_WITH_PARAM[code]) {
+    return params.length ? `${CONTROL_WITH_PARAM[code]} ${params[0]}` : CONTROL_WITH_PARAM[code];
+  }
+  if (code === 22) return params.length >= 2 ? `AT ${params[0]},${params[1]}` : 'AT';
+  if (code === 23) return params.length >= 2 ? `TAB ${params[0] + 256 * params[1]}` : 'TAB';
+  if (CONTROL_NAMES[code]) return CONTROL_NAMES[code];
+  return `control code ${code}`;
+}
+
 export function BasicListing({ listing, fileEdits, onEditLine, onRevertLine, onRevertAll }: Props) {
   const [editingLine, setEditingLine] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
@@ -216,9 +255,12 @@ export function BasicListing({ listing, fileEdits, onEditLine, onRevertLine, onR
                 {isEdited ? (
                   <span style={{ color: 'var(--badge-basic)' }}>{fileEdits![line.lineNumber]}</span>
                 ) : (
-                  line.tokens.map((tok, i) => (
-                    <span key={i} style={{
+                  line.tokens.map((tok, i) => {
+                    const tip = tok.type === 'control' ? controlTooltip(tok.text) : undefined;
+                    return (
+                    <span key={i} title={tip} style={{
                       color: TOKEN_COLORS[tok.type] ?? 'var(--text-primary)',
+                      ...(tip ? { cursor: 'help' } : {}),
                       ...(tok.type === 'disk-cmd' ? {
                         background: 'rgba(255, 107, 107, 0.15)',
                         borderBottom: '1px solid #ff6b6b',
@@ -228,7 +270,8 @@ export function BasicListing({ listing, fileEdits, onEditLine, onRevertLine, onR
                     }}>
                       {tok.text}
                     </span>
-                  ))
+                    );
+                  })
                 )}
               </span>
               {isEdited && onRevertLine && (

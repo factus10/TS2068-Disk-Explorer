@@ -254,6 +254,14 @@ export function detokenize(data: Buffer, variablesOffset?: number, mode: Ts2068M
   return { lines };
 }
 
+/** A leading space, unless the previous token already ends at a natural break. */
+function leadingSpace(tokens: BasicToken[]): string {
+  if (tokens.length === 0) return '';
+  const last = tokens[tokens.length - 1].text;
+  const c = last[last.length - 1];
+  return c && c !== ' ' && c !== '"' && c !== ':' && c !== '(' ? ' ' : '';
+}
+
 function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode): BasicToken[] {
   const tokens: BasicToken[] = [];
   let i = start;
@@ -304,6 +312,18 @@ function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode):
     // it back and the number would appear twice.
     if (byte === 0x0e) { i += 6; continue; }
 
+    // DELETE (byte 0x0C) is a keyword to zmakebas — `DELETE` compiles straight
+    // back to this byte — so outside a string it is written as the keyword,
+    // which reads far better than `\{12}` and still round-trips. Inside a
+    // string the letters would be literal (and in a REM, handled above,
+    // likewise), so there it stays the decimal escape.
+    if (byte === 0x0c && !inQuote) {
+      tokens.push({ type: 'statement', text: leadingSpace(tokens) + 'DELETE ' });
+      prevByte = byte;
+      i++;
+      continue;
+    }
+
     // Colour control codes (1 parameter byte), AT and TAB (2), and the rest
     // of the control range. None has a named escape, so all are written in
     // decimal — INK 2 inside a string is `\{16}\{2}`.
@@ -335,13 +355,7 @@ function decodeLine(data: Buffer, start: number, end: number, mode: Ts2068Mode):
       const kw = keyword.trim();
 
       // Add leading space if keyword would run into previous text
-      if (!keyword.startsWith(' ') && tokens.length > 0) {
-        const prev = tokens[tokens.length - 1];
-        const lastChar = prev.text[prev.text.length - 1];
-        if (lastChar && lastChar !== ' ' && lastChar !== '"' && lastChar !== ':' && lastChar !== '(') {
-          keyword = ' ' + keyword;
-        }
-      }
+      if (!keyword.startsWith(' ')) keyword = leadingSpace(tokens) + keyword;
 
       // Detect disk commands: LOAD/, SAVE/, VERIFY/, MERGE/ (Oliger disk syntax)
       const isDiskCmd = DISK_CMD_TOKENS.has(byte) && peekForSlash(data, i + 1, end);
