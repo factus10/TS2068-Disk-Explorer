@@ -19,6 +19,7 @@ import { detectFormat } from './parsers/detect';
 import { isSupportedFile } from './parsers/supported-formats';
 import { SCREEN_SIZE } from './parsers/screen-decoder';
 import { cluesFor, guessTitle, writeProgramFiles, PROGRAM_DIRS } from './catalog-characterize';
+import { endsWithPath } from './catalog-status';
 import type { BasicClues } from './catalog-characterize';
 import type { DiskFormat, FileEntry } from './parsers/types';
 
@@ -37,9 +38,22 @@ export interface StoredProgram {
 
 export interface Catalog {
   root: string; generated: string;
+  /**
+   * Every folder that has been scanned into this catalogue. `root` is the
+   * first; a folder added through the ingest chooser is appended. Recorded so
+   * a survey knows where disks were kept and a deletion check can look in each.
+   */
+  roots?: string[];
   imageCount: number; entryCount: number; uniqueCount: number;
   programs: StoredProgram[];
   unreadable: { file: string; reason: string }[];
+  /**
+   * Images examined that held no extractable program — the empty tapes and
+   * blank disks a collection accumulates. Recorded so a survey remembers
+   * having looked: without it, an image that yields nothing has no occurrence,
+   * so every survey re-reports it as new and re-adding it does nothing.
+   */
+  emptyImages?: string[];
 }
 
 export interface IngestSurvey {
@@ -50,6 +64,8 @@ export interface IngestSurvey {
   gone: string[];
   imagesOnDisk: number;
   imagesKnown: number;
+  /** Images on disk already examined and found to hold no program. */
+  imagesEmpty: number;
 }
 
 export interface IngestResult {
@@ -78,25 +94,64 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** What an ingest would do, without doing any of it. */
-export function surveyCollection(catalogDir: string, root?: string): IngestSurvey | null {
+/**
+ * What an ingest would do, without doing any of it. `scanDir` limits the scan
+ * to one folder — which may be anywhere, not only under the collection root —
+ * so newly imaged disks kept in their own folder can be added without moving
+ * them first.
+ */
+export function surveyCollection(catalogDir: string, scanDir?: string): IngestSurvey | null {
   const cat = readCatalogFile(catalogDir);
   if (!cat) return null;
-  const from = root ?? cat.root;
+  const from = scanDir ?? cat.root;
+  const roots = cat.roots?.length ? cat.roots : [cat.root];
 
-  const known = new Set<string>();
-  for (const p of cat.programs) for (const o of p.occurrences) known.add(o.image);
-
-  const onDisk = walk(from).map((f) => path.relative(from, f));
-  const onDiskSet = new Set(onDisk);
-
-  return {
-    root: from,
-    fresh: onDisk.filter((rel) => !known.has(rel)),
-    gone: [...known].filter((rel) => !onDiskSet.has(rel)),
-    imagesOnDisk: onDisk.length,
-    imagesKnown: known.size,
+  // Match an on-disk file to the catalogue by path suffix, the way the browser
+  // does (catalog-status.endsWithPath): a disk is recognised wherever it is
+  // kept, so a folder scanned from anywhere resolves against the same
+  // programs and is not re-offered. Indexed by basename so each file is only
+  // checked against its namesakes.
+  interface Ent { rel: string; catalogued: boolean }
+  const byBase = new Map<string, Ent[]>();
+  const index = (rel: string, catalogued: boolean) => {
+    const base = path.basename(rel);
+    let list = byBase.get(base);
+    if (!list) byBase.set(base, (list = []));
+    list.push({ rel, catalogued });
   };
+  for (const p of cat.programs) for (const o of p.occurrences) index(o.image, true);
+  for (const rel of cat.emptyImages ?? []) index(rel, false);
+  for (const u of cat.unreadable ?? []) index(u.file, false);
+  const match = (abs: string): Ent | undefined =>
+    byBase.get(path.basename(abs))?.find((e) => endsWithPath(abs, e.rel));
+
+  const onDiskAbs = walk(from);
+  const fresh: string[] = [];
+  let known = 0; let empty = 0;
+  for (const abs of onDiskAbs) {
+    const hit = match(abs);
+    if (!hit) fresh.push(path.relative(from, abs));
+    else if (hit.catalogued) known++;
+    else empty++;
+  }
+
+  // "Gone" is a claim about the whole collection, so it is only made on a full
+  // scan of the primary root, and existence is checked across every recorded
+  // root — a disk kept in another folder is not a deletion.
+  let gone: string[] = [];
+  if (from === cat.root) {
+    const present = new Set<string>();
+    const consider = (list: string[]) => {
+      for (const abs of list) { const hit = match(abs); if (hit?.catalogued) present.add(hit.rel); }
+    };
+    consider(onDiskAbs);
+    for (const r of roots) if (r !== from) consider(walk(r));
+    const catalogued = new Set<string>();
+    for (const p of cat.programs) for (const o of p.occurrences) catalogued.add(o.image);
+    gone = [...catalogued].filter((rel) => !present.has(rel));
+  }
+
+  return { root: from, fresh, gone, imagesOnDisk: onDiskAbs.length, imagesKnown: known, imagesEmpty: empty };
 }
 
 /**
@@ -113,11 +168,21 @@ export function ingestImages(
   const cat = readCatalogFile(catalogDir);
   if (!cat) return null;
 
+  // Record where these disks were read from, so a later survey knows to look
+  // there and the deletion check does not mistake them for gone.
+  const roots = new Set(cat.roots?.length ? cat.roots : [cat.root]);
+  roots.add(root);
+  cat.roots = [...roots];
+
   const byHash = new Map<string, StoredProgram>();
   for (const p of cat.programs) byHash.set(p.sha256, p);
 
   const touched = new Map<string, { p: StoredProgram; data: Buffer; entry: FileEntry }>();
   const unreadable: { file: string; reason: string }[] = [];
+  // Which images yielded a program this run, and which parsed but held none —
+  // the latter are remembered so the survey stops re-offering empty tapes.
+  const produced = new Set<string>();
+  const emptyThisRun: string[] = [];
   let newPrograms = 0; let newOccurrences = 0; let imagesAdded = 0;
 
   // Loaded here rather than at module scope so the app does not pay for the
@@ -188,7 +253,10 @@ export function ingestImages(
       // rewriting even though its bytes have not changed.
       if (!touched.has(sha256)) touched.set(sha256, { p, data, entry });
     }
-    if (addedFromThis > 0) imagesAdded++;
+    // Reached only for an image that read and parsed: an unreadable one has
+    // already returned. So no additions here means examined-but-empty.
+    if (addedFromThis > 0) { imagesAdded++; produced.add(rel); }
+    else emptyThisRun.push(rel);
   });
   onProgress?.(relPaths.length, relPaths.length, '');
 
@@ -208,6 +276,14 @@ export function ingestImages(
   cat.entryCount = cat.programs.reduce((n, p) => n + p.occurrences.length, 0);
   cat.uniqueCount = cat.programs.length;
   if (unreadable.length > 0) cat.unreadable = [...cat.unreadable, ...unreadable];
+
+  // Remember the empties so they are not re-offered; drop any that this run
+  // finally got a program out of (a fixed file, or a parser that learned to
+  // read it).
+  const empty = new Set(cat.emptyImages ?? []);
+  for (const rel of produced) empty.delete(rel);
+  for (const rel of emptyThisRun) empty.add(rel);
+  cat.emptyImages = [...empty].sort();
 
   fs.writeFileSync(path.join(catalogDir, 'catalog.json'), JSON.stringify(cat, null, 2));
 

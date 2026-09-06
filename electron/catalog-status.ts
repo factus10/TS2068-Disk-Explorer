@@ -121,7 +121,7 @@ function readCatalog(dir: string): Catalog | null {
 }
 
 /** Does `abs` end with the relative catalogue path `rel`, on a path boundary? */
-function endsWithPath(abs: string, rel: string): boolean {
+export function endsWithPath(abs: string, rel: string): boolean {
   const a = abs.split(path.sep).join('/');
   if (!a.endsWith(rel)) return false;
   const at = a.length - rel.length;
