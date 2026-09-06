@@ -98,6 +98,8 @@ export interface CollectionSurvey {
   gone: string[];
   imagesOnDisk: number;
   imagesKnown: number;
+  /** Images on disk already examined and found to hold no program. */
+  imagesEmpty: number;
 }
 
 export interface IngestResult {

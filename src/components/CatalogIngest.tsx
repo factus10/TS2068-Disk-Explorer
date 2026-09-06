@@ -21,11 +21,20 @@ export function CatalogIngest({ onClose, onStatus, onIngested }: Props) {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; current: string } | null>(null);
   const [result, setResult] = useState<IngestResult | null>(null);
+  // undefined scans the catalogue's own root; a chosen folder scans there
+  // instead, wherever it sits.
+  const [scanDir, setScanDir] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    api.surveyCollection()
+    setSurvey(null); setResult(null); setError(null);
+    api.surveyCollection(scanDir)
       .then((s) => { if (!s) setError('No catalogue is set. Choose one in Preferences first.'); else setSurvey(s); })
       .catch((e) => setError(e.message));
+  }, [scanDir]);
+
+  const chooseFolder = useCallback(async () => {
+    const dir = await api.selectDirectory();
+    if (dir) setScanDir(dir);
   }, []);
 
   useEffect(() => api.onIngestProgress(setProgress), []);
@@ -92,6 +101,8 @@ export function CatalogIngest({ onClose, onStatus, onIngested }: Props) {
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               <div style={{ fontFamily: 'var(--mono, monospace)', color: 'var(--text-muted)' }}>{survey.root}</div>
               {survey.imagesOnDisk} image(s) on disk, {survey.imagesKnown} already catalogued.
+              {survey.imagesEmpty > 0
+                && ` ${survey.imagesEmpty} examined before and held no program.`}
               {survey.gone.length > 0 && (
                 <>
                   <br />
@@ -171,19 +182,29 @@ export function CatalogIngest({ onClose, onStatus, onIngested }: Props) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-          <button onClick={onClose} disabled={running} style={btn}>
-            {result ? 'Close' : 'Cancel'}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4 }}>
+          <button
+            onClick={chooseFolder}
+            disabled={running}
+            style={btn}
+            title="Scan a different folder for new disks"
+          >
+            Choose folder&hellip;
           </button>
-          {survey && !result && survey.fresh.length > 0 && (
-            <button
-              onClick={run}
-              disabled={running}
-              style={{ ...btn, background: 'var(--accent)', color: '#fff' }}
-            >
-              {running ? 'Adding...' : `Add ${survey.fresh.length} image(s)`}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} disabled={running} style={btn}>
+              {result ? 'Close' : 'Cancel'}
             </button>
-          )}
+            {survey && !result && survey.fresh.length > 0 && (
+              <button
+                onClick={run}
+                disabled={running}
+                style={{ ...btn, background: 'var(--accent)', color: '#fff' }}
+              >
+                {running ? 'Adding...' : `Add ${survey.fresh.length} image(s)`}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
