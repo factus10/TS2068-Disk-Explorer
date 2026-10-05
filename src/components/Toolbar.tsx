@@ -8,13 +8,11 @@ interface Props {
   /** Whether a catalogue is loaded, so marking means anything. */
   hasCatalog: boolean;
   onExtractAll: () => void;
-  onExtractPackage: () => void;
   hasSelection: boolean;
   canBundleTap: boolean;
   /** Whether the selection is something ZEsarUX could be handed. */
   canRun: boolean;
   onRun: () => void;
-  hasPackageSelected: boolean;
   hasDisk: boolean;
   extracting: boolean;
   autoPackagesEnabled: boolean;
@@ -34,8 +32,8 @@ interface Props {
 }
 
 export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
-  onOpen, onExtractSelected, onExtractSelectedAsTap, onMarkSelected, hasCatalog, onExtractAll, onExtractPackage,
-  hasSelection, canBundleTap, canRun, onRun, hasPackageSelected, hasDisk, extracting,
+  onOpen, onExtractSelected, onExtractSelectedAsTap, onMarkSelected, hasCatalog, onExtractAll,
+  hasSelection, canBundleTap, canRun, onRun, hasDisk, extracting,
   autoPackagesEnabled, onToggleAutoPackages,
   searchQuery, onSearchChange,
   theme, onToggleTheme,
@@ -133,15 +131,6 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar({
               Unmark
             </button>
           </>
-        )}
-        {hasPackageSelected && (
-          <button
-            onClick={onExtractPackage}
-            disabled={extracting}
-            style={{ background: 'var(--bg-tertiary)', color: 'var(--accent)' }}
-          >
-            Extract as Package
-          </button>
         )}
         <button
           onClick={onExtractAll}
