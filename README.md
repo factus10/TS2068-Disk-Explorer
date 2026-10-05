@@ -76,7 +76,7 @@ Built with Electron, React, and TypeScript.
 - **Auto-detected**: scans BASIC LOAD commands and matches to catalog entries
 - **Manual assembly**: drag files onto each other, reorder within packages, remove with x button
 - **Auto/Manual PKG toggle** per disk
-- Extract as Package creates single multi-file TAP
+- Extract Selected on a package loader writes the whole package as one multi-file TAP
 
 ### State Capture & Snapshot Support
 - Oliger type-4 state captures, SNA and Z80 emulator snapshots
@@ -86,7 +86,7 @@ Built with Electron, React, and TypeScript.
 - SCREEN$ extracted and viewable from snapshots
 
 ### Extraction & Export
-- **Extract Selected** / **Extract as Package** / **Extract All** — single-file and single-package extracts now prompt for a filename so you can fix mismatched directory/block names or disambiguate same-named programs
+- **Extract Selected** / **Extract All** — Extract Selected writes a lone file, or the whole package when the selected file is a loader with files nested under it; single-file and single-package extracts prompt for a filename so you can fix mismatched directory/block names or disambiguate same-named programs
 - **Archive.org export** — toolbar button bundles either the original disk image as a ZIP or the extracted files into a folder, both using TOSEC-style naming `Title (Year)(Publisher)(System)(Country)(Type).tap`. Publisher field remembers history with autocomplete.
 - Auto-exports alongside TAP/raw files:
   - BASIC listings → `.txt`

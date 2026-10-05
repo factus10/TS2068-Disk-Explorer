@@ -375,12 +375,25 @@ function App() {
       : undefined;
     const suggested = soleEntry?.filename.trim();
 
+    // A lone loader with files nested under it goes out as its package — the
+    // loader and every block it loads in one TAP — since the BASIC alone
+    // would load nothing.
+    const solePackage = soleEntry
+      ? packages.find((p) => p.loader.index === soleEntry.index && p.dependencies.length > 0)
+      : undefined;
+    const packageTarget: ProgramTarget | undefined = solePackage && {
+      kind: 'package',
+      loaderIndex: solePackage.loader.index,
+      depIndices: solePackage.dependencies.map((d) => d.index),
+    };
+    const typeSuffix = soleEntry && !packageTarget ? archiveTypeSuffix(soleEntry) : 'Program';
+
     const choice = await askForExport({
-      title: isSingle ? 'Save file as' : `Save ${selectedIndices.size} files`,
+      title: packageTarget ? 'Save package as' : isSingle ? 'Save file as' : `Save ${selectedIndices.size} files`,
       ...(suggested !== undefined ? { defaultValue: suggested } : {}),
       ...(isSingle ? {} : { summary: `${selectedIndices.size} selected files` }),
-      payloadExt: payloadExtension(disk.format, soleEntry),
-      typeSuffix: soleEntry ? archiveTypeSuffix(soleEntry) : 'Program',
+      payloadExt: packageTarget ? '.tap' : payloadExtension(disk.format, soleEntry),
+      typeSuffix,
     });
     if (!choice) return;
 
@@ -402,10 +415,15 @@ function App() {
       try {
         const result = choice.shape === 'tosec-zip' && choice.metadata
           ? await api.exportTosec(
-              disk.path, { kind: 'file', entryIndex: idx }, destDir,
+              disk.path, packageTarget ?? { kind: 'file', entryIndex: idx }, destDir,
               choice.metadata, editState, nameFor,
             )
-          : await api.extractFile(disk.path, idx, destDir, editState[idx], nameFor);
+          : solePackage
+            ? await api.extractPackage(
+                disk.path, solePackage.loader.index, solePackage.dependencies.map((d) => d.index),
+                destDir, editState, nameFor,
+              )
+            : await api.extractFile(disk.path, idx, destDir, editState[idx], nameFor);
         if (result) results.push(result);
       } catch {
         // continue
@@ -414,7 +432,9 @@ function App() {
 
     setExtracting(false);
     const marked = results.reduce((n, r) => n + (r.marked ?? 0), 0);
-    setStatus(`${choice.shape === 'tosec-zip' ? 'Packed' : 'Extracted'} ${results.length} file(s)`
+    setStatus((packageTarget && results.length === 1
+      ? `${choice.shape === 'tosec-zip' ? 'Packed' : 'Extracted'} package: ${results[0].filename.trim()}`
+      : `${choice.shape === 'tosec-zip' ? 'Packed' : 'Extracted'} ${results.length} file(s)`)
       + (marked ? ` — ${marked} marked archived` : ''));
     if (marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
 
@@ -433,11 +453,11 @@ function App() {
       setPublishOffer({
         entryIndex: index,
         title: base,
-        sourceFilename: `${previewArchiveName(base, choice.metadata, soleEntry ? archiveTypeSuffix(soleEntry) : 'Program')}.zip`,
+        sourceFilename: `${previewArchiveName(base, choice.metadata, typeSuffix)}.zip`,
         metadata: { year: choice.metadata.year, publisher: choice.metadata.publisher },
       });
     }
-  }, [disk, selectedIndices, editState, askForExport, refreshArchiveStatus, wordpressUrl]);
+  }, [disk, selectedIndices, packages, editState, askForExport, refreshArchiveStatus, wordpressUrl]);
 
   /**
    * Bundle the selected entries into one multi-file TAP — the loader is the
@@ -511,48 +531,6 @@ function App() {
       setStatus(`Error: ${err.message}`);
     }
   }, [disk, selectedIndices, refreshArchiveStatus]);
-
-  const handleExtractPackage = useCallback(async () => {
-    if (!disk || selectedIndices.size === 0) return;
-
-    const pkg = packages.find((p) => selectedIndices.has(p.loader.index));
-    if (!pkg) return;
-
-    // Name the package, and decide whether it goes out loose or archived.
-    const suggested = pkg.loader.filename.trim();
-    const choice = await askForExport({
-      title: 'Save package as',
-      defaultValue: suggested,
-      payloadExt: '.tap',
-    });
-    if (!choice) return;
-    const customName = choice.name.trim() && choice.name.trim() !== suggested
-      ? choice.name.trim()
-      : undefined;
-
-    const destDir = await api.selectDirectory();
-    if (!destDir) return;
-
-    setExtracting(true);
-    setStatus('Extracting package...');
-    try {
-      const depIndices = pkg.dependencies.map((d) => d.index);
-      const result = choice.shape === 'tosec-zip' && choice.metadata
-        ? await api.exportTosec(
-            disk.path, { kind: 'package', loaderIndex: pkg.loader.index, depIndices },
-            destDir, choice.metadata, editState, customName,
-          )
-        : await api.extractPackage(disk.path, pkg.loader.index, depIndices, destDir, editState, customName);
-      setStatus(result
-        ? `Extracted package: ${result.filename.trim()}`
-          + (result.marked ? ` — ${result.marked} marked archived` : '')
-        : 'Package extraction failed');
-      if (result?.marked) { refreshArchiveStatus(disk.path); setBrowserRefresh((n) => n + 1); }
-    } catch (err: any) {
-      setStatus(`Error: ${err.message}`);
-    }
-    setExtracting(false);
-  }, [disk, selectedIndices, packages, editState, askForExport, refreshArchiveStatus]);
 
   /**
    * After a whole-disk export, let the main process record it and offer to
@@ -963,12 +941,10 @@ function App() {
         onMarkSelected={handleMarkSelected}
         hasCatalog={archiveStatus !== null}
         onExtractAll={handleExtractAll}
-        onExtractPackage={handleExtractPackage}
         hasSelection={selectedIndices.size > 0}
         canBundleTap={canBundleTap}
         canRun={runTarget !== null}
         onRun={handleRun}
-        hasPackageSelected={selectedPackage !== null}
         hasDisk={disk !== null}
         extracting={extracting}
         autoPackagesEnabled={autoPackagesEnabled}
