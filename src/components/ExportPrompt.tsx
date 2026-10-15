@@ -16,6 +16,29 @@ export interface ExportChoice {
   shape: ExportShape;
   /** Present only for 'tosec-zip'. */
   metadata?: TosecMetadata;
+  /**
+   * For a package: entry index to the name its block will carry on the tape,
+   * for each member whose name the reader changed. A member left as it was
+   * is absent, so this also says which earlier renames were undone.
+   */
+  tapeNames?: Record<number, string>;
+}
+
+/** One file of a package, as the dialog offers it for renaming. */
+export interface PackageMember {
+  index: number;
+  /** Its name on the disk, which is what the tape carries unless changed. */
+  filename: string;
+  typeName: string;
+}
+
+/**
+ * What a tape header can hold: ten characters, and only those the machine
+ * prints as themselves. Anything past that would be dropped on the way out,
+ * so it is dropped here, where the reader can see it happen.
+ */
+export function tapeNameInput(value: string): string {
+  return value.replace(/[^\x20-\x7e]/g, '').slice(0, 10);
 }
 
 interface Props {
@@ -32,6 +55,10 @@ interface Props {
   payloadExt?: string;
   /** The archive's word for what this is: Program, Screen, Code, Data. */
   typeSuffix?: string;
+  /** A package's files, loader first, to be named as they go onto the tape. */
+  members?: PackageMember[];
+  /** Names already given to those files, by entry index. */
+  tapeNames?: Record<number, string>;
   onConfirm: (choice: ExportChoice) => void;
   onCancel: () => void;
 }
@@ -102,10 +129,20 @@ const labelText: React.CSSProperties = { fontSize: 11, color: 'var(--text-second
 
 export function ExportPrompt({
   title, defaultValue, summary, payloadExt = '.tap', typeSuffix = 'Program',
-  onConfirm, onCancel,
+  members, tapeNames: initialTapeNames, onConfirm, onCancel,
 }: Props) {
   const remembered = useRef(loadRemembered()).current;
   const [name, setName] = useState(defaultValue ?? '');
+  // Once the reader types a name of their own, renaming the loader on the
+  // tape stops carrying the file name along with it.
+  const [nameTouched, setNameTouched] = useState(false);
+  const [tapeNames, setTapeNames] = useState<Record<number, string>>(() => {
+    const names: Record<number, string> = {};
+    for (const m of members ?? []) {
+      names[m.index] = initialTapeNames?.[m.index] ?? m.filename.trim();
+    }
+    return names;
+  });
   const [shape, setShape] = useState<ExportShape>(remembered.shape);
   const [year, setYear] = useState(remembered.year);
   const [publisher, setPublisher] = useState(remembered.publisher);
@@ -128,8 +165,27 @@ export function ExportPrompt({
         shape, year, publisher, system, country,
       } satisfies Remembered));
     } catch { /* a preference that will not save must not stop an export */ }
-    onConfirm({ name, shape, ...(shape === 'tosec-zip' ? { metadata } : {}) });
-  }, [name, shape, year, publisher, system, country, onConfirm]);
+    const renamed: Record<number, string> = {};
+    for (const m of members ?? []) {
+      const given = tapeNames[m.index]?.trim() ?? '';
+      if (given && given !== m.filename.trim()) renamed[m.index] = given;
+    }
+    onConfirm({
+      name, shape,
+      ...(shape === 'tosec-zip' ? { metadata } : {}),
+      ...(members ? { tapeNames: renamed } : {}),
+    });
+  }, [name, shape, year, publisher, system, country, members, tapeNames, onConfirm]);
+
+  const handleTapeName = useCallback((member: PackageMember, value: string) => {
+    const clean = tapeNameInput(value);
+    setTapeNames((prev) => ({ ...prev, [member.index]: clean }));
+    // The loader names the package, so until the reader says otherwise the
+    // file it is saved as follows what it is called on the tape.
+    if (members?.[0]?.index === member.index && !nameTouched && defaultValue !== undefined) {
+      setName(clean.trim() || member.filename.trim());
+    }
+  }, [members, nameTouched, defaultValue]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onCancel();
@@ -180,13 +236,47 @@ export function ExportPrompt({
             <input
               ref={nameRef}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value); setNameTouched(true); }}
               style={{ ...field, fontFamily: 'var(--mono, monospace)' }}
             />
           </label>
         ) : summary ? (
           <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{summary}</div>
         ) : null}
+
+        {members && members.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={labelText}>Names on the tape</span>
+            {members.map((m, i) => {
+              const given = tapeNames[m.index] ?? '';
+              const changed = given.trim() !== '' && given.trim() !== m.filename.trim();
+              return (
+                <div key={m.index} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    aria-label={`Tape name for ${m.filename.trim()}`}
+                    value={given}
+                    placeholder={m.filename.trim()}
+                    onChange={(e) => handleTapeName(m, e.target.value)}
+                    spellCheck={false}
+                    style={{ ...field, fontFamily: 'var(--mono, monospace)', width: '13ch' }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                    {m.typeName}{i === 0 ? ' · loader' : ''}
+                  </span>
+                  {changed && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      was {m.filename.trim()}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+              Up to ten characters. A LOAD that names a renamed file is
+              changed to the new name, so the tape still loads.
+            </span>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-primary)' }}>
           <span style={{ ...labelText, alignSelf: 'center' }}>Save as:</span>

@@ -118,11 +118,11 @@ contextBridge.exposeInMainWorld('diskTools', {
     ipcRenderer.invoke('get-file-data', imagePath, entryIndex),
   analyzePackages: (imagePath: string) =>
     ipcRenderer.invoke('analyze-packages', imagePath),
-  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) =>
-    ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir, allEdits, customBaseName),
+  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string, tapeNames?: Record<number, string>) =>
+    ipcRenderer.invoke('extract-package', imagePath, loaderIndex, depIndices, destDir, allEdits, customBaseName, tapeNames),
   runInEmulator: (
     imagePath: string,
-    target: { kind: 'file' | 'package'; entryIndex?: number; loaderIndex?: number; depIndices?: number[] },
+    target: { kind: 'file' | 'package'; entryIndex?: number; loaderIndex?: number; depIndices?: number[]; tapeNames?: Record<number, string> },
     allEdits?: Record<number, Record<number, string>>,
     customTitle?: string,
   ) => ipcRenderer.invoke('run-in-emulator', imagePath, target, allEdits, customTitle),
@@ -131,7 +131,7 @@ contextBridge.exposeInMainWorld('diskTools', {
   clearEmulator: () => ipcRenderer.invoke('clear-emulator'),
   exportTosec: (
     imagePath: string,
-    target: { kind: 'file' | 'package'; entryIndex?: number; loaderIndex?: number; depIndices?: number[] },
+    target: { kind: 'file' | 'package'; entryIndex?: number; loaderIndex?: number; depIndices?: number[]; tapeNames?: Record<number, string> },
     destDir: string,
     metadata: any,
     allEdits?: Record<number, Record<number, string>>,

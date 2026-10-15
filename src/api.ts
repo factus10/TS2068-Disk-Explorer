@@ -181,6 +181,8 @@ export interface ProgramTarget {
   entryIndex?: number;
   loaderIndex?: number;
   depIndices?: number[];
+  /** Entry index to the name its block carries on the tape, where renamed. */
+  tapeNames?: Record<number, string>;
 }
 
 /** Metadata the archive naming needs, whether for a whole disk or one program. */
@@ -443,7 +445,7 @@ interface DiskToolsAPI {
   exportArchive: (imagePath: string, destOrZipPath: string, metadata: { year: string; publisher: string; system: string; country: string; format: string }, allEdits?: Record<number, Record<number, string>>, allDisasm?: DisasmSettingsMap, entryIndices?: number[]) => Promise<ExtractionResult[]>;
   getFileData: (imagePath: string, entryIndex: number) => Promise<number[] | null>;
   analyzePackages: (imagePath: string) => Promise<TapPackage[]>;
-  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string) => Promise<ExtractionResult | null>;
+  extractPackage: (imagePath: string, loaderIndex: number, depIndices: number[], destDir: string, allEdits?: Record<number, Record<number, string>>, customBaseName?: string, tapeNames?: Record<number, string>) => Promise<ExtractionResult | null>;
   runInEmulator: (imagePath: string, target: ProgramTarget, allEdits?: Record<number, Record<number, string>>, customTitle?: string) => Promise<RunResult>;
   getEmulatorStatus: () => Promise<EmulatorStatus>;
   pickEmulator: () => Promise<EmulatorStatus>;

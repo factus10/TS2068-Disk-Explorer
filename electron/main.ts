@@ -46,7 +46,7 @@ import { parseZX81Variables } from './parsers/zx81';
 import type { RemStyle } from './parsers/zx81';
 import { disassemble, canDisassemble, disassembleForExport } from './parsers/disasm';
 import { buildTapFile, buildDumpTap, buildMultiFileTap } from './parsers/tap';
-import { buildTapPackages } from './parsers/basic-analyzer';
+import { buildTapPackages, applyTapeNames } from './parsers/basic-analyzer';
 import { planArchiveExport } from './parsers/archive-selection';
 import { buildZipArchive } from './parsers/zip-writer';
 import { detokenize } from './parsers/basic-detokenizer';
@@ -1614,6 +1614,12 @@ interface ProgramTarget {
   /** kind: 'package' */
   loaderIndex?: number;
   depIndices?: number[];
+  /**
+   * kind: 'package' — entry index to the name its block carries on the tape,
+   * for the members the reader renamed. Entries outside the package are
+   * ignored, so the whole disk's renames can be passed as they stand.
+   */
+  tapeNames?: Record<number, string>;
 }
 
 /**
@@ -1651,7 +1657,7 @@ function resolveProgram(
     }
 
     const pkg: TapPackage = { loader, dependencies: deps, unresolved: [] };
-    const tapData = buildMultiFileTap(pkg, fileDataMap, allEdits);
+    const tapData = buildMultiFileTap(pkg, fileDataMap, allEdits, target.tapeNames);
     if (!tapData) return null;
 
     return {
@@ -1908,6 +1914,7 @@ ipcMain.handle('extract-package', async (
   _event, imagePath: string, loaderIndex: number, depIndices: number[], destDir: string,
   allEdits?: Record<number, Record<number, string>>,
   customBaseName?: string,
+  tapeNames?: Record<number, string>,
 ): Promise<ExtractionResult | null> => {
   const buffer = fs.readFileSync(imagePath);
   const format = detectFormat(buffer, imagePath);
@@ -1930,7 +1937,7 @@ ipcMain.handle('extract-package', async (
   }
 
   const pkg: TapPackage = { loader, dependencies: deps, unresolved: [] };
-  const tapData = buildMultiFileTap(pkg, fileDataMap, allEdits);
+  const tapData = buildMultiFileTap(pkg, fileDataMap, allEdits, tapeNames);
   if (!tapData) return null;
 
   fs.mkdirSync(destDir, { recursive: true });
@@ -1939,11 +1946,15 @@ ipcMain.handle('extract-package', async (
   const tapPath = uniquePath(path.join(destDir, (safeName || 'package') + '.tap'));
   fs.writeFileSync(tapPath, tapData);
 
-  // The loader is the program; its source goes out beside the tape.
+  // The loader is the program; its source goes out beside the tape, as the
+  // tape has it — with any LOADs of renamed files renamed.
   const loaderData = fileDataMap.get(loader.index);
-  const listingPath = loaderData
+  const listed = loaderData
+    ? applyTapeNames(loader, loaderData, [loader, ...deps], tapeNames)
+    : null;
+  const listingPath = listed
     ? writeListingSidecar(
-        destDir, safeName || 'package', format, loader, loaderData, allEdits?.[loader.index],
+        destDir, safeName || 'package', format, listed.entry, listed.data, allEdits?.[loader.index],
       )
     : null;
 
@@ -2088,10 +2099,14 @@ ipcMain.handle('export-tosec', async (
 
   // The source sits beside the archive rather than inside it: a submission is
   // the program, and the listing is for whoever wants to read it.
+  // The listing is of the loader as it went onto the tape, LOADs renamed.
   const entryData = program.fileDataMap.get(program.entry.index);
-  const listingPath = entryData
+  const listed = entryData
+    ? applyTapeNames(program.entry, entryData, program.members, target.tapeNames)
+    : null;
+  const listingPath = listed
     ? writeListingSidecar(
-        destDir, archiveName, program.format, program.entry, entryData,
+        destDir, archiveName, program.format, listed.entry, listed.data,
         allEdits?.[program.entry.index],
       )
     : null;

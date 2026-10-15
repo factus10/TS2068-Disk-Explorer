@@ -15,7 +15,9 @@ import { TapCreator } from './components/TapCreator';
 import { Preferences } from './components/Preferences';
 import { FileBrowser } from './components/FileBrowser';
 import { ArchiveExportDialog, ArchiveMetadata, ArchiveFormat } from './components/ArchiveExportDialog';
-import { ExportPrompt, ExportChoice, loadRemembered, previewArchiveName } from './components/ExportPrompt';
+import {
+  ExportPrompt, ExportChoice, PackageMember, loadRemembered, previewArchiveName,
+} from './components/ExportPrompt';
 import { PublishDialog } from './components/PublishDialog';
 import { CatalogIngest } from './components/CatalogIngest';
 import { CatalogInsights } from './components/CatalogInsights';
@@ -60,6 +62,10 @@ function App() {
   const [manualPackages, setManualPackages] = useState<ManualPackage[]>([]);
   const [nextManualId, setNextManualId] = useState(1);
   const [editState, setEditState] = useState<EditState>({});
+  // Names the reader gave a package's files for the tape, by entry index.
+  // Kept for the disk like hand edits are, so Run and every later export of
+  // the package agree with the one the names were given in.
+  const [tapeNames, setTapeNames] = useState<Record<number, string>>({});
   // Disassembly choices per file, so an extraction writes the .dis the reader
   // was actually looking at rather than one built from the detected origin.
   const [disasmState, setDisasmState] = useState<DisasmSettingsMap>({});
@@ -108,6 +114,7 @@ function App() {
     summary?: string;
     payloadExt?: string;
     typeSuffix?: string;
+    members?: PackageMember[];
     resolve: (choice: ExportChoice | null) => void;
   } | null>(null);
 
@@ -118,10 +125,25 @@ function App() {
    */
   const askForExport = useCallback((opts: {
     title: string; defaultValue?: string; summary?: string;
-    payloadExt?: string; typeSuffix?: string;
+    payloadExt?: string; typeSuffix?: string; members?: PackageMember[];
   }): Promise<ExportChoice | null> => {
     return new Promise((resolve) => setExportPrompt({ ...opts, resolve }));
   }, []);
+
+  /**
+   * Fold the names a package's files were just given into the disk's, and
+   * return the result for the export about to use it. A member the dialog
+   * sent back unnamed had its rename undone, so it drops out.
+   */
+  const rememberTapeNames = useCallback((
+    members: FileEntry[], renamed: Record<number, string>,
+  ): Record<number, string> => {
+    const next = { ...tapeNames };
+    for (const m of members) delete next[m.index];
+    Object.assign(next, renamed);
+    setTapeNames(next);
+    return next;
+  }, [tapeNames]);
   const [showBrowser, setShowBrowser] = useState(() =>
     typeof localStorage !== 'undefined' ? localStorage.getItem('showBrowser') !== 'false' : true,
   );
@@ -186,6 +208,7 @@ function App() {
         setManualPackages([]);
         setAutoPackagesEnabled(true);
         setEditState({});
+        setTapeNames({});
         setSearchQuery('');
         setStatus(`Loaded ${result.catalog.length} files`);
         const pkgs = await api.analyzePackages(result.path);
@@ -208,6 +231,7 @@ function App() {
       setManualPackages([]);
       setAutoPackagesEnabled(true);
       setEditState({});
+      setTapeNames({});
       setSearchQuery('');
       setStatus(`Loaded ${result.catalog.length} files`);
       const pkgs = await api.analyzePackages(result.path);
@@ -381,21 +405,30 @@ function App() {
     const solePackage = soleEntry
       ? packages.find((p) => p.loader.index === soleEntry.index && p.dependencies.length > 0)
       : undefined;
+    const packageMembers = solePackage
+      ? [solePackage.loader, ...solePackage.dependencies]
+      : undefined;
+    const typeSuffix = soleEntry && !solePackage ? archiveTypeSuffix(soleEntry) : 'Program';
+
+    const choice = await askForExport({
+      title: solePackage ? 'Save package as' : isSingle ? 'Save file as' : `Save ${selectedIndices.size} files`,
+      ...(suggested !== undefined ? { defaultValue: suggested } : {}),
+      ...(isSingle ? {} : { summary: `${selectedIndices.size} selected files` }),
+      payloadExt: solePackage ? '.tap' : payloadExtension(disk.format, soleEntry),
+      typeSuffix,
+      ...(packageMembers ? { members: packageMembers.map(toPackageMember) } : {}),
+    });
+    if (!choice) return;
+
+    const names = packageMembers && choice.tapeNames
+      ? rememberTapeNames(packageMembers, choice.tapeNames)
+      : tapeNames;
     const packageTarget: ProgramTarget | undefined = solePackage && {
       kind: 'package',
       loaderIndex: solePackage.loader.index,
       depIndices: solePackage.dependencies.map((d) => d.index),
+      tapeNames: names,
     };
-    const typeSuffix = soleEntry && !packageTarget ? archiveTypeSuffix(soleEntry) : 'Program';
-
-    const choice = await askForExport({
-      title: packageTarget ? 'Save package as' : isSingle ? 'Save file as' : `Save ${selectedIndices.size} files`,
-      ...(suggested !== undefined ? { defaultValue: suggested } : {}),
-      ...(isSingle ? {} : { summary: `${selectedIndices.size} selected files` }),
-      payloadExt: packageTarget ? '.tap' : payloadExtension(disk.format, soleEntry),
-      typeSuffix,
-    });
-    if (!choice) return;
 
     const customName = suggested !== undefined && choice.name.trim() && choice.name.trim() !== suggested
       ? choice.name.trim()
@@ -421,7 +454,7 @@ function App() {
           : solePackage
             ? await api.extractPackage(
                 disk.path, solePackage.loader.index, solePackage.dependencies.map((d) => d.index),
-                destDir, editState, nameFor,
+                destDir, editState, nameFor, names,
               )
             : await api.extractFile(disk.path, idx, destDir, editState[idx], nameFor);
         if (result) results.push(result);
@@ -457,7 +490,7 @@ function App() {
         metadata: { year: choice.metadata.year, publisher: choice.metadata.publisher },
       });
     }
-  }, [disk, selectedIndices, packages, editState, askForExport, refreshArchiveStatus, wordpressUrl]);
+  }, [disk, selectedIndices, packages, editState, tapeNames, rememberTapeNames, askForExport, refreshArchiveStatus, wordpressUrl]);
 
   /**
    * Bundle the selected entries into one multi-file TAP — the loader is the
@@ -476,8 +509,10 @@ function App() {
       title: 'Save combined TAP as',
       defaultValue: suggested,
       payloadExt: '.tap',
+      members: chosen.map(toPackageMember),
     });
     if (!choice) return;
+    const names = choice.tapeNames ? rememberTapeNames(chosen, choice.tapeNames) : tapeNames;
     const customName = choice.name.trim() && choice.name.trim() !== suggested
       ? choice.name.trim()
       : undefined;
@@ -492,12 +527,13 @@ function App() {
         kind: 'package',
         loaderIndex: chosen[0].index,
         depIndices: chosen.slice(1).map((e) => e.index),
+        tapeNames: names,
       };
       const result = choice.shape === 'tosec-zip' && choice.metadata
         ? await api.exportTosec(disk.path, target, destDir, choice.metadata, editState, customName)
         : await api.extractPackage(
             disk.path, chosen[0].index, chosen.slice(1).map((e) => e.index),
-            destDir, editState, customName,
+            destDir, editState, customName, names,
           );
       const written = result?.outputPaths[0]?.split(/[/\\]/).pop();
       setStatus(result
@@ -509,7 +545,7 @@ function App() {
       setStatus(`Error: ${err.message}`);
     }
     setExtracting(false);
-  }, [disk, selectedIndices, editState, askForExport, refreshArchiveStatus]);
+  }, [disk, selectedIndices, editState, tapeNames, rememberTapeNames, askForExport, refreshArchiveStatus]);
 
   /**
    * Mark the selected programs by hand. The catalogue matches on bytes, so two
@@ -828,6 +864,7 @@ function App() {
         kind: 'package',
         loaderIndex: selectedPackage.loader.index,
         depIndices: selectedPackage.dependencies.map((d) => d.index),
+        tapeNames,
       };
     }
 
@@ -846,8 +883,9 @@ function App() {
       kind: 'package',
       loaderIndex: chosen[0].index,
       depIndices: chosen.slice(1).map((e) => e.index),
+      tapeNames,
     };
-  }, [disk, selectedIndices, selectedPackage]);
+  }, [disk, selectedIndices, selectedPackage, tapeNames]);
 
   const handleRun = useCallback(async () => {
     if (!disk || !runTarget) return;
@@ -1007,6 +1045,7 @@ function App() {
               entry={selectedEntry}
               onViewHex={() => handleViewContent(selectedEntry)}
               tapPackage={selectedPackage}
+              tapeNames={tapeNames}
               wordpressUrl={wordpressUrl}
               onSearchArchive={(q) => setArchiveSearch({ query: q, mode: 'name' })}
             />
@@ -1164,6 +1203,8 @@ function App() {
           summary={exportPrompt.summary}
           payloadExt={exportPrompt.payloadExt}
           typeSuffix={exportPrompt.typeSuffix}
+          members={exportPrompt.members}
+          tapeNames={tapeNames}
           onConfirm={(choice) => {
             exportPrompt.resolve(choice);
             setExportPrompt(null);
@@ -1188,3 +1229,7 @@ function flattenEntries(entries: FileEntry[]): FileEntry[] {
 }
 
 export default App;
+
+function toPackageMember(entry: FileEntry): PackageMember {
+  return { index: entry.index, filename: entry.filename, typeName: entry.typeName };
+}
