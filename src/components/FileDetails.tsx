@@ -10,9 +10,14 @@ interface Props {
   wordpressUrl?: string | null;
   /** Take the question to the archive search window. */
   onSearchArchive?: (query: string) => void;
+  /** Names given to a package's files for the tape, by entry index. */
+  tapeNames?: Record<number, string>;
 }
 
-export function FileDetails({ entry, onViewHex, tapPackage, wordpressUrl, onSearchArchive }: Props) {
+export function FileDetails({
+  entry, onViewHex, tapPackage, wordpressUrl, onSearchArchive, tapeNames,
+}: Props) {
+  const loaderTapeName = tapPackage ? tapeNames?.[tapPackage.loader.index] : undefined;
   return (
     <div style={{
       padding: '10px 14px',
@@ -55,16 +60,26 @@ export function FileDetails({ entry, onViewHex, tapPackage, wordpressUrl, onSear
       )}
       {tapPackage && (
         <div style={{ marginTop: 6, color: 'var(--accent)' }}>
-          <span style={{ fontWeight: 600 }}>Loads: </span>
-          {tapPackage.dependencies.map((dep, i) => (
-            <span key={dep.index}>
-              {i > 0 && ', '}
-              <span style={{ fontWeight: 700 }}>{dep.filename.trim()}</span>
-              <span style={{ color: 'var(--text-secondary)', marginLeft: 3 }}>
-                ({dep.typeName})
-              </span>
+          {loaderTapeName && (
+            <span style={{ marginRight: 8 }}>
+              <span style={{ fontWeight: 600 }}>On tape as </span>
+              <span style={{ fontWeight: 700 }}>{loaderTapeName}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>;</span>
             </span>
-          ))}
+          )}
+          <span style={{ fontWeight: 600 }}>Loads: </span>
+          {tapPackage.dependencies.map((dep, i) => {
+            const renamed = tapeNames?.[dep.index];
+            return (
+              <span key={dep.index}>
+                {i > 0 && ', '}
+                <span style={{ fontWeight: 700 }}>{renamed ?? dep.filename.trim()}</span>
+                <span style={{ color: 'var(--text-secondary)', marginLeft: 3 }}>
+                  ({renamed ? `${dep.typeName}, was ${dep.filename.trim()}` : dep.typeName})
+                </span>
+              </span>
+            );
+          })}
           {tapPackage.unresolved.length > 0 && (
             <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>
               + {tapPackage.unresolved.length} unresolved

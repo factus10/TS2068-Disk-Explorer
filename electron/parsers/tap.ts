@@ -1,5 +1,6 @@
 import { calculateCrc, writeUint16LE } from './utils';
 import { rebuildBasicProgram } from './basic-editor';
+import { applyTapeNames } from './basic-analyzer';
 import type { FileEntry, TapPackage } from './types';
 
 /**
@@ -188,12 +189,15 @@ export function buildMultiFileTap(
   pkg: TapPackage,
   fileDataMap: Map<number, Buffer>,
   allEdits?: Record<number, Record<number, string>>,
+  tapeNames?: Record<number, string>,
 ): Buffer | null {
   const parts: Buffer[] = [];
+  const members = [pkg.loader, ...pkg.dependencies];
 
-  function buildEntry(entry: FileEntry): Buffer | null {
-    const data = fileDataMap.get(entry.index);
-    if (!data) return null;
+  function buildEntry(original: FileEntry): Buffer | null {
+    const originalData = fileDataMap.get(original.index);
+    if (!originalData) return null;
+    const { entry, data } = applyTapeNames(original, originalData, members, tapeNames);
     const edits = allEdits?.[entry.index];
     if (edits && entry.type === 'basic' && Object.keys(edits).length > 0) {
       return rebuildBasicProgram(data, edits, entry);
